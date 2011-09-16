@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.7 beta - Shaare your links...
+// Shaarli 0.0.8 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -27,7 +27,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.7 beta');
+define('shaarli_version','0.0.8 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
@@ -498,7 +498,7 @@ function showRSS()
     {
         $link = $LINKSDB[$keys[$i]];
         $rfc822date = linkdate2rfc822($link['linkdate']);
-        echo '<item><title>'.htmlspecialchars($link['title']).'</title><guid>'.$pageaddr.'?'.htmlspecialchars($link['linkdate']).'</guid><link>'.htmlspecialchars($link['url']).'</link><pubDate>'.htmlspecialchars($rfc822date).'</pubDate>';
+        echo '<item><title>'.htmlspecialchars($link['title']).'</title><guid>'.htmlspecialchars($link['url']).'</guid><link>'.htmlspecialchars($link['url']).'</link><pubDate>'.htmlspecialchars($rfc822date).'</pubDate>';
         echo '<description><![CDATA['.htmlspecialchars($link['description']).']]></description></item>'."\n";      
         $i++;
     }
