@@ -1,10 +1,10 @@
 <?php
-// Shaarli 0.0.8 beta - Shaare your links...
+// Shaarli 0.0.9 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
 
-// Requires: php 5.2.x
+// Requires: php 5.1.x
 
 // -----------------------------------------------------------------------------------------------
 // User config:
@@ -15,11 +15,12 @@ define('LINKS_PER_PAGE',20); // Default links per page.
 define('IPBANS_FILENAME',DATADIR.'/ipbans.php'); // File storage for failures and bans.
 define('BAN_AFTER',4);       // Ban IP after this many failures.
 define('BAN_DURATION',1800); // Ban duration for IP address after login failures (in seconds) (1800 sec. = 30 minutes)
+checkphpversion();
 
 // -----------------------------------------------------------------------------------------------
 // Program config (touch at your own risks !)
-//error_reporting(E_ALL^E_WARNING);  // See all error except warnings.
-error_reporting(-1); // See all errors (for debugging only)
+error_reporting(E_ALL^E_WARNING);  // See all error except warnings.
+//error_reporting(-1); // See all errors (for debugging only)
 $STARTTIME = microtime(true);  // Measure page execution time.
 ob_start();
 // Prevent caching: (yes, it's ugly)
@@ -27,7 +28,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.8 beta');
+define('shaarli_version','0.0.9 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
@@ -41,6 +42,19 @@ define('PHPSUFFIX',' */ ?>'); // Suffix to encapsulate data in php code.
 autoLocale(); // Sniff browser language and set date format accordingly.
 header('Content-Type: text/html; charset=utf-8'); // We use UTF-8 for proper international characters handling.
 $LINKSDB=false;
+
+// Check php version
+function checkphpversion()
+{
+    $ver=phpversion();
+    if (preg_match('!(\d+)\.(\d+)\.(\d+)!',$ver,$matches)) // (because phpversion() sometimes returns strings like "5.2.4-2ubuntu5.2")
+    {
+        list($match,$major,$minor,$release) = $matches;
+        if ($major>=5 && $minor>=1) return; // 5.1.x or higher is ok.
+        die('Your server supports php '.$ver.'. Shaarli requires at last php 5.1, and thus cannot run. Sorry.');
+    }
+    // if cannot check php version... well, at your own risks.
+}
 
 // -----------------------------------------------------------------------------------------------
 // Log to text file
@@ -285,7 +299,7 @@ function http_parse_headers( $headers )
 /* GET an URL.
    Input: $url : url to get (http://...)
           $timeout : Network timeout (will wait this many seconds for an anwser before giving up).
-   Output: An array.  [0] = HTTP status message (eg. "HTTP/1.1 200 OK")
+   Output: An array.  [0] = HTTP status message (eg. "HTTP/1.1 200 OK") or error message
                       [1] = associative array containing HTTP response headers (eg. echo getHTTP($url)[1]['Content-Type'])
                       [2] = data
     Example: list($httpstatus,$headers,$data) = getHTTP('http://sebauvage.net/');
@@ -296,14 +310,20 @@ function http_parse_headers( $headers )
 */
 function getHTTP($url,$timeout=30)
 {
-    //FIXME: trap error correctly (unresolved host, unsupported protocol, etc.)
-    $options = array('http'=>array('method'=>'GET','timeout' => $timeout)); // Force network timeout
-    $context = stream_context_create($options);
-    $data=file_get_contents($url,false,$context,-1, 2000000); // We download at most 2 Mb from source.
-    if (!$data) { $lasterror=error_get_last();  return array($lasterror['message'],array(),''); }
-    $httpStatus=$http_response_header[0]; // eg. "HTTP/1.1 200 OK"
-    $responseHeaders=http_parse_headers($http_response_header);
-    return array($httpStatus,$responseHeaders,$data);
+    try
+    {
+        $options = array('http'=>array('method'=>'GET','timeout' => $timeout)); // Force network timeout
+        $context = stream_context_create($options);
+        $data=file_get_contents($url,false,$context,-1, 2000000); // We download at most 2 Mb from source.
+        if (!$data) { $lasterror=error_get_last();  return array($lasterror['message'],array(),''); }
+        $httpStatus=$http_response_header[0]; // eg. "HTTP/1.1 200 OK"
+        $responseHeaders=http_parse_headers($http_response_header);
+        return array($httpStatus,$responseHeaders,$data);
+    }
+    catch (Exception $e)  // getHTTP *can* fail silentely (we don't care if the title cannot be fetched)
+    {
+        return array($e->getMessage(),'','');
+    }
 }
 
 // Extract title from an HTML document.
@@ -546,8 +566,9 @@ function renderPage()
     if (isset($_GET['addtag']))
     {
         // Get previous URL (http_referer) and add the tag to the searchtags parameters in query.
+        if (empty($_SERVER['HTTP_REFERER'])) { header('Location: ?searchtags='.urlencode($_GET['addtag'])); exit; } // In case browser does not send HTTP_REFERER
         parse_str(parse_url($_SERVER['HTTP_REFERER'],PHP_URL_QUERY), $params);
-        $params['searchtags'] = (empty($params['searchtags']) ?  trim($_GET['addtag']) : trim($params['searchtags'].' '.$_GET['addtag']));
+        $params['searchtags'] = (empty($params['searchtags']) ?  trim($_GET['addtag']) : trim($params['searchtags'].' '.urlencode($_GET['addtag'])));
         unset($params['page']); // We also remove page (keeping the same page has no sense, since the results are different)
         header('Location: ?'.http_build_query($params));
         exit;
@@ -557,6 +578,7 @@ function renderPage()
     if (isset($_GET['removetag']))
     {
         // Get previous URL (http_referer) and remove the tag from the searchtags parameters in query.
+        if (empty($_SERVER['HTTP_REFERER'])) { header('Location: ?'); exit; } // In case browser does not send HTTP_REFERER
         parse_str(parse_url($_SERVER['HTTP_REFERER'],PHP_URL_QUERY), $params);
         if (isset($params['searchtags']))
         {
@@ -573,7 +595,7 @@ function renderPage()
     if (isset($_GET['linksperpage']))
     {
         if (is_numeric($_GET['linksperpage'])) { $_SESSION['LINKS_PER_PAGE']=abs(intval($_GET['linksperpage'])); }
-        header('Location: '.$_SERVER['HTTP_REFERER']);
+        header('Location: '.(empty($_SERVER['HTTP_REFERER'])?'?':$_SERVER['HTTP_REFERER']));
         exit;
     }
     
@@ -644,7 +666,8 @@ HTML;
         
         // If we are called from the bookmarklet, we must close the popup:
         if (isset($_GET['source']) && $_GET['source']=='bookmarklet') { echo '<script language="JavaScript">self.close();</script>'; exit; }
-        header('Location: '.$_POST['returnurl']); // After saving the link, redirect to the page the user was on.
+        $returnurl = ( isset($_POST['returnurl']) ? $_POST['returnurl'] : '?' );
+        header('Location: '.$returnurl); // After saving the link, redirect to the page the user was on.
         exit;
     } 
     
@@ -942,7 +965,7 @@ function templateLinkList()
         $tags='';
         if ($link['tags']!='') foreach(explode(' ',$link['tags']) as $tag) { $tags.='<span class="linktag" title="Add tag"><a href="?addtag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).'</a></span> '; }
         $linklist.='<li '.$classprivate.'><span class="linktitle"><a href="'.htmlspecialchars($link['url']).'">'.htmlspecialchars($title).'</a></span>'.$actions.'<br>';
-        if ($description!='') $linklist.='<div class="linkdescription">'.str_replace("\n",'<br>',htmlspecialchars($description)).'</div><br>';
+        if ($description!='') $linklist.='<div class="linkdescription">'.nl2br(htmlspecialchars($description)).'</div><br>';
         $linklist.='<span class="linkdate">'.htmlspecialchars(linkdate2locale($link['linkdate'])).' - </span><span class="linkurl">'.htmlspecialchars($link['url']).'</span><br>'.$tags."</li>\n";  
         $i++;
     } 
@@ -1065,22 +1088,25 @@ HTML;
 // This function should NEVER be called if the file data/config.php exists.
 function install()
 {
-    // FIXME: check version of php ?
-    if (isset($_POST['setlogin']) && isset($_POST['setpassword']) && isset($_POST['settimezone']))
+    if (!empty($_POST['setlogin']) && !empty($_POST['setpassword']))
     {
-        if ($_POST['setlogin']!='' && $_POST['setpassword']!='' && in_array($_POST['settimezone'],timezone_identifiers_list()))
-        {   // Everything is ok, let's create config file.
-            $salt=sha1(uniqid('',true).'_'.mt_rand()); // Salt renders rainbow-tables attacks useless.
-            $hash = sha1($_POST['setpassword'].$_POST['setlogin'].$salt);
-            $config='<?php $GLOBALS[\'login\']='.var_export($_POST['setlogin'],true).'; $GLOBALS[\'hash\']='.var_export($hash,true).'; $GLOBALS[\'salt\']='.var_export($salt,true).'; date_default_timezone_set('.var_export($_POST['settimezone'],true).'); ?>';
-            file_put_contents(CONFIG_FILE,$config);     
-            echo '<script language="JavaScript">alert("Shaarli is now configured. Please enter your login/password and start shaaring your links !");document.location=\'?do=login\';</script>';        
-            exit;            
-        }
-    }
+        $tz=(empty($_POST['settimezone']) ? 'UTC':$_POST['settimezone']);
+        // Everything is ok, let's create config file.
+        $salt=sha1(uniqid('',true).'_'.mt_rand()); // Salt renders rainbow-tables attacks useless.
+        $hash = sha1($_POST['setpassword'].$_POST['setlogin'].$salt);
+        $config='<?php $GLOBALS[\'login\']='.var_export($_POST['setlogin'],true).'; $GLOBALS[\'hash\']='.var_export($hash,true).'; $GLOBALS[\'salt\']='.var_export($salt,true).'; date_default_timezone_set('.var_export($tz,true).'); ?>';
+        file_put_contents(CONFIG_FILE,$config);     
+        echo '<script language="JavaScript">alert("Shaarli is now configured. Please enter your login/password and start shaaring your links !");document.location=\'?do=login\';</script>';        
+        exit;            
+   }
     // Display config form:
-    $timezones='';
-    foreach(timezone_identifiers_list() as $tz) $timezones.='<option value="'.htmlspecialchars($tz).'">'.htmlspecialchars($tz)."</option>\n";
+    $timezoneselect='';
+    if (function_exists('timezone_identifiers_list')) // because of old php version (5.1) which can be found on free.fr
+    {
+        $timezones='';
+        foreach(timezone_identifiers_list() as $tz) $timezones.='<option value="'.htmlspecialchars($tz).'">'.htmlspecialchars($tz)."</option>\n";
+        $timezoneselect='Timezone: <select name="settimezone"><option value="" selected>(please select:)</option>'.$timezones.'</select><br><br>';
+    }
     echo <<<HTML
 <html><title>Shaarli - Configuration</title><style type="text/css">
 body { font-family: "Trebuchet MS",Verdana,Arial,Helvetica,sans-serif; font-size:10pt; background-color: #ffffff; } 
@@ -1089,7 +1115,7 @@ input { border: 1px solid #aaa; background-color:#F0F0FF; padding: 2 5 2 5; -moz
 </style></head><body onload="document.configform.setlogin.focus();"><h1>Shaarli - Shaare your links...</h1>It looks like it's the first time you run Shaarli. Please chose a login/password and a timezone:<br>
 <form method="POST" action="" name="configform" style="border:1px solid black; padding:10 10 10 10;">
 Login: <input type="text" name="setlogin"><br><br>Password: <input type="password" name="setpassword"><br><br>
-Timezone: <select name="settimezone"><option value="0" selected>(please select:)</option>{$timezones}</select><br><br>
+{$timezoneselect}
 <input type="submit" name="Save" value="Save config" class="bigbutton"></form></body></html>
 HTML;
     exit;
