@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.9 beta - Shaare your links...
+// Shaarli 0.0.10 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -28,7 +28,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.9 beta');
+define('shaarli_version','0.0.10 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
@@ -731,8 +731,8 @@ HTML;
             if (empty($title) && parse_url($url,PHP_URL_SCHEME)=='http')
             {
                 list($status,$headers,$data) = getHTTP($url,4); // Short timeout to keep the application responsive.
-                // FIXME: Decode charset according to charset specified in either 1) HTTP response headers or 2) <head> in html 
-                if (strpos($status,'200 OK')) $title=html_extract_title($data);
+                // FIXME: Decode charset according to specified in either 1) HTTP response headers or 2) <head> in html 
+                if (strpos($status,'200 OK')) $title=html_entity_decode(html_extract_title($data),ENT_QUOTES,'UTF-8');
             }
             $link = array('linkdate'=>$linkdate,'title'=>$title,'url'=>$url,'description'=>$description,'tags'=>$tags,'private'=>0); 
         }
