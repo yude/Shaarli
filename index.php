@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.10 beta - Shaare your links...
+// Shaarli 0.0.11 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -15,6 +15,12 @@ define('LINKS_PER_PAGE',20); // Default links per page.
 define('IPBANS_FILENAME',DATADIR.'/ipbans.php'); // File storage for failures and bans.
 define('BAN_AFTER',4);       // Ban IP after this many failures.
 define('BAN_DURATION',1800); // Ban duration for IP address after login failures (in seconds) (1800 sec. = 30 minutes)
+if (get_magic_quotes_gpc())
+{
+    header('Content-Type: text/plain; charset=utf-8');
+    echo "ERROR: magic_quotes_gpc is ON in your php config. This is *BAD*. You *MUST* disable it, either by changing the value in php.ini,\n";
+    echo "or by adding the following line in .htaccess: php_flag magic_quotes_gpc Off"; exit;
+}
 checkphpversion();
 
 // -----------------------------------------------------------------------------------------------
@@ -28,7 +34,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.10 beta');
+define('shaarli_version','0.0.11 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
