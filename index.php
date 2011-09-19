@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.12 beta - Shaare your links...
+// Shaarli 0.0.13 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -16,16 +16,17 @@ define('IPBANS_FILENAME',DATADIR.'/ipbans.php'); // File storage for failures an
 define('BAN_AFTER',4);       // Ban IP after this many failures.
 define('BAN_DURATION',1800); // Ban duration for IP address after login failures (in seconds) (1800 sec. = 30 minutes)
 define('OPEN_SHAARLI',false); // If true, anyone can add/edit/delete links without having to login
+
+
+// -----------------------------------------------------------------------------------------------
+// Program config (touch at your own risks !)
 if (get_magic_quotes_gpc())
 {
     header('Content-Type: text/plain; charset=utf-8');
     echo "ERROR: magic_quotes_gpc is ON in your php config. This is *BAD*. You *MUST* disable it, either by changing the value in php.ini,\n";
-    echo "or by adding the following line in .htaccess: php_flag magic_quotes_gpc Off"; exit;
+    echo "or by adding ONE the following line in .htaccess (depending on your host):\n\nphp_flag magic_quotes_gpc Off\nor\nSetEnv MAGIC_QUOTES 0"; exit;
 }
 checkphpversion();
-
-// -----------------------------------------------------------------------------------------------
-// Program config (touch at your own risks !)
 error_reporting(E_ALL^E_WARNING);  // See all error except warnings.
 //error_reporting(-1); // See all errors (for debugging only)
 $STARTTIME = microtime(true);  // Measure page execution time.
@@ -35,7 +36,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.12 beta');
+define('shaarli_version','0.0.13 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
@@ -58,7 +59,9 @@ function checkphpversion()
     {
         list($match,$major,$minor,$release) = $matches;
         if ($major>=5 && $minor>=1) return; // 5.1.x or higher is ok.
-        die('Your server supports php '.$ver.'. Shaarli requires at last php 5.1, and thus cannot run. Sorry.');
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Your server supports php '.$ver.'. Shaarli requires at last php 5.1, and thus cannot run. Sorry.';
+        exit;
     }
     // if cannot check php version... well, at your own risks.
 }
@@ -516,8 +519,8 @@ class linkdb implements Iterator, Countable, ArrayAccess
         $tags=array();
         foreach($this->links as $link)
             foreach(explode(' ',$link['tags']) as $tag)
-                if (!empty($tag)) $tags[$tag]=0;
-        ksort($tags); // FIXME: sort by usage ? That would be better.
+                if (!empty($tag)) $tags[$tag]=(empty($tags[$tag]) ? 1 : $tags[$tag]+1);
+        arsort($tags); // Sort tags by usage (most used tag first)
         return $tags;
     }
     
@@ -528,16 +531,23 @@ class linkdb implements Iterator, Countable, ArrayAccess
 function showRSS()
 {
     global $LINKSDB;
+    
+    // Optionnaly filter the results:
+    $linksToDisplay=array();
+    if (!empty($_GET['searchterm'])) $linksToDisplay = $LINKSDB->filterFulltext($_GET['searchterm']);
+    elseif (!empty($_GET['searchtags']))   $linksToDisplay = $LINKSDB->filterTags($_GET['searchtags']);
+    else $linksToDisplay = $LINKSDB;
+        
     header('Content-Type: application/xhtml+xml; charset=utf-8');
     $pageaddr=htmlspecialchars(serverUrl().$_SERVER["SCRIPT_NAME"]);
     echo '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">';
     echo '<channel><title>Shared links on '.$pageaddr.'</title><link>'.$pageaddr.'</link>';
     echo '<description>Shared links</description><language></language><copyright>'.$pageaddr.'</copyright>'."\n\n";
     $i=0;
-    $keys=array(); foreach($LINKSDB as $key=>$value) { $keys[]=$key; }  // No, I can't use array_keys().
+    $keys=array(); foreach($linksToDisplay as $key=>$value) { $keys[]=$key; }  // No, I can't use array_keys().
     while ($i<50 && $i<count($keys))
     {
-        $link = $LINKSDB[$keys[$i]];
+        $link = $linksToDisplay[$keys[$i]];
         $rfc822date = linkdate2rfc822($link['linkdate']);
         echo '<item><title>'.htmlspecialchars($link['title']).'</title><guid>'.htmlspecialchars($link['url']).'</guid><link>'.htmlspecialchars($link['url']).'</link><pubDate>'.htmlspecialchars($rfc822date).'</pubDate>';
         echo '<description><![CDATA['.htmlspecialchars($link['description']).']]></description></item>'."\n";      
@@ -579,6 +589,7 @@ function renderPage()
     // -------- User wants to logout.
     if (startswith($_SERVER["QUERY_STRING"],'do=logout'))
     { 
+        invalidateCaches(); 
         logout(); 
         header('Location: ?'); 
         exit; 
@@ -654,10 +665,10 @@ HTML;
         $pageabsaddr=serverUrl().$_SERVER["SCRIPT_NAME"]; // Why doesn't php have a built-in function for that ?
         // The javascript code for the bookmarklet:
         $toolbar= <<<HTML
-<div id="headerform">
-    <a href="?do=import"><b>Import</b></a> - <small>Import Netscape html bookmarks (as exported from Firefox, Chrome, Opera, delicious...)</small><br> 
-    <a href="?do=export"><b>Export</b></a> - <small>Export Netscape html bookmarks (which can be imported in Firefox, Chrome, Opera, delicious...)</small><br>
-    <a class="smallbutton" style="color:black;" onclick="alert('Drag this link to your bookmarks toolbar, or right-click it and choose Bookmark This Link...');return false;" href="javascript:javascript:(function(){var%20url%20=%20location.href;var%20title%20=%20document.title%20||%20url;window.open('{$pageabsaddr}?post='%20+%20encodeURIComponent(url)+'&amp;title='%20+%20encodeURIComponent(title)+'&amp;source=bookmarklet','_blank','menubar=no,height=400,width=608,toolbar=no,scrollbars=no,status=no');})();">Shaare link</a> - <small>Drag this link to your bookmarks toolbar (or right-click it and choose Bookmark This Link....). Then click "Shaare link" button in any page you want to share.</small>
+<div id="headerform"><br>
+    <a href="?do=import"><b>Import</b></a> - Import Netscape html bookmarks (as exported from Firefox, Chrome, Opera, delicious...)<br><br>
+    <a href="?do=export"><b>Export</b></a> - Export Netscape html bookmarks (which can be imported in Firefox, Chrome, Opera, delicious...)<br><br>
+    <a class="smallbutton" style="color:black;" onclick="alert('Drag this link to your bookmarks toolbar, or right-click it and choose Bookmark This Link...');return false;" href="javascript:javascript:(function(){var%20url%20=%20location.href;var%20title%20=%20document.title%20||%20url;window.open('{$pageabsaddr}?post='%20+%20encodeURIComponent(url)+'&amp;title='%20+%20encodeURIComponent(title)+'&amp;source=bookmarklet','_blank','menubar=no,height=400,width=608,toolbar=no,scrollbars=no,status=no');})();">Shaare link</a> - Drag this link to your bookmarks toolbar (or right-click it and choose Bookmark This Link....). Then click "Shaare link" button in any page you want to share.<br><br>
 </div>
 HTML;
         $data = array('pageheader'=>$toolbar,'body'=>'','onload'=>''); 
@@ -685,6 +696,7 @@ HTML;
         if ($link['title']=='') $link['title']=$link['url']; // If title is empty, use the URL as title.
         $LINKSDB[$linkdate] = $link;
         $LINKSDB->savedb(); // save to disk
+        invalidateCaches();
         
         // If we are called from the bookmarklet, we must close the popup:
         if (isset($_GET['source']) && $_GET['source']=='bookmarklet') { echo '<script language="JavaScript">self.close();</script>'; exit; }
@@ -713,6 +725,7 @@ HTML;
         $linkdate=$_POST['lf_linkdate'];
         unset($LINKSDB[$linkdate]);
         $LINKSDB->savedb(); // save to disk
+        invalidateCaches();
         // If we are called from the bookmarklet, we must close the popup:
         if (isset($_GET['source']) && $_GET['source']=='bookmarklet') { echo '<script language="JavaScript">self.close();</script>'; exit; }
         $returnurl = ( isset($_POST['returnurl']) ? $_POST['returnurl'] : '?' );
@@ -766,9 +779,25 @@ HTML;
     
     // -------- Export as Netscape Bookmarks HTML file.
     if (startswith($_SERVER["QUERY_STRING"],'do=export'))
-    {    
+    {
+        if (empty($_GET['what']))
+        {
+            $toolbar= <<<HTML
+<div id="headerform"><br>
+    <a href="?do=export&what=all"><b>Export all</b></a> - Export all links<br><br>
+    <a href="?do=export&what=public"><b>Export public</b></a> - Export public links only<br><br>
+    <a href="?do=export&what=private"><b>Export private</b></a> - Export private links only<br><br>
+</div>
+HTML;
+            $data = array('pageheader'=>$toolbar,'body'=>'','onload'=>''); 
+            templatePage($data);
+            exit;
+        }
+        $exportWhat=$_GET['what'];
+        if (!array_intersect(array('all','public','private'),array($exportWhat))) die('What are you trying to export ???');
+       
         header('Content-Type: text/html; charset=utf-8');
-        header('Content-disposition: attachment; filename=bookmarks_'.strval(date('Ymd_His')).'.html');
+        header('Content-disposition: attachment; filename=bookmarks_'.$exportWhat.'_'.strval(date('Ymd_His')).'.html');
         echo <<<HTML
 <!DOCTYPE NETSCAPE-Bookmark-file-1>
 <!-- This is an automatically generated file.
@@ -780,12 +809,17 @@ HTML;
 HTML;
         foreach($LINKSDB as $link)
         {
-            echo '<DT><A HREF="'.htmlspecialchars($link['url']).'" ADD_DATE="'.linkdate2timestamp($link['linkdate']).'" PRIVATE="'.$link['private'].'"';
-            if ($link['tags']!='') echo ' TAGS="'.htmlspecialchars(str_replace(' ',',',$link['tags'])).'"';
-            echo '>'.htmlspecialchars($link['title'])."</A>\n";
-            if ($link['description']!='') echo '<DD>'.htmlspecialchars($link['description'])."\n";
+            if ($exportWhat=='all' ||
+               ($exportWhat=='private' && $link['private']!=0) ||
+               ($exportWhat=='public' && $link['private']==0))
+            {
+                echo '<DT><A HREF="'.htmlspecialchars($link['url']).'" ADD_DATE="'.linkdate2timestamp($link['linkdate']).'" PRIVATE="'.$link['private'].'"';
+                if ($link['tags']!='') echo ' TAGS="'.htmlspecialchars(str_replace(' ',',',$link['tags'])).'"';
+                echo '>'.htmlspecialchars($link['title'])."</A>\n";
+                if ($link['description']!='') echo '<DD>'.htmlspecialchars($link['description'])."\n";
+            }
         }
-        echo '<!-- Shaarli bookmarks export on '.date('Y/m/d H:i:s')."-->\n";
+        echo '<!-- Shaarli '.$exportWhat.' bookmarks export on '.date('Y/m/d H:i:s')."-->\n";
         exit;
     }            
 
@@ -817,7 +851,8 @@ Import Netscape html bookmarks (as exported from Firefox/Chrome/Opera/delicious/
     <input type="hidden" name="token" value="{$token}">        
     <input type="file" name="filetoupload" size="80">
     <input type="hidden" name="MAX_FILE_SIZE" value="{$maxfilesize}">
-    <input type="submit" name="import_file" value="Import" class="bigbutton">   
+    <input type="submit" name="import_file" value="Import" class="bigbutton"><br>
+    <input type="checkbox" name="private">&nbsp;Import all links as private    
 </form>
 </div>
 HTML;
@@ -847,6 +882,7 @@ function importFile()
     $filename=$_FILES['filetoupload']['name'];
     $filesize=$_FILES['filetoupload']['size'];    
     $data=file_get_contents($_FILES['filetoupload']['tmp_name']);
+    $private = (empty($_POST['private']) ? 0 : 1); // Should the links be imported as private ?
 
     // Sniff file type:
     $type='unknown';
@@ -876,11 +912,16 @@ function importFile()
                     elseif ($attr=='PRIVATE') $link['private']=($value=='0'?0:1);
                     elseif ($attr=='TAGS') $link['tags']=str_replace(',',' ',$value);
                 }     
-                if ($link['linkdate']!='' && $link['url']!='')  $LINKSDB[$link['linkdate']] = $link;
+                if ($link['linkdate']!='' && $link['url']!='' && empty($LINKSDB[$link['linkdate']]))
+                {
+                    if ($private==1) $link['private']=1;
+                    $LINKSDB[$link['linkdate']] = $link;
+                }
             }     
         }
         $import_count = count($LINKSDB)-$before;
         $LINKSDB->savedb();
+        invalidateCaches();
         echo '<script language="JavaScript">alert("File '.$filename.' ('.$filesize.' bytes) was successfully imported: '.$import_count.' new links.");document.location=\'?\';</script>';            
     }
     else
@@ -1198,6 +1239,13 @@ function processWS()
         echo json_encode(array_keys($suggested));
         exit;
     }
+}
+
+// Invalidate caches when the database is changed or the user logs out.
+// (eg. tags cache).
+function invalidateCaches()
+{
+    unset($_SESSION['tags']);
 }
 
 $LINKSDB=new linkdb(isLoggedIn() || OPEN_SHAARLI);  // Read links from database (and filter private links if used it not logged in).
