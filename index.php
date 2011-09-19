@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.11 beta - Shaare your links...
+// Shaarli 0.0.12 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -15,6 +15,7 @@ define('LINKS_PER_PAGE',20); // Default links per page.
 define('IPBANS_FILENAME',DATADIR.'/ipbans.php'); // File storage for failures and bans.
 define('BAN_AFTER',4);       // Ban IP after this many failures.
 define('BAN_DURATION',1800); // Ban duration for IP address after login failures (in seconds) (1800 sec. = 30 minutes)
+define('OPEN_SHAARLI',false); // If true, anyone can add/edit/delete links without having to login
 if (get_magic_quotes_gpc())
 {
     header('Content-Type: text/plain; charset=utf-8');
@@ -34,7 +35,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.11 beta');
+define('shaarli_version','0.0.12 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
@@ -124,6 +125,8 @@ function check_auth($login,$password)
 // Returns true if the user is logged in.
 function isLoggedIn()
 { 
+    if (OPEN_SHAARLI) return true; 
+    
     // If session does not exist on server side, or IP address has changed, or session has expired, logout.
     if (empty($_SESSION['uid']) || $_SESSION['ip']!=allIPs() || time()>=$_SESSION['expires_on'])
     {
@@ -504,8 +507,20 @@ class linkdb implements Iterator, Countable, ArrayAccess
         }
         krsort($filtered);
         return $filtered;
+    }   
 
-    }      
+    // Returns the list of all tags
+    // Output: associative array key=tags, value=0
+    public function allTags()
+    {
+        $tags=array();
+        foreach($this->links as $link)
+            foreach(explode(' ',$link['tags']) as $tag)
+                if (!empty($tag)) $tags[$tag]=0;
+        ksort($tags); // FIXME: sort by usage ? That would be better.
+        return $tags;
+    }
+    
 }
 
 // ------------------------------------------------------------------------------------------
@@ -545,6 +560,7 @@ function renderPage()
     // -------- Display login form.
     if (startswith($_SERVER["QUERY_STRING"],'do=login'))
     {
+        if (OPEN_SHAARLI) { header('Location: ?'); exit; }  // No need to login for open Shaarli
         if (!ban_canLogin())
         { 
             $loginform='<div id="headerform">You have been banned from login after too many failed attempts. Try later.</div>';
@@ -907,7 +923,7 @@ function templateEditForm($link,$link_is_new=false)
         <i>URL</i><br><input type="text" name="lf_url" value="{$url}" style="width:100%"><br>
         <i>Title</i><br><input type="text" name="lf_title" value="{$title}" style="width:100%"><br>
         <i>Description</i><br><textarea name="lf_description" rows="4" cols="25" style="width:100%">{$description}</textarea><br>
-        <i>Tags</i><br><input type="text" name="lf_tags" value="{$tags}" style="width:100%"><br>
+        <i>Tags</i><br><input type="text" id="lf_tags" name="lf_tags" value="{$tags}" style="width:100%"><br>
         <input type="checkbox" {$private} style="margin:7 0 10 0;" name="lf_private">&nbsp;<i>Private</i><br>
         <input type="submit" value="Save" name="save_edit" class="bigbutton" style="margin-left:40px;">
         <input type="submit" value="Cancel" name="cancel_edit" class="bigbutton" style="margin-left:40px;">
@@ -1005,18 +1021,40 @@ function templatePage($data)
     global $STARTTIME;
     global $LINKSDB;
     $shaarli_version = shaarli_version;
-    $linkcount = count($LINKSDB); 
-    $menu=(isLoggedIn() ? ' <a href="?do=logout">Logout</a> &nbsp;<a href="?do=tools">Tools</a> &nbsp;<a href="?do=addlink"><b>Add link</b></a>' : ' <a href="?do=login">Login</a>');  
+    $linkcount = count($LINKSDB);
+    $open='';
+    if (OPEN_SHAARLI)
+    {
+        $menu=' <a href="?do=tools">Tools</a> &nbsp;<a href="?do=addlink"><b>Add link</b></a>';
+        $open='Open ';
+    }
+    else
+        $menu=(isLoggedIn() ? ' <a href="?do=logout">Logout</a> &nbsp;<a href="?do=tools">Tools</a> &nbsp;<a href="?do=addlink"><b>Add link</b></a>' : ' <a href="?do=login">Login</a>');  
     foreach(array('pageheader','body','onload') as $k) // make sure all required fields exist (put an empty string if not).
     {
         if (!array_key_exists($k,$data)) $data[$k]='';
+    }
+    $jsincludes=''; $jsincludes_bottom = '';
+    if (OPEN_SHAARLI || isLoggedIn())
+    { 
+        $jsincludes='<script language="JavaScript" src="jquery.min.js"></script><script language="JavaScript" src="jquery-ui.custom.min.js"></script>'; 
+        $source = serverUrl().$_SERVER['SCRIPT_NAME'].'?ws=tags';  
+        $jsincludes_bottom = <<<JS
+<script language="JavaScript">             
+$(document).ready(function() 
+{
+    $('#lf_tags').autocomplete({source:'{$source}',minLength:0});
+});        
+</script>    
+JS;
     }
     $feedurl=htmlspecialchars(serverUrl().$_SERVER['SCRIPT_NAME'].'?do=rss');
     echo <<<HTML
 <html>
 <head>
-<title>Shaarli - Let's shaare your links...</title>
+<title>{$open}Shaarli - Let's shaare your links...</title>
 <link rel="alternate" type="application/rss+xml" href="{$feedurl}">
+{$jsincludes}
 <style type="text/css">
 <!--
 /* CSS Reset from Yahoo to cope with browsers CSS inconsistencies. */
@@ -1072,12 +1110,17 @@ border-bottom:1px solid #aaa; border-right:1px solid #aaa;  }
 .linktag a { color:#777; text-decoration:none;  }
 .buttoneditform { display:inline; }
 #footer { font-size:8pt; text-align:center; border-top:1px solid #ddd; color: #888; }
+
+/* Minimal customisation for jQuery widgets */
+.ui-autocomplete { background-color:#fff; padding-left:5px;}
+.ui-state-hover { background-color: #604dff; color:#fff; }
+
 -->
 </style>
 </head>
 <body {$data['onload']}>
 <div id="pageheader"><div style="float:right; font-style:italic; color:#bbb; text-align:right; padding:0 5 0 0;">Shaare your links...<br>{$linkcount} links</div>
-    <b><i>Shaarli {$shaarli_version}</i></b> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}" style="padding-left:30px;">RSS Feed</a>
+    <b><i>{$open}Shaarli {$shaarli_version}</i></b> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}" style="padding-left:30px;">RSS Feed</a>
 {$data['pageheader']}    
 </div>
 {$data['body']}
@@ -1086,7 +1129,7 @@ HTML;
     $exectime = round(microtime(true)-$STARTTIME,4);
     echo '<div id="footer"><b><a href="http://sebsauvage.net/wiki/doku.php?id=php:shaarli">Shaarli '.shaarli_version.'</a></b> - The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net<br>Who gives a shit that this page was generated in '.$exectime.' seconds&nbsp;?</div>';
     if (isLoggedIn()) echo '<script language="JavaScript">function confirmDeleteLink() { var agree=confirm("Are you sure you want to delete this link ?"); if (agree) return true ; else return false ; }</script>';
-    echo '</body></html>';
+    echo $jsincludes_bottom.'</body></html>';
 }
 
 // -----------------------------------------------------------------------------------------------
@@ -1101,7 +1144,11 @@ function install()
         $salt=sha1(uniqid('',true).'_'.mt_rand()); // Salt renders rainbow-tables attacks useless.
         $hash = sha1($_POST['setpassword'].$_POST['setlogin'].$salt);
         $config='<?php $GLOBALS[\'login\']='.var_export($_POST['setlogin'],true).'; $GLOBALS[\'hash\']='.var_export($hash,true).'; $GLOBALS[\'salt\']='.var_export($salt,true).'; date_default_timezone_set('.var_export($tz,true).'); ?>';
-        file_put_contents(CONFIG_FILE,$config);     
+        if (!file_put_contents(CONFIG_FILE,$config) || strcmp(file_get_contents(CONFIG_FILE),$config)!=0)
+        {
+            echo '<script language="JavaScript">alert("Shaarli could not create the config file. Please make sure Shaarli has the right to write in the folder is it installed in.");document.location=\'?\';</script>';
+            exit;
+        }
         echo '<script language="JavaScript">alert("Shaarli is now configured. Please enter your login/password and start shaaring your links !");document.location=\'?do=login\';</script>';        
         exit;            
    }
@@ -1127,7 +1174,34 @@ HTML;
     exit;
 }
 
-$LINKSDB=new linkdb(isLoggedIn());  // Read links from database (and filter private links if used it not logged in).
+// Webservices (for use with jQuery/jQueryUI)
+// eg.  index.php?ws=tags&term=minecr
+function processWS()
+{
+    if (empty($_GET['ws']) || empty($_GET['term'])) return;
+    $term = $_GET['term'];
+    global $LINKSDB;
+    header('Content-Type: application/json; charset=utf-8');
+
+    // Search in tags
+    if ($_GET['ws']=='tags')
+    { 
+        $tags=explode(' ',$term); $last = array_pop($tags); // Get the last term ("a b c d" ==> "a b c", "d")
+        $addtags=''; if ($tags) $addtags=implode(' ',$tags).' '; // We will pre-pend previous tags
+        $suggested=array();
+        /* To speed up things, we store list of tags in session */
+        if (empty($_SESSION['tags'])) $_SESSION['tags'] = $LINKSDB->allTags(); 
+        foreach($_SESSION['tags'] as $key=>$value)
+        {
+            if (startsWith($key,$last,$case=false)) $suggested[$addtags.$key.' ']=0;
+        }      
+        echo json_encode(array_keys($suggested));
+        exit;
+    }
+}
+
+$LINKSDB=new linkdb(isLoggedIn() || OPEN_SHAARLI);  // Read links from database (and filter private links if used it not logged in).
+if (startswith($_SERVER["QUERY_STRING"],'ws=')) { processWS(); exit; } // Webservices (for jQuery/jQueryUI)
 if (!isset($_SESSION['LINKS_PER_PAGE'])) $_SESSION['LINKS_PER_PAGE']=LINKS_PER_PAGE;
 if (startswith($_SERVER["QUERY_STRING"],'do=rss')) { showRSS(); exit; }
 renderPage();
