@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.13 beta - Shaare your links...
+// Shaarli 0.0.14 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -17,36 +17,37 @@ define('BAN_AFTER',4);       // Ban IP after this many failures.
 define('BAN_DURATION',1800); // Ban duration for IP address after login failures (in seconds) (1800 sec. = 30 minutes)
 define('OPEN_SHAARLI',false); // If true, anyone can add/edit/delete links without having to login
 
-
 // -----------------------------------------------------------------------------------------------
 // Program config (touch at your own risks !)
-if (get_magic_quotes_gpc())
-{
-    header('Content-Type: text/plain; charset=utf-8');
-    echo "ERROR: magic_quotes_gpc is ON in your php config. This is *BAD*. You *MUST* disable it, either by changing the value in php.ini,\n";
-    echo "or by adding ONE the following line in .htaccess (depending on your host):\n\nphp_flag magic_quotes_gpc Off\nor\nSetEnv MAGIC_QUOTES 0"; exit;
-}
-checkphpversion();
-error_reporting(E_ALL^E_WARNING);  // See all error except warnings.
-//error_reporting(-1); // See all errors (for debugging only)
-$STARTTIME = microtime(true);  // Measure page execution time.
-ob_start();
-// Prevent caching: (yes, it's ugly)
-header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
-header("Cache-Control: no-store, no-cache, must-revalidate");
-header("Cache-Control: post-check=0, pre-check=0", false);
-header("Pragma: no-cache");
-define('shaarli_version','0.0.13 beta');
-if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
-if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
-if (!is_file(CONFIG_FILE)) install();
-require CONFIG_FILE;  // Read login/password hash into $GLOBALS.
 ini_set('max_input_time','60');  // High execution time in case of problematic imports/exports.
 ini_set('memory_limit', '128M');  // Try to set max upload file size and read (May not work on some hosts).
 ini_set('post_max_size', '16M');
 ini_set('upload_max_filesize', '16M');
 define('PHPPREFIX','<?php /* '); // Prefix to encapsulate data in php code.
 define('PHPSUFFIX',' */ ?>'); // Suffix to encapsulate data in php code.
+$STARTTIME = microtime(true);  // Measure page execution time.
+checkphpversion();
+error_reporting(E_ALL^E_WARNING);  // See all error except warnings.
+//error_reporting(-1); // See all errors (for debugging only)
+ob_start();
+// In case stupid admin has left magic_quotes enabled in php.ini:
+if (get_magic_quotes_gpc()) 
+{
+    function stripslashes_deep($value) { $value = is_array($value) ? array_map('stripslashes_deep', $value) : stripslashes($value); return $value; }
+    $_POST = array_map('stripslashes_deep', $_POST);
+    $_GET = array_map('stripslashes_deep', $_GET);
+    $_COOKIE = array_map('stripslashes_deep', $_COOKIE);
+}
+// Prevent caching: (yes, it's ugly)
+header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
+header("Cache-Control: no-store, no-cache, must-revalidate");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+define('shaarli_version','0.0.14 beta');
+if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
+if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
+if (!is_file(CONFIG_FILE)) install();
+require CONFIG_FILE;  // Read login/password hash into $GLOBALS.
 autoLocale(); // Sniff browser language and set date format accordingly.
 header('Content-Type: text/html; charset=utf-8'); // We use UTF-8 for proper international characters handling.
 $LINKSDB=false;
