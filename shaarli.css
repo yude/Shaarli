@@ -1,0 +1,63 @@
+/* CSS Stylsheet for Shaarli - http://sebsauvage.net/wiki/doku.php?id=php:shaarli */
+
+/* CSS Reset from Yahoo to cope with browsers CSS inconsistencies. */
+/*
+Copyright (c) 2010, Yahoo! Inc. All rights reserved. Code licensed under the BSD License: http://developer.yahoo.com/yui/license.html
+version: 2.8.2r1
+*/
+html{color:#000;background:#FFF;}body,div,dl,dt,dd,ul,ol,li,h1,h2,h3,h4,h5,h6,pre,code,form,fieldset,legend,input,button,textarea,p,blockquote,th,td{margin:0;padding:0;}table{border-collapse:collapse;border-spacing:0;}fieldset,img{border:0;}address,caption,cite,code,dfn,em,strong,th,var,optgroup{font-style:inherit;font-weight:inherit;}del,ins{text-decoration:none;}li{list-style:none;}caption,th{text-align:left;}h1,h2,h3,h4,h5,h6{font-size:100%;font-weight:normal;}q:before,q:after{content:'';}abbr,acronym{border:0;font-variant:normal;}sup{vertical-align:baseline;}sub{vertical-align:baseline;}legend{color:#000;}input,button,textarea,select,optgroup,option{font-family:inherit;font-size:inherit;font-style:inherit;font-weight:inherit;}input,button,textarea,select{*font-size:100%;}
+
+body { font-family: "Trebuchet MS",Verdana,Arial,Helvetica,sans-serif; font-size:10pt; background-color: #ffffff; } 
+input { border: 1px solid #aaa; background-color:#F0F0FF; padding: 2 5 2 5; -moz-box-shadow: inset 2px 2px 3px #aaaaaa; -webkit-box-shadow: inset 2px 2px 3px #aaaaaa; box-shadow: inset 2px 2px 3px #aaaaaa; } 
+textarea { border: 1px solid #aaa; background-color:#F0F0FF; padding: 2 5 2 5; -moz-box-shadow: inset 2px 2px 3px #B2B2C4; -webkit-box-shadow: inset 2px 2px 3px #B2B2C4; box-shadow: inset 2px 2px 3px #B2B2C4; } 
+h1 { font-size:20pt; font-weight:bold; font-style:italic; margin-bottom:20px; }
+/* I don't give a shit about IE. He can't understand selectors such as input[type='submit']. */
+
+/* Buttons */
+.bigbutton {border-style:outset;border-width:2px;padding:3px 6px;background-color:rgb(212,212,212);font-family:Tahoma,Verdana,Arial,Helvetica,sans-serif;font-size:8pt;-moz-border-radius:0.5em;border-radius:0.5em;} 
+.smallbutton {border-style:outset;border-width:2px;padding:0px 4px;background-color:rgb(212,212,212);font-family:Tahoma,Verdana,Arial,Helvetica,sans-serif;font-size:8pt;-moz-border-radius:0.5em;border-radius:0.5em;}
+
+
+#pageheader
+{
+color:#eee;
+border-bottom: 1px solid #aaa;    
+background-color: #6A6A6A;
+background-image: -webkit-gradient(linear, left top, left bottom, from(#6A6A6A), to(#303030)); /* Saf4+, Chrome */
+background-image: -webkit-linear-gradient(top, #6A6A6A, #303030); /* Chrome 10+, Saf5.1+ */
+background-image:    -moz-linear-gradient(top, #6A6A6A, #303030); /* FF3.6 */
+background-image:     -ms-linear-gradient(top, #6A6A6A, #303030); /* IE10 */
+background-image:      -o-linear-gradient(top, #6A6A6A, #303030); /* Opera 11.10+ */
+background-image:         linear-gradient(top, #6A6A6A, #303030);
+filter: progid:DXImageTransform.Microsoft.gradient(startColorStr='#6A6A6A', EndColorStr='#303030'); /* IE6-IE9 */
+padding-bottom: 5px;
+}
+#pageheader a:link { color:#bbb; text-decoration:none;}
+#pageheader a:visited { color:#bbb; text-decoration:none;}
+#pageheader a:hover { color:#FFFFC9; text-decoration:none;}
+#pageheader a:active { color:#bbb; text-decoration:none;} 
+.paging { background-color:#777; color:#ccc; text-align:center; padding:0 0 3 0;}
+.paging a:link { color:#ccc; text-decoration:none;}
+.paging a:visited { color:#ccc;  }
+.paging a:hover {  color:#FFFFC9;  }
+.paging a:active { color:#fff;  }
+#headerform { padding:5 5 5 15;  }
+#editlinkform {  padding:5 5 5 15px; width:80%; }
+#linklist li { padding:4 10 8 20; border-bottom: 1px solid #bbb;}
+#linklist li.private { background-color: #ccc; border-left:8px solid #888; }
+.linktitle { font-size:14pt; font-weight:bold; }
+.linktitle a { text-decoration: none; color:#0000EE; }
+.linktitle a:hover { text-decoration: underline; }
+.linktitle a:visited { color:#0000BB; }
+.linkdate { font-size:8pt; color:#888; }
+.linkurl { font-size:8pt; color:#4BAA74; }
+.linkdescription { color:#000; margin-top:0px; margin-bottom:0px; font-weight:normal; }
+.linktag { font-size:9pt; color:#777; background-color:#ddd; padding:0 6 0 6; -moz-box-shadow: inset 2px 2px 3px #ffffff; -webkit-box-shadow: inset 2px 2px 3px #ffffff; box-shadow: inset 2px 2px 3px ffffff;
+border-bottom:1px solid #aaa; border-right:1px solid #aaa;  }
+.linktag a { color:#777; text-decoration:none;  }
+.buttoneditform { display:inline; }
+#footer { font-size:8pt; text-align:center; border-top:1px solid #ddd; color: #888; }
+
+/* Minimal customisation for jQuery widgets */
+.ui-autocomplete { background-color:#fff; padding-left:5px;}
+.ui-state-hover { background-color: #604dff; color:#fff; }
