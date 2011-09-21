@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.14 beta - Shaare your links...
+// Shaarli 0.0.15 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -43,7 +43,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.14 beta');
+define('shaarli_version','0.0.15 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
@@ -203,7 +203,11 @@ if (isset($_POST['login']))
         ban_loginOk();
         // Optional redirect after login:
         if (isset($_GET['post'])) { header('Location: ?post='.urlencode($_GET['post']).(!empty($_GET['source'])?'&source='.urlencode($_GET['source']):'')); exit; }
-        if (isset($_POST['returnurl'])) { header('Location: '.$_POST['returnurl']); exit; }
+        if (isset($_POST['returnurl']))
+        { 
+            if (endsWith($_POST['returnurl'],'?do=login')) { header('Location: ?'); exit; } // Prevent loops over login screen.
+            header('Location: '.$_POST['returnurl']); exit; 
+        }
         header('Location: ?'); exit;
     }
     else
@@ -753,6 +757,7 @@ HTML;
         // We remove the annoying parameters added by FeedBurner and GoogleFeedProxy (?utm_source=...)
         $i=strpos($url,'&utm_source='); if ($i) $url=substr($url,0,$i);
         $i=strpos($url,'?utm_source='); if ($i) $url=substr($url,0,$i);
+        $i=strpos($url,'#xtor=RSS-'); if ($i) $url=substr($url,0,$i);
         
         $link_is_new = false;
         $link = $LINKSDB->getLinkFromUrl($url); // Check if URL is not already in database (in this case, we will edit the existing link)
@@ -853,7 +858,8 @@ Import Netscape html bookmarks (as exported from Firefox/Chrome/Opera/delicious/
     <input type="file" name="filetoupload" size="80">
     <input type="hidden" name="MAX_FILE_SIZE" value="{$maxfilesize}">
     <input type="submit" name="import_file" value="Import" class="bigbutton"><br>
-    <input type="checkbox" name="private">&nbsp;Import all links as private    
+    <input type="checkbox" name="private">&nbsp;Import all links as private<br>   
+    <input type="checkbox" name="overwrite">&nbsp;Overwrite existing links    
 </form>
 </div>
 HTML;
@@ -884,6 +890,8 @@ function importFile()
     $filesize=$_FILES['filetoupload']['size'];    
     $data=file_get_contents($_FILES['filetoupload']['tmp_name']);
     $private = (empty($_POST['private']) ? 0 : 1); // Should the links be imported as private ?
+    $overwrite = !empty($_POST['overwrite']) ; // Should the imported links overwrite existing ones ?
+    $import_count=0;
 
     // Sniff file type:
     $type='unknown';
@@ -895,35 +903,35 @@ function importFile()
         // This is a standard Netscape-style bookmark file.
         // This format is supported by all browsers (except IE, of course), also delicious, diigo and others.      
         // I didn't want to use DOM... anyway, this is FAST (less than 1 second to import 7200 links (2.1 Mb html file)).
-        $before=count($LINKSDB); 
         foreach(explode('<DT>',$data) as $html) // explode is very fast
         {
             $link = array('linkdate'=>'','title'=>'','url'=>'','description'=>'','tags'=>'','private'=>0);  
             $d = explode('<DD>',$html);
             if (startswith($d[0],'<A '))
             {
-                $link['description'] = (isset($d[1]) ? trim($d[1]) : '');  // Get description (optional)
+                $link['description'] = (isset($d[1]) ? html_entity_decode(trim($d[1]),ENT_QUOTES,'UTF-8') : '');  // Get description (optional)
                 preg_match('!<A .*?>(.*?)</A>!i',$d[0],$matches); $link['title'] = (isset($matches[1]) ? trim($matches[1]) : '');  // Get title
+                $link['title'] = html_entity_decode($link['title'],ENT_QUOTES,'UTF-8');
                 preg_match_all('! ([A-Z_]+)=\"(.*?)"!i',$html,$matches,PREG_SET_ORDER);  // Get all other attributes
                 foreach($matches as $m)
                 {
                     $attr=$m[1]; $value=$m[2];
-                    if ($attr=='HREF') $link['url']=$value;
+                    if ($attr=='HREF') $link['url']=html_entity_decode($value,ENT_QUOTES,'UTF-8');
                     elseif ($attr=='ADD_DATE') $link['linkdate']=date('Ymd_His',intval($value));
                     elseif ($attr=='PRIVATE') $link['private']=($value=='0'?0:1);
-                    elseif ($attr=='TAGS') $link['tags']=str_replace(',',' ',$value);
+                    elseif ($attr=='TAGS') $link['tags']=html_entity_decode(str_replace(',',' ',$value),ENT_QUOTES,'UTF-8');
                 }     
-                if ($link['linkdate']!='' && $link['url']!='' && empty($LINKSDB[$link['linkdate']]))
+                if ($link['linkdate']!='' && $link['url']!='' && ($overwrite || empty($LINKSDB[$link['linkdate']])))
                 {
                     if ($private==1) $link['private']=1;
                     $LINKSDB[$link['linkdate']] = $link;
+                    $import_count++;
                 }
             }     
         }
-        $import_count = count($LINKSDB)-$before;
         $LINKSDB->savedb();
         invalidateCaches();
-        echo '<script language="JavaScript">alert("File '.$filename.' ('.$filesize.' bytes) was successfully imported: '.$import_count.' new links.");document.location=\'?\';</script>';            
+        echo '<script language="JavaScript">alert("File '.$filename.' ('.$filesize.' bytes) was successfully processed: '.$import_count.' links imported.");document.location=\'?\';</script>';            
     }
     else
     {
@@ -1095,70 +1103,9 @@ JS;
 <html>
 <head>
 <title>{$open}Shaarli - Let's shaare your links...</title>
-<link rel="alternate" type="application/rss+xml" href="{$feedurl}">
+<link rel="alternate" type="application/rss+xml" href="{$feedurl}" />
+<link type="text/css" rel="stylesheet" href="shaarli.css" />
 {$jsincludes}
-<style type="text/css">
-<!--
-/* CSS Reset from Yahoo to cope with browsers CSS inconsistencies. */
-/*
-Copyright (c) 2010, Yahoo! Inc. All rights reserved. Code licensed under the BSD License: http://developer.yahoo.com/yui/license.html
-version: 2.8.2r1
-*/
-html{color:#000;background:#FFF;}body,div,dl,dt,dd,ul,ol,li,h1,h2,h3,h4,h5,h6,pre,code,form,fieldset,legend,input,button,textarea,p,blockquote,th,td{margin:0;padding:0;}table{border-collapse:collapse;border-spacing:0;}fieldset,img{border:0;}address,caption,cite,code,dfn,em,strong,th,var,optgroup{font-style:inherit;font-weight:inherit;}del,ins{text-decoration:none;}li{list-style:none;}caption,th{text-align:left;}h1,h2,h3,h4,h5,h6{font-size:100%;font-weight:normal;}q:before,q:after{content:'';}abbr,acronym{border:0;font-variant:normal;}sup{vertical-align:baseline;}sub{vertical-align:baseline;}legend{color:#000;}input,button,textarea,select,optgroup,option{font-family:inherit;font-size:inherit;font-style:inherit;font-weight:inherit;}input,button,textarea,select{*font-size:100%;}
-
-body { font-family: "Trebuchet MS",Verdana,Arial,Helvetica,sans-serif; font-size:10pt; background-color: #ffffff; } 
-input { border: 1px solid #aaa; background-color:#F0F0FF; padding: 2 5 2 5; -moz-box-shadow: inset 2px 2px 3px #aaaaaa; -webkit-box-shadow: inset 2px 2px 3px #aaaaaa; box-shadow: inset 2px 2px 3px #aaaaaa; } 
-textarea { border: 1px solid #aaa; background-color:#F0F0FF; padding: 2 5 2 5; -moz-box-shadow: inset 2px 2px 3px #B2B2C4; -webkit-box-shadow: inset 2px 2px 3px #B2B2C4; box-shadow: inset 2px 2px 3px #B2B2C4; } 
-/* I don't give a shit about IE. He can't understand selectors such as input[type='submit']. */
-
-.bigbutton {border-style:outset;border-width:2px;padding:3px 6px;background-color:rgb(212,212,212);font-family:Tahoma,Verdana,Arial,Helvetica,sans-serif;font-size:8pt;-moz-border-radius:0.5em;border-radius:0.5em;} 
-.smallbutton {border-style:outset;border-width:2px;padding:0px 4px;background-color:rgb(212,212,212);font-family:Tahoma,Verdana,Arial,Helvetica,sans-serif;font-size:8pt;-moz-border-radius:0.5em;border-radius:0.5em;} 
-#pageheader
-{
-color:#eee;
-border-bottom: 1px solid #aaa;    
-background-color: #6A6A6A;
-background-image: -webkit-gradient(linear, left top, left bottom, from(#6A6A6A), to(#303030)); /* Saf4+, Chrome */
-background-image: -webkit-linear-gradient(top, #6A6A6A, #303030); /* Chrome 10+, Saf5.1+ */
-background-image:    -moz-linear-gradient(top, #6A6A6A, #303030); /* FF3.6 */
-background-image:     -ms-linear-gradient(top, #6A6A6A, #303030); /* IE10 */
-background-image:      -o-linear-gradient(top, #6A6A6A, #303030); /* Opera 11.10+ */
-background-image:         linear-gradient(top, #6A6A6A, #303030);
-filter: progid:DXImageTransform.Microsoft.gradient(startColorStr='#6A6A6A', EndColorStr='#303030'); /* IE6-IE9 */
-padding-bottom: 5px;
-}
-#pageheader a:link { color:#bbb; text-decoration:none;}
-#pageheader a:visited { color:#bbb; text-decoration:none;}
-#pageheader a:hover { color:#FFFFC9; text-decoration:none;}
-#pageheader a:active { color:#bbb; text-decoration:none;} 
-.paging { background-color:#777; color:#ccc; text-align:center; padding:0 0 3 0;}
-.paging a:link { color:#ccc; text-decoration:none;}
-.paging a:visited { color:#ccc;  }
-.paging a:hover {  color:#FFFFC9;  }
-.paging a:active { color:#fff;  }
-#headerform { padding:5 5 5 15;  }
-#editlinkform {  padding:5 5 5 15px; width:80%; }
-#linklist li { padding:4 10 8 20; border-bottom: 1px solid #bbb;}
-#linklist li.private { background-color: #ccc; border-left:8px solid #888; }
-.linktitle { font-size:14pt; font-weight:bold; }
-.linktitle a { text-decoration: none; color:#0000EE; }
-.linktitle a:hover { text-decoration: underline; }
-.linktitle a:visited { color:#0000BB; }
-.linkdate { font-size:8pt; color:#888; }
-.linkurl { font-size:8pt; color:#4BAA74; }
-.linkdescription { color:#000; margin-top:0px; margin-bottom:0px; font-weight:normal; }
-.linktag { font-size:9pt; color:#777; background-color:#ddd; padding:0 6 0 6; -moz-box-shadow: inset 2px 2px 3px #ffffff; -webkit-box-shadow: inset 2px 2px 3px #ffffff; box-shadow: inset 2px 2px 3px ffffff;
-border-bottom:1px solid #aaa; border-right:1px solid #aaa;  }
-.linktag a { color:#777; text-decoration:none;  }
-.buttoneditform { display:inline; }
-#footer { font-size:8pt; text-align:center; border-top:1px solid #ddd; color: #888; }
-
-/* Minimal customisation for jQuery widgets */
-.ui-autocomplete { background-color:#fff; padding-left:5px;}
-.ui-state-hover { background-color: #604dff; color:#fff; }
-
--->
-</style>
 </head>
 <body {$data['onload']}>
 <div id="pageheader"><div style="float:right; font-style:italic; color:#bbb; text-align:right; padding:0 5 0 0;">Shaare your links...<br>{$linkcount} links</div>
@@ -1179,6 +1126,9 @@ HTML;
 // This function should NEVER be called if the file data/config.php exists.
 function install()
 {
+    // On free.fr host, make sure the /sessions directory exists, otherwise login will not work.
+    if (endsWith($_SERVER['SERVER_NAME'],'.free.fr') && !is_dir($_SERVER['DOCUMENT_ROOT'].'/sessions')) mkdir($_SERVER['DOCUMENT_ROOT'].'/sessions',0705);
+    
     if (!empty($_POST['setlogin']) && !empty($_POST['setpassword']))
     {
         $tz=(empty($_POST['settimezone']) ? 'UTC':$_POST['settimezone']);
@@ -1203,11 +1153,9 @@ function install()
         $timezoneselect='Timezone: <select name="settimezone"><option value="" selected>(please select:)</option>'.$timezones.'</select><br><br>';
     }
     echo <<<HTML
-<html><title>Shaarli - Configuration</title><style type="text/css">
-body { font-family: "Trebuchet MS",Verdana,Arial,Helvetica,sans-serif; font-size:10pt; background-color: #ffffff; } 
-input { border: 1px solid #aaa; background-color:#F0F0FF; padding: 2 5 2 5; -moz-box-shadow: inset 2px 2px 3px #aaaaaa; -webkit-box-shadow: inset 2px 2px 3px #aaaaaa; box-shadow: inset 2px 2px 3px #aaaaaa; } 
-.bigbutton {border-style:outset;border-width:2px;padding:3px 6px;background-color:rgb(212,212,212);font-family:Tahoma,Verdana,Arial,Helvetica,sans-serif;font-size:8pt;-moz-border-radius:0.5em;border-radius:0.5em;} 
-</style></head><body onload="document.configform.setlogin.focus();"><h1>Shaarli - Shaare your links...</h1>It looks like it's the first time you run Shaarli. Please chose a login/password and a timezone:<br>
+<html><head><title>Shaarli - Configuration</title><link type="text/css" rel="stylesheet" href="shaarli.css" /></head>
+<body onload="document.configform.setlogin.focus();" style="padding:20px;"><h1>Shaarli - Shaare your links...</h1>
+It looks like it's the first time you run Shaarli. Please chose a login/password and a timezone:<br>
 <form method="POST" action="" name="configform" style="border:1px solid black; padding:10 10 10 10;">
 Login: <input type="text" name="setlogin"><br><br>Password: <input type="password" name="setpassword"><br><br>
 {$timezoneselect}
