@@ -57,6 +57,9 @@ border-bottom:1px solid #aaa; border-right:1px solid #aaa;  }
 .linktag a { color:#777; text-decoration:none;  }
 .buttoneditform { display:inline; }
 #footer { font-size:8pt; text-align:center; border-top:1px solid #ddd; color: #888; }
+#newversion { background-color: #FFFFA0; color:#000; position:absolute; top:0;right:0; padding:2 7 2 7;  font-size:9pt;} 
+#cloudtag  { padding-left:10%; padding-right:10%; }
+#cloudtag a { color:black; text-decoration:none; }
 
 /* Minimal customisation for jQuery widgets */
 .ui-autocomplete { background-color:#fff; padding-left:5px;}

@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.15 beta - Shaare your links...
+// Shaarli 0.0.16 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -16,9 +16,12 @@ define('IPBANS_FILENAME',DATADIR.'/ipbans.php'); // File storage for failures an
 define('BAN_AFTER',4);       // Ban IP after this many failures.
 define('BAN_DURATION',1800); // Ban duration for IP address after login failures (in seconds) (1800 sec. = 30 minutes)
 define('OPEN_SHAARLI',false); // If true, anyone can add/edit/delete links without having to login
+define('HIDE_TIMESTAMPS',false); // If true, the moment when links were saved are not shown to users that are not logged in.
 
 // -----------------------------------------------------------------------------------------------
 // Program config (touch at your own risks !)
+define('UPDATECHECK_FILENAME',DATADIR.'/lastupdatecheck.txt'); // For updates check of Shaarli.
+define('UPDATECHECK_INTERVAL',86400); // Updates check frequency for Shaarli. 86400 seconds=24 hours
 ini_set('max_input_time','60');  // High execution time in case of problematic imports/exports.
 ini_set('memory_limit', '128M');  // Try to set max upload file size and read (May not work on some hosts).
 ini_set('post_max_size', '16M');
@@ -43,7 +46,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.15 beta');
+define('shaarli_version','0.0.16 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
@@ -52,19 +55,38 @@ autoLocale(); // Sniff browser language and set date format accordingly.
 header('Content-Type: text/html; charset=utf-8'); // We use UTF-8 for proper international characters handling.
 $LINKSDB=false;
 
-// Check php version
+// Check php version 
 function checkphpversion()
 {
-    $ver=phpversion();
-    if (preg_match('!(\d+)\.(\d+)\.(\d+)!',$ver,$matches)) // (because phpversion() sometimes returns strings like "5.2.4-2ubuntu5.2")
+    if (version_compare(PHP_VERSION, '5.1.0') < 0)
     {
-        list($match,$major,$minor,$release) = $matches;
-        if ($major>=5 && $minor>=1) return; // 5.1.x or higher is ok.
         header('Content-Type: text/plain; charset=utf-8');
-        echo 'Your server supports php '.$ver.'. Shaarli requires at last php 5.1, and thus cannot run. Sorry.';
+        echo 'Your server supports php '.PHP_VERSION.'. Shaarli requires at last php 5.1.0, and thus cannot run. Sorry.';
         exit;
+    }        
+}
+
+// Checks if an update is available for Shaarli.
+// (at most once a day, and only for registered user.)
+// Output: '' = no new version.
+//         other= the available version.
+function checkUpdate()
+{
+    if (!isLoggedIn()) return ''; // Do not check versions for visitors.
+    
+    // Get latest version number at most once a day.
+    if (!is_file(UPDATECHECK_FILENAME) || (filemtime(UPDATECHECK_FILENAME)<time()-(UPDATECHECK_INTERVAL)))
+    {
+        $version=shaarli_version;
+        list($httpstatus,$headers,$data) = getHTTP('http://sebsauvage.net/files/shaarli_version.txt',2);
+        if (strpos($httpstatus,'200 OK')) $version=$data;
+        // If failed, nevermind. We don't want to bother the user with that.  
+        file_put_contents(UPDATECHECK_FILENAME,$version); // touch file date
     }
-    // if cannot check php version... well, at your own risks.
+    // Compare versions:
+    $newestversion=file_get_contents(UPDATECHECK_FILENAME);
+    if ($newestversion!=shaarli_version) return $newestversion;
+    return '';
 }
 
 // -----------------------------------------------------------------------------------------------
@@ -554,7 +576,8 @@ function showRSS()
     {
         $link = $linksToDisplay[$keys[$i]];
         $rfc822date = linkdate2rfc822($link['linkdate']);
-        echo '<item><title>'.htmlspecialchars($link['title']).'</title><guid>'.htmlspecialchars($link['url']).'</guid><link>'.htmlspecialchars($link['url']).'</link><pubDate>'.htmlspecialchars($rfc822date).'</pubDate>';
+        echo '<item><title>'.htmlspecialchars($link['title']).'</title><guid>'.htmlspecialchars($link['url']).'</guid><link>'.htmlspecialchars($link['url']).'</link>';
+        if (!HIDE_TIMESTAMPS || isLoggedIn()) echo '<pubDate>'.htmlspecialchars($rfc822date).'</pubDate>';
         echo '<description><![CDATA['.htmlspecialchars($link['description']).']]></description></item>'."\n";      
         $i++;
     }
@@ -598,7 +621,29 @@ function renderPage()
         logout(); 
         header('Location: ?'); 
         exit; 
-    }    
+    }  
+
+    // -------- Tag cloud
+    if (startswith($_SERVER["QUERY_STRING"],'do=tagcloud'))
+    { 
+        $tags= $LINKSDB->allTags();
+        // We sort tags alphabetically, when choose a font size according to count.
+        // First, find max value.
+        $maxcount=0; foreach($tags as $key=>$value) $maxcount=max($maxcount,$value);
+        ksort($tags);
+        $cloud='';
+        foreach($tags as $key=>$value)
+        {
+            $size = max(40*$value/$maxcount,8); // Minimum size 8.
+            $colorvalue = 128-ceil(127*$value/$maxcount);
+            $color='rgb('.$colorvalue.','.$colorvalue.','.$colorvalue.')';
+            $cloud.= '<span style="color:#99f; font-size:9pt; padding-left:5px; padding-right:2px;">'.$value.'</span><a href="?searchtags='.htmlspecialchars($key).'" style="font-size:'.$size.'pt; font-weight:bold; color:'.$color.';">'.htmlspecialchars($key).'</a> ';
+        }
+        $cloud='<div id="cloudtag">'.$cloud.'</div>';
+        $data = array('pageheader'=>'','body'=>$cloud,'onload'=>''); 
+        templatePage($data);
+        exit;
+    }     
     
     // -------- User clicks on a tag in a link: The tag is added to the list of searched tags (searchtags=...)
     if (isset($_GET['addtag']))
@@ -1038,7 +1083,8 @@ function templateLinkList()
         if ($link['tags']!='') foreach(explode(' ',$link['tags']) as $tag) { $tags.='<span class="linktag" title="Add tag"><a href="?addtag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).'</a></span> '; }
         $linklist.='<li '.$classprivate.'><span class="linktitle"><a href="'.htmlspecialchars($link['url']).'">'.htmlspecialchars($title).'</a></span>'.$actions.'<br>';
         if ($description!='') $linklist.='<div class="linkdescription">'.nl2br(htmlspecialchars($description)).'</div><br>';
-        $linklist.='<span class="linkdate">'.htmlspecialchars(linkdate2locale($link['linkdate'])).' - </span><span class="linkurl">'.htmlspecialchars($link['url']).'</span><br>'.$tags."</li>\n";  
+        if (!HIDE_TIMESTAMPS || isLoggedIn()) $linklist.='<span class="linkdate">'.htmlspecialchars(linkdate2locale($link['linkdate'])).' - </span>';
+        $linklist.='<span class="linkurl">'.htmlspecialchars($link['url']).'</span><br>'.$tags."</li>\n";  
         $i++;
     } 
     
@@ -1071,6 +1117,9 @@ function templatePage($data)
     global $STARTTIME;
     global $LINKSDB;
     $shaarli_version = shaarli_version;
+    
+    $newversion=checkUpdate();
+    if ($newversion!='') $newversion='<div id="newversion"><span style="text-decoration:blink;">&#x25CF;</span> Shaarli '.htmlspecialchars($newversion).' is <a href="http://sebsauvage.net/wiki/doku.php?id=php:shaarli#download">available</a>.</div>';
     $linkcount = count($LINKSDB);
     $open='';
     if (OPEN_SHAARLI)
@@ -1107,10 +1156,11 @@ JS;
 <link type="text/css" rel="stylesheet" href="shaarli.css" />
 {$jsincludes}
 </head>
-<body {$data['onload']}>
+<body {$data['onload']}>{$newversion}
 <div id="pageheader"><div style="float:right; font-style:italic; color:#bbb; text-align:right; padding:0 5 0 0;">Shaare your links...<br>{$linkcount} links</div>
     <b><i>{$open}Shaarli {$shaarli_version}</i></b> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}" style="padding-left:30px;">RSS Feed</a>
-{$data['pageheader']}    
+&nbsp;&nbsp; <a href="?do=tagcloud">Tag cloud</a>
+{$data['pageheader']}
 </div>
 {$data['body']}
 
