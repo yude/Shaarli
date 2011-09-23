@@ -30,7 +30,8 @@ background-image:     -ms-linear-gradient(top, #6A6A6A, #303030); /* IE10 */
 background-image:      -o-linear-gradient(top, #6A6A6A, #303030); /* Opera 11.10+ */
 background-image:         linear-gradient(top, #6A6A6A, #303030);
 filter: progid:DXImageTransform.Microsoft.gradient(startColorStr='#6A6A6A', EndColorStr='#303030'); /* IE6-IE9 */
-padding-bottom: 5px;
+padding: 0 10 5 10;
+margin: auto;
 }
 #pageheader a:link { color:#bbb; text-decoration:none;}
 #pageheader a:visited { color:#bbb; text-decoration:none;}
@@ -41,7 +42,7 @@ padding-bottom: 5px;
 .paging a:visited { color:#ccc;  }
 .paging a:hover {  color:#FFFFC9;  }
 .paging a:active { color:#fff;  }
-#headerform { padding:5 5 5 15;  }
+#headerform { padding:5 5 5 5;  }
 #editlinkform {  padding:5 5 5 15px; width:80%; }
 #linklist li { padding:4 10 8 20; border-bottom: 1px solid #bbb;}
 #linklist li.private { background-color: #ccc; border-left:8px solid #888; }
@@ -64,3 +65,5 @@ border-bottom:1px solid #aaa; border-right:1px solid #aaa;  }
 /* Minimal customisation for jQuery widgets */
 .ui-autocomplete { background-color:#fff; padding-left:5px;}
 .ui-state-hover { background-color: #604dff; color:#fff; }
+
+}

@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.16 beta - Shaare your links...
+// Shaarli 0.0.17 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -33,6 +33,7 @@ checkphpversion();
 error_reporting(E_ALL^E_WARNING);  // See all error except warnings.
 //error_reporting(-1); // See all errors (for debugging only)
 ob_start();
+
 // In case stupid admin has left magic_quotes enabled in php.ini:
 if (get_magic_quotes_gpc()) 
 {
@@ -46,7 +47,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.16 beta');
+define('shaarli_version','0.0.17 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
@@ -93,10 +94,8 @@ function checkUpdate()
 // Log to text file
 function logm($message)
 {
-    if (!file_exists(DATADIR.'/log.txt')) {$logFile = fopen(DATADIR.'/log.txt','w'); }
-    else { $logFile = fopen(DATADIR.'/log.txt','a'); }
-    fwrite($logFile,strval(date('Y/m/d_H:i:s')).' - '.$_SERVER["REMOTE_ADDR"].' - '.strval($message)."\n");
-    fclose($logFile);
+    $t = strval(date('Y/m/d_H:i:s')).' - '.$_SERVER["REMOTE_ADDR"].' - '.strval($message)."\n";
+    file_put_contents(DATADIR.'/log.txt',$t,FILE_APPEND);
 }
 
 // ------------------------------------------------------------------------------------------
@@ -310,7 +309,7 @@ function linkdate2rfc822($linkdate)
 
 /*  Converts a linkdate time (YYYYMMDD_HHMMSS) of an article to a localized date format.
     (used to display link date on screen)
-    The date format is automatically chose according to locale/languages sniffed from browser headers (see autoLocale()). */
+    The date format is automatically chosen according to locale/languages sniffed from browser headers (see autoLocale()). */
 function linkdate2locale($linkdate)
 {
     return utf8_encode(strftime('%c',linkdate2timestamp($linkdate))); // %c is for automatic date format according to locale.
@@ -476,6 +475,7 @@ class linkdb implements Iterator, Countable, ArrayAccess
     {
         // Read data
         $this->links=(file_exists(DATASTORE) ? unserialize(gzinflate(base64_decode(substr(file_get_contents(DATASTORE),strlen(PHPPREFIX),-strlen(PHPSUFFIX))))) : array() );
+        // Note that gzinflate is faster than gzuncompress. See: http://www.php.net/manual/en/function.gzdeflate.php#96439
         
         // If user is not logged in, filter private links.
         if (!$this->loggedin)
@@ -505,7 +505,7 @@ class linkdb implements Iterator, Countable, ArrayAccess
     }
 
     // Case insentitive search among links (in url, title and description). Returns filtered list of links.
-    // eg. print_r($mydb->filterTags('hollandais'));
+    // eg. print_r($mydb->filterFulltext('hollandais'));
     public function filterFulltext($searchterms)  
     {
         // FIXME: explode(' ',$searchterms) and perform a AND search.
@@ -524,14 +524,14 @@ class linkdb implements Iterator, Countable, ArrayAccess
     // Filter by tag.
     // You can specify one or more tags (tags can be separated by space or comma).
     // eg. print_r($mydb->filterTags('linux programming'));
-    public function filterTags($tags)
+    public function filterTags($tags,$casesensitive=false)
     {
-        $t = str_replace(',',' ',strtolower($tags));
+        $t = str_replace(',',' ',($casesensitive?$tags:strtolower($tags)));
         $searchtags=explode(' ',$t);
         $filtered=array();
         foreach($this->links as $l)
         { 
-            $linktags = explode(' ',strtolower($l['tags']));
+            $linktags = explode(' ',($casesensitive?$l['tags']:strtolower($l['tags'])));
             if (count(array_intersect($linktags,$searchtags)) == count($searchtags))
                 $filtered[$l['linkdate']] = $l;
         }
@@ -549,8 +549,7 @@ class linkdb implements Iterator, Countable, ArrayAccess
                 if (!empty($tag)) $tags[$tag]=(empty($tags[$tag]) ? 1 : $tags[$tag]+1);
         arsort($tags); // Sort tags by usage (most used tag first)
         return $tags;
-    }
-    
+    }  
 }
 
 // ------------------------------------------------------------------------------------------
@@ -562,7 +561,7 @@ function showRSS()
     // Optionnaly filter the results:
     $linksToDisplay=array();
     if (!empty($_GET['searchterm'])) $linksToDisplay = $LINKSDB->filterFulltext($_GET['searchterm']);
-    elseif (!empty($_GET['searchtags']))   $linksToDisplay = $LINKSDB->filterTags($_GET['searchtags']);
+    elseif (!empty($_GET['searchtags']))   $linksToDisplay = $LINKSDB->filterTags(trim($_GET['searchtags']));
     else $linksToDisplay = $LINKSDB;
         
     header('Content-Type: application/xhtml+xml; charset=utf-8');
@@ -627,7 +626,7 @@ function renderPage()
     if (startswith($_SERVER["QUERY_STRING"],'do=tagcloud'))
     { 
         $tags= $LINKSDB->allTags();
-        // We sort tags alphabetically, when choose a font size according to count.
+        // We sort tags alphabetically, then choose a font size according to count.
         // First, find max value.
         $maxcount=0; foreach($tags as $key=>$value) $maxcount=max($maxcount,$value);
         ksort($tags);
@@ -651,7 +650,7 @@ function renderPage()
         // Get previous URL (http_referer) and add the tag to the searchtags parameters in query.
         if (empty($_SERVER['HTTP_REFERER'])) { header('Location: ?searchtags='.urlencode($_GET['addtag'])); exit; } // In case browser does not send HTTP_REFERER
         parse_str(parse_url($_SERVER['HTTP_REFERER'],PHP_URL_QUERY), $params);
-        $params['searchtags'] = (empty($params['searchtags']) ?  trim($_GET['addtag']) : trim($params['searchtags'].' '.urlencode($_GET['addtag'])));
+        $params['searchtags'] = (empty($params['searchtags']) ?  trim($_GET['addtag']) : trim($params['searchtags']).' '.urlencode(trim($_GET['addtag'])));
         unset($params['page']); // We also remove page (keeping the same page has no sense, since the results are different)
         header('Location: ?'.http_build_query($params));
         exit;
@@ -698,10 +697,10 @@ function renderPage()
         $searchform=<<<HTML
 <div id="headerform" style="width:100%; white-space:nowrap;";>
     <form method="GET" name="searchform" style="display:inline;"><input type="text" name="searchterm" style="width:50%" value=""> <input type="submit" value="Search" class="bigbutton"></form>
-    <form method="GET" name="tagfilter" style="display:inline;padding-left:24px;"><input type="text" name="searchtags" style="width:20%" value=""> <input type="submit" value="Filter by tag" class="bigbutton"></form>
+    <form method="GET" name="tagfilter" style="display:inline;padding-left:24px;"><input type="text" name="searchtags" id="searchtags" style="width:20%" value=""> <input type="submit" value="Filter by tag" class="bigbutton"></form>
 </div>
 HTML;
-        $onload = 'document.searchform.searchterm.focus();';
+        $onload = 'onload="document.searchform.searchterm.focus();"';
         $data = array('pageheader'=>$searchform,'body'=>templateLinkList(),'onload'=>$onload); 
         templatePage($data);
         exit; // Never remove this one !
@@ -714,8 +713,11 @@ HTML;
     {
         $pageabsaddr=serverUrl().$_SERVER["SCRIPT_NAME"]; // Why doesn't php have a built-in function for that ?
         // The javascript code for the bookmarklet:
+        $changepwd = (OPEN_SHAARLI ? '' : '<a href="?do=changepasswd"><b>Change password</b></a> - Change your password.<br><br>' );
         $toolbar= <<<HTML
 <div id="headerform"><br>
+    {$changepwd}        
+    <a href="?do=changetag"><b>Rename/delete tags</b></a> - Rename or delete a tag in all links.<br><br>
     <a href="?do=import"><b>Import</b></a> - Import Netscape html bookmarks (as exported from Firefox, Chrome, Opera, delicious...)<br><br>
     <a href="?do=export"><b>Export</b></a> - Export Netscape html bookmarks (which can be imported in Firefox, Chrome, Opera, delicious...)<br><br>
     <a class="smallbutton" style="color:black;" onclick="alert('Drag this link to your bookmarks toolbar, or right-click it and choose Bookmark This Link...');return false;" href="javascript:javascript:(function(){var%20url%20=%20location.href;var%20title%20=%20document.title%20||%20url;window.open('{$pageabsaddr}?post='%20+%20encodeURIComponent(url)+'&amp;title='%20+%20encodeURIComponent(title)+'&amp;source=bookmarklet','_blank','menubar=no,height=400,width=608,toolbar=no,scrollbars=no,status=no');})();">Shaare link</a> - Drag this link to your bookmarks toolbar (or right-click it and choose Bookmark This Link....). Then click "Shaare link" button in any page you want to share.<br><br>
@@ -725,11 +727,107 @@ HTML;
         templatePage($data);
         exit;
     }
+
+    // -------- User wants to change his/her password.
+    if (startswith($_SERVER["QUERY_STRING"],'do=changepasswd'))
+    {
+        if (OPEN_SHAARLI) die('You are not supposed to change a password on an Open Shaarli.');
+        if (!empty($_POST['setpassword']) && !empty($_POST['oldpassword']))
+        {
+            if (!tokenOk($_POST['token'])) die('Wrong token.'); // Go away !
+
+            // Make sure old password is correct.
+            $oldhash = sha1($_POST['oldpassword'].$GLOBALS['login'].$GLOBALS['salt']);
+            if ($oldhash!=$GLOBALS['hash']) { echo '<script language="JavaScript">alert("The old password is not correct.");document.location=\'?do=changepasswd\';</script>'; exit; }
+            
+            // Save new password
+            $salt=sha1(uniqid('',true).'_'.mt_rand()); // Salt renders rainbow-tables attacks useless.
+            $hash = sha1($_POST['setpassword'].$GLOBALS['login'].$salt);
+            $config='<?php $GLOBALS[\'login\']='.var_export($GLOBALS['login'],true).'; $GLOBALS[\'hash\']='.var_export($hash,true).'; $GLOBALS[\'salt\']='.var_export($salt,true).'; date_default_timezone_set('.var_export(date_default_timezone_get(),true).'); ?>';
+            if (!file_put_contents(CONFIG_FILE,$config) || strcmp(file_get_contents(CONFIG_FILE),$config)!=0)
+            {
+                echo '<script language="JavaScript">alert("Shaarli could not create the config file. Please make sure Shaarli has the right to write in the folder is it installed in.");document.location=\'?\';</script>';
+                exit;
+            }
+            echo '<script language="JavaScript">alert("Your password has been changed.");document.location=\'?do=tools\';</script>';
+            exit;
+        }
+        else
+        {
+            $token = getToken();
+            $changepwdform= <<<HTML
+<form method="POST" action="" name="changepasswordform" style="padding:10 10 10 10;">
+Old password: <input type="password" name="oldpassword">&nbsp; &nbsp;
+New password: <input type="password" name="setpassword">
+<input type="hidden" name="token" value="{$token}">
+<input type="submit" name="Save" value="Save password" class="bigbutton"></form>
+HTML;
+            $data = array('pageheader'=>$changepwdform,'body'=>'','onload'=>'onload="document.changepasswordform.oldpassword.focus();"');
+            templatePage($data);
+            exit;
+        }
+    }
+  
+    // -------- User wants to rename a tag or delete it
+    if (startswith($_SERVER["QUERY_STRING"],'do=changetag'))
+    {
+        if (empty($_POST['fromtag']))
+        {
+            $token = getToken();
+            $changetagform = <<<HTML
+<form method="POST" action="" name="changetag" style="padding:10 10 10 10;">
+<input type="hidden" name="token" value="{$token}">
+Tag: <input type="text" name="fromtag" id="fromtag">
+<input type="text" name="totag" style="margin-left:40px;"><input type="submit" name="renametag" value="Rename tag" class="bigbutton">      
+&nbsp;&nbsp;or&nbsp; <input type="submit" name="deletetag" value="Delete tag" class="bigbutton" onClick="return confirmDeleteTag();"><br>(Case sensitive)</form> 
+<script language="JavaScript">function confirmDeleteTag() { var agree=confirm("Are you sure you want to delete this tag from all links ?"); if (agree) return true ; else return false ; }</script>       
+HTML;
+            $data = array('pageheader'=>$changetagform,'body'=>'','onload'=>'onload="document.changetag.fromtag.focus();"');
+            templatePage($data);
+            exit;
+        }
+        if (!tokenOk($_POST['token'])) die('Wrong token.');
+        
+        if (!empty($_POST['deletetag']) && !empty($_POST['fromtag']))
+        {
+            $needle=trim($_POST['fromtag']);
+            $linksToAlter = $LINKSDB->filterTags($needle,true); // true for case-sensitive tag search.
+            foreach($linksToAlter as $key=>$value)
+            {
+                $tags = explode(' ',trim($value['tags']));
+                unset($tags[array_search($needle,$tags)]); // Remove tag.
+                $value['tags']=trim(implode(' ',$tags));
+                $LINKSDB[$key]=$value;
+            }
+            $LINKSDB->savedb(); // save to disk
+            invalidateCaches();
+            echo '<script language="JavaScript">alert("Tag was removed from '.count($linksToAlter).' links.");document.location=\'?\';</script>';
+            exit;
+        }
+
+        // Rename a tag:
+        if (!empty($_POST['renametag']) && !empty($_POST['fromtag']) && !empty($_POST['totag']))
+        {
+            $needle=trim($_POST['fromtag']);
+            $linksToAlter = $LINKSDB->filterTags($needle,true); // true for case-sensitive tag search.
+            foreach($linksToAlter as $key=>$value)
+            {
+                $tags = explode(' ',trim($value['tags']));
+                $tags[array_search($needle,$tags)] = trim($_POST['totag']); // Remplace tags value.
+                $value['tags']=trim(implode(' ',$tags));
+                $LINKSDB[$key]=$value;
+            }
+            $LINKSDB->savedb(); // save to disk
+            invalidateCaches();
+            echo '<script language="JavaScript">alert("Tag was renamed in '.count($linksToAlter).' links.");document.location=\'?searchtags='.urlencode($_POST['totag']).'\';</script>';
+            exit;
+        }        
+    }
     
     // -------- User wants to add a link without using the bookmarklet: show form.
     if (startswith($_SERVER["QUERY_STRING"],'do=addlink'))
     {
-        $onload = 'document.addform.post.focus();';
+        $onload = 'onload="document.addform.post.focus();"';
         $addform= '<div id="headerform"><form method="GET" action="" name="addform"><input type="text" name="post" style="width:70%;"> <input type="submit" value="Add link" class="bigbutton"></div>';
         $data = array('pageheader'=>$addform,'body'=>'','onload'=>$onload); 
         templatePage($data);
@@ -899,12 +997,12 @@ HTML;
 <div id="headerform">
 Import Netscape html bookmarks (as exported from Firefox/Chrome/Opera/delicious/diigo...) (Max: {$maxfilesize} bytes).
 <form method="POST" action="?do=upload" enctype="multipart/form-data" name="uploadform">
-    <input type="hidden" name="token" value="{$token}">        
+    <input type="hidden" name="token" value="{$token}">
     <input type="file" name="filetoupload" size="80">
     <input type="hidden" name="MAX_FILE_SIZE" value="{$maxfilesize}">
     <input type="submit" name="import_file" value="Import" class="bigbutton"><br>
-    <input type="checkbox" name="private">&nbsp;Import all links as private<br>   
-    <input type="checkbox" name="overwrite">&nbsp;Overwrite existing links    
+    <input type="checkbox" name="private">&nbsp;Import all links as private<br>
+    <input type="checkbox" name="overwrite">&nbsp;Overwrite existing links
 </form>
 </div>
 HTML;
@@ -917,10 +1015,10 @@ HTML;
     $searchform=<<<HTML
 <div id="headerform" style="width:100%; white-space:nowrap;";>
     <form method="GET" name="searchform" style="display:inline;"><input type="text" name="searchterm" style="width:50%" value=""> <input type="submit" value="Search" class="bigbutton"></form>
-    <form method="GET" name="tagfilter" style="display:inline;padding-left:24px;"><input type="text" name="searchtags" style="width:20%" value=""> <input type="submit" value="Filter by tag" class="bigbutton"></form>
+    <form method="GET" name="tagfilter" style="display:inline;padding-left:24px;"><input type="text" name="searchtags" id="searchtags" style="width:20%" value=""> <input type="submit" value="Filter by tag" class="bigbutton"></form>
 </div>
 HTML;
-    $onload = 'document.searchform.searchterm.focus();';
+    $onload = 'onload="document.searchform.searchterm.focus();"';
     $data = array('pageheader'=>$searchform,'body'=>templateLinkList(),'onload'=>$onload); 
     templatePage($data);
     exit;
@@ -1044,13 +1142,13 @@ function templateLinkList()
     $searched='';
     if (!empty($_GET['searchterm'])) // Fulltext search
     {
-        $linksToDisplay = $LINKSDB->filterFulltext($_GET['searchterm']);
-        $searched='&nbsp;<b>'.count($linksToDisplay).' results for <i>'.htmlspecialchars($_GET['searchterm']).'</i></b>:';
+        $linksToDisplay = $LINKSDB->filterFulltext(trim($_GET['searchterm']));
+        $searched='&nbsp;<b>'.count($linksToDisplay).' results for <i>'.htmlspecialchars(trim($_GET['searchterm'])).'</i></b>:';
     }
     elseif (!empty($_GET['searchtags'])) // Search by tag
     {
-        $linksToDisplay = $LINKSDB->filterTags($_GET['searchtags']);
-        $tagshtml=''; foreach(explode(' ',$_GET['searchtags']) as $tag) $tagshtml.='<span class="linktag" title="Remove tag"><a href="?removetag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).' <span style="border-left:1px solid #aaa; padding-left:5px; color:#6767A7;">x</span></a></span> ';
+        $linksToDisplay = $LINKSDB->filterTags(trim($_GET['searchtags']));
+        $tagshtml=''; foreach(explode(' ',trim($_GET['searchtags'])) as $tag) $tagshtml.='<span class="linktag" title="Remove tag"><a href="?removetag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).' <span style="border-left:1px solid #aaa; padding-left:5px; color:#6767A7;">x</span></a></span> ';
         $searched='&nbsp;<b>'.count($linksToDisplay).' results for tags '.$tagshtml.':</b>';    
     }
     else
@@ -1128,7 +1226,8 @@ function templatePage($data)
         $open='Open ';
     }
     else
-        $menu=(isLoggedIn() ? ' <a href="?do=logout">Logout</a> &nbsp;<a href="?do=tools">Tools</a> &nbsp;<a href="?do=addlink"><b>Add link</b></a>' : ' <a href="?do=login">Login</a>');  
+        $menu=(isLoggedIn() ? ' <a href="?do=logout">Logout</a> &nbsp;<a href="?do=tools">Tools</a> &nbsp;<a href="?do=addlink"><b>Add link</b></a>' : ' <a href="?do=login">Login</a>');          
+    
     foreach(array('pageheader','body','onload') as $k) // make sure all required fields exist (put an empty string if not).
     {
         if (!array_key_exists($k,$data)) $data[$k]='';
@@ -1137,17 +1236,22 @@ function templatePage($data)
     if (OPEN_SHAARLI || isLoggedIn())
     { 
         $jsincludes='<script language="JavaScript" src="jquery.min.js"></script><script language="JavaScript" src="jquery-ui.custom.min.js"></script>'; 
-        $source = serverUrl().$_SERVER['SCRIPT_NAME'].'?ws=tags';  
+        $source = serverUrl().$_SERVER['SCRIPT_NAME'];  
         $jsincludes_bottom = <<<JS
-<script language="JavaScript">             
+<script language="JavaScript">
 $(document).ready(function() 
 {
-    $('#lf_tags').autocomplete({source:'{$source}',minLength:0});
-});        
-</script>    
+    $('#lf_tags').autocomplete({source:'{$source}?ws=tags',minLength:1});
+    $('#searchtags').autocomplete({source:'{$source}?ws=tags',minLength:1});
+    $('#fromtag').autocomplete({source:'{$source}?ws=singletag',minLength:1});  
+});
+</script>
 JS;
     }
-    $feedurl=htmlspecialchars(serverUrl().$_SERVER['SCRIPT_NAME'].'?do=rss');
+    $feedurl=htmlspecialchars(serverUrl().$_SERVER['SCRIPT_NAME'].'?do=rss'); 
+    if (!empty($_GET['searchtags'])) $feedurl.='&searchtags='.$_GET['searchtags'];
+    elseif (!empty($_GET['searchterm'])) $feedurl.='&searchterm='.$_GET['searchterm'];
+
     echo <<<HTML
 <html>
 <head>
@@ -1223,7 +1327,7 @@ function processWS()
     global $LINKSDB;
     header('Content-Type: application/json; charset=utf-8');
 
-    // Search in tags
+    // Search in tags (case insentitive, cumulative search)
     if ($_GET['ws']=='tags')
     { 
         $tags=explode(' ',$term); $last = array_pop($tags); // Get the last term ("a b c d" ==> "a b c", "d")
@@ -1238,6 +1342,19 @@ function processWS()
         echo json_encode(array_keys($suggested));
         exit;
     }
+    
+    // Search a single tag (case sentitive, single tag search)
+    if ($_GET['ws']=='singletag')
+    { 
+        /* To speed up things, we store list of tags in session */
+        if (empty($_SESSION['tags'])) $_SESSION['tags'] = $LINKSDB->allTags(); 
+        foreach($_SESSION['tags'] as $key=>$value)
+        {
+            if (startsWith($key,$term,$case=true)) $suggested[$key]=0;
+        }      
+        echo json_encode(array_keys($suggested));
+        exit;
+    }    
 }
 
 // Invalidate caches when the database is changed or the user logs out.
