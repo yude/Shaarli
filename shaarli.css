@@ -61,6 +61,8 @@ border-bottom:1px solid #aaa; border-right:1px solid #aaa;  }
 #newversion { background-color: #FFFFA0; color:#000; position:absolute; top:0;right:0; padding:2 7 2 7;  font-size:9pt;} 
 #cloudtag  { padding-left:10%; padding-right:10%; }
 #cloudtag a { color:black; text-decoration:none; }
+#installform td  { font-size: 10pt; padding:10 5 10 5; }
+#configform td  { color:#ccc; font-size: 10pt; padding:10 5 10 5; }
 
 /* Minimal customisation for jQuery widgets */
 .ui-autocomplete { background-color:#fff; padding-left:5px;}

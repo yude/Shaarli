@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.17 beta - Shaare your links...
+// Shaarli 0.0.18 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -47,11 +47,14 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.17 beta');
+define('shaarli_version','0.0.18 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
 require CONFIG_FILE;  // Read login/password hash into $GLOBALS.
+// Small protection against dodgy config files:
+if (empty($GLOBALS['title'])) $GLOBALS['title']='Shared links on '.htmlspecialchars(serverUrl().$_SERVER['SCRIPT_NAME']);
+if (empty($GLOBALS['timezone'])) $GLOBALS['timezone']=date_default_timezone_get();
 autoLocale(); // Sniff browser language and set date format accordingly.
 header('Content-Type: text/html; charset=utf-8'); // We use UTF-8 for proper international characters handling.
 $LINKSDB=false;
@@ -163,7 +166,7 @@ function isLoggedIn()
 }
 
 // Force logout.
-function logout() { unset($_SESSION['uid']); unset($_SESSION['ip']); unset($_SESSION['username']);}
+function logout() { if (isset($_SESSION)) { unset($_SESSION['uid']); unset($_SESSION['ip']); unset($_SESSION['username']);}  }
 
 
 // ------------------------------------------------------------------------------------------
@@ -567,7 +570,7 @@ function showRSS()
     header('Content-Type: application/xhtml+xml; charset=utf-8');
     $pageaddr=htmlspecialchars(serverUrl().$_SERVER["SCRIPT_NAME"]);
     echo '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">';
-    echo '<channel><title>Shared links on '.$pageaddr.'</title><link>'.$pageaddr.'</link>';
+    echo '<channel><title>'.htmlspecialchars($GLOBALS['title']).'</title><link>'.$pageaddr.'</link>';
     echo '<description>Shared links</description><language></language><copyright>'.$pageaddr.'</copyright>'."\n\n";
     $i=0;
     $keys=array(); foreach($linksToDisplay as $key=>$value) { $keys[]=$key; }  // No, I can't use array_keys().
@@ -577,7 +580,7 @@ function showRSS()
         $rfc822date = linkdate2rfc822($link['linkdate']);
         echo '<item><title>'.htmlspecialchars($link['title']).'</title><guid>'.htmlspecialchars($link['url']).'</guid><link>'.htmlspecialchars($link['url']).'</link>';
         if (!HIDE_TIMESTAMPS || isLoggedIn()) echo '<pubDate>'.htmlspecialchars($rfc822date).'</pubDate>';
-        echo '<description><![CDATA['.htmlspecialchars($link['description']).']]></description></item>'."\n";      
+        echo '<description><![CDATA['.nl2br(htmlspecialchars($link['description'])).']]></description></item>'."\n";      
         $i++;
     }
     echo '</channel></rss>';
@@ -703,7 +706,7 @@ HTML;
         $onload = 'onload="document.searchform.searchterm.focus();"';
         $data = array('pageheader'=>$searchform,'body'=>templateLinkList(),'onload'=>$onload); 
         templatePage($data);
-        exit; // Never remove this one !
+        exit; // Never remove this one ! All operations below are reserved for logged in user.
     }
     
     // -------- All other functions are reserved for the registered user:
@@ -717,6 +720,7 @@ HTML;
         $toolbar= <<<HTML
 <div id="headerform"><br>
     {$changepwd}        
+    <a href="?do=configure"><b>Configure your Shaarli</b></a> - Change Title, timezone...<br><br>
     <a href="?do=changetag"><b>Rename/delete tags</b></a> - Rename or delete a tag in all links.<br><br>
     <a href="?do=import"><b>Import</b></a> - Import Netscape html bookmarks (as exported from Firefox, Chrome, Opera, delicious...)<br><br>
     <a href="?do=export"><b>Export</b></a> - Export Netscape html bookmarks (which can be imported in Firefox, Chrome, Opera, delicious...)<br><br>
@@ -739,16 +743,10 @@ HTML;
             // Make sure old password is correct.
             $oldhash = sha1($_POST['oldpassword'].$GLOBALS['login'].$GLOBALS['salt']);
             if ($oldhash!=$GLOBALS['hash']) { echo '<script language="JavaScript">alert("The old password is not correct.");document.location=\'?do=changepasswd\';</script>'; exit; }
-            
             // Save new password
-            $salt=sha1(uniqid('',true).'_'.mt_rand()); // Salt renders rainbow-tables attacks useless.
-            $hash = sha1($_POST['setpassword'].$GLOBALS['login'].$salt);
-            $config='<?php $GLOBALS[\'login\']='.var_export($GLOBALS['login'],true).'; $GLOBALS[\'hash\']='.var_export($hash,true).'; $GLOBALS[\'salt\']='.var_export($salt,true).'; date_default_timezone_set('.var_export(date_default_timezone_get(),true).'); ?>';
-            if (!file_put_contents(CONFIG_FILE,$config) || strcmp(file_get_contents(CONFIG_FILE),$config)!=0)
-            {
-                echo '<script language="JavaScript">alert("Shaarli could not create the config file. Please make sure Shaarli has the right to write in the folder is it installed in.");document.location=\'?\';</script>';
-                exit;
-            }
+            $GLOBALS['salt'] = sha1(uniqid('',true).'_'.mt_rand()); // Salt renders rainbow-tables attacks useless.
+            $GLOBALS['hash'] = sha1($_POST['setpassword'].$GLOBALS['login'].$GLOBALS['salt']);
+            writeConfig();
             echo '<script language="JavaScript">alert("Your password has been changed.");document.location=\'?do=tools\';</script>';
             exit;
         }
@@ -767,6 +765,43 @@ HTML;
             exit;
         }
     }
+    
+    // -------- User wants to change configuration
+    if (startswith($_SERVER["QUERY_STRING"],'do=configure'))
+    {
+        if (!empty($_POST['title']) )
+        {
+            if (!tokenOk($_POST['token'])) die('Wrong token.'); // Go away !        
+            $tz = 'UTC';
+            if (!empty($_POST['continent']) && !empty($_POST['city']))
+                if (isTZvalid($_POST['continent'],$_POST['city']))
+                    $tz = $_POST['continent'].'/'.$_POST['city'];            
+            $GLOBALS['timezone'] = $tz;
+            $GLOBALS['title']=$_POST['title'];
+            writeConfig();
+            echo '<script language="JavaScript">alert("Configuration was saved.");document.location=\'?do=tools\';</script>';
+            exit;
+        }
+        else
+        {
+            $token = getToken();
+            $title = htmlspecialchars( empty($GLOBALS['title']) ? '' : $GLOBALS['title'] , ENT_QUOTES);
+            list($timezone_form,$timezone_js) = templateTZform($GLOBALS['timezone']);
+            $timezone_html=''; if ($timezone_form!='') $timezone_html='<tr><td valign="top"><b>Timezone:</b></td><td>'.$timezone_form.'</td></tr>';
+            $changepwdform= <<<HTML
+${timezone_js}<form method="POST" action="" name="configform" id="configform"><input type="hidden" name="token" value="{$token}">
+<table border="0" cellpadding="20">
+<tr><td><b>Page title:</b></td><td><input type="text" name="title" id="title" size="50" value="{$title}"></td></tr>
+{$timezone_html}
+<tr><td></td><td align="right"><input type="submit" name="Save" value="Save config" class="bigbutton"></td></tr>
+</table>
+</form>
+HTML;
+            $data = array('pageheader'=>$changepwdform,'body'=>'','onload'=>'onload="document.configform.title.focus();"');
+            templatePage($data);
+            exit;
+        }
+    }    
   
     // -------- User wants to rename a tag or delete it
     if (startswith($_SERVER["QUERY_STRING"],'do=changetag'))
@@ -838,9 +873,10 @@ HTML;
     if (isset($_POST['save_edit']))
     {
         if (!tokenOk($_POST['token'])) die('Wrong token.'); // Go away !
+        $tags = trim(preg_replace('/\s\s+/',' ', $_POST['lf_tags'])); // Remove multiple spaces.
         $linkdate=$_POST['lf_linkdate'];
         $link = array('title'=>trim($_POST['lf_title']),'url'=>trim($_POST['lf_url']),'description'=>trim($_POST['lf_description']),'private'=>(isset($_POST['lf_private']) ? 1 : 0),
-                      'linkdate'=>$linkdate,'tags'=>trim($_POST['lf_tags']));        
+                      'linkdate'=>$linkdate,'tags'=>$tags);        
         if ($link['title']=='') $link['title']=$link['url']; // If title is empty, use the URL as title.
         $LINKSDB[$linkdate] = $link;
         $LINKSDB->savedb(); // save to disk
@@ -1252,17 +1288,18 @@ JS;
     if (!empty($_GET['searchtags'])) $feedurl.='&searchtags='.$_GET['searchtags'];
     elseif (!empty($_GET['searchterm'])) $feedurl.='&searchterm='.$_GET['searchterm'];
 
+    $title = htmlspecialchars( $GLOBALS['title'] );
     echo <<<HTML
 <html>
 <head>
-<title>{$open}Shaarli - Let's shaare your links...</title>
+<title>{$title}</title>
 <link rel="alternate" type="application/rss+xml" href="{$feedurl}" />
 <link type="text/css" rel="stylesheet" href="shaarli.css" />
 {$jsincludes}
 </head>
 <body {$data['onload']}>{$newversion}
 <div id="pageheader"><div style="float:right; font-style:italic; color:#bbb; text-align:right; padding:0 5 0 0;">Shaare your links...<br>{$linkcount} links</div>
-    <b><i>{$open}Shaarli {$shaarli_version}</i></b> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}" style="padding-left:30px;">RSS Feed</a>
+    <b><i>{$title}</i></b> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}" style="padding-left:30px;">RSS Feed</a>
 &nbsp;&nbsp; <a href="?do=tagcloud">Tag cloud</a>
 {$data['pageheader']}
 </div>
@@ -1285,38 +1322,103 @@ function install()
     
     if (!empty($_POST['setlogin']) && !empty($_POST['setpassword']))
     {
-        $tz=(empty($_POST['settimezone']) ? 'UTC':$_POST['settimezone']);
+        $tz = 'UTC';
+        if (!empty($_POST['continent']) && !empty($_POST['city']))
+            if (isTZvalid($_POST['continent'],$_POST['city']))
+                $tz = $_POST['continent'].'/'.$_POST['city'];
+        $GLOBALS['timezone'] = $tz;        
         // Everything is ok, let's create config file.
-        $salt=sha1(uniqid('',true).'_'.mt_rand()); // Salt renders rainbow-tables attacks useless.
-        $hash = sha1($_POST['setpassword'].$_POST['setlogin'].$salt);
-        $config='<?php $GLOBALS[\'login\']='.var_export($_POST['setlogin'],true).'; $GLOBALS[\'hash\']='.var_export($hash,true).'; $GLOBALS[\'salt\']='.var_export($salt,true).'; date_default_timezone_set('.var_export($tz,true).'); ?>';
-        if (!file_put_contents(CONFIG_FILE,$config) || strcmp(file_get_contents(CONFIG_FILE),$config)!=0)
-        {
-            echo '<script language="JavaScript">alert("Shaarli could not create the config file. Please make sure Shaarli has the right to write in the folder is it installed in.");document.location=\'?\';</script>';
-            exit;
-        }
+        $GLOBALS['login'] = $_POST['setlogin'];
+        $GLOBALS['salt'] = sha1(uniqid('',true).'_'.mt_rand()); // Salt renders rainbow-tables attacks useless.
+        $GLOBALS['hash'] = sha1($_POST['setpassword'].$GLOBALS['login'].$GLOBALS['salt']);
+        $GLOBALS['title'] = (empty($_POST['title']) ? 'Shared links on '.htmlspecialchars(serverUrl().$_SERVER['SCRIPT_NAME']) : $_POST['title'] );
+        writeConfig();
         echo '<script language="JavaScript">alert("Shaarli is now configured. Please enter your login/password and start shaaring your links !");document.location=\'?do=login\';</script>';        
         exit;            
-   }
-    // Display config form:
-    $timezoneselect='';
-    if (function_exists('timezone_identifiers_list')) // because of old php version (5.1) which can be found on free.fr
-    {
-        $timezones='';
-        foreach(timezone_identifiers_list() as $tz) $timezones.='<option value="'.htmlspecialchars($tz).'">'.htmlspecialchars($tz)."</option>\n";
-        $timezoneselect='Timezone: <select name="settimezone"><option value="" selected>(please select:)</option>'.$timezones.'</select><br><br>';
     }
+     
+    // Display config form:        
+    list($timezone_form,$timezone_js) = templateTZform();
+    $timezone_html=''; if ($timezone_form!='') $timezone_html='<tr><td valign="top"><b>Timezone:</b></td><td>'.$timezone_form.'</td></tr>';
     echo <<<HTML
-<html><head><title>Shaarli - Configuration</title><link type="text/css" rel="stylesheet" href="shaarli.css" /></head>
-<body onload="document.configform.setlogin.focus();" style="padding:20px;"><h1>Shaarli - Shaare your links...</h1>
-It looks like it's the first time you run Shaarli. Please chose a login/password and a timezone:<br>
-<form method="POST" action="" name="configform" style="border:1px solid black; padding:10 10 10 10;">
-Login: <input type="text" name="setlogin"><br><br>Password: <input type="password" name="setpassword"><br><br>
-{$timezoneselect}
-<input type="submit" name="Save" value="Save config" class="bigbutton"></form></body></html>
+<html><head><title>Shaarli - Configuration</title><link type="text/css" rel="stylesheet" href="shaarli.css" />${timezone_js}</head>
+<body onload="document.installform.setlogin.focus();" style="padding:20px;"><h1>Shaarli - Shaare your links...</h1>
+It looks like it's the first time you run Shaarli. Please configure it:<br>
+<form method="POST" action="" name="installform" id="installform" style="border:1px solid black; padding:10 10 10 10;">
+<table border="0" cellpadding="20">
+<tr><td><b>Login:</b></td><td><input type="text" name="setlogin" size="30"></td></tr>
+<tr><td><b>Password:</b></td><td><input type="password" name="setpassword" size="30"></td></tr>
+{$timezone_html}
+<tr><td><b>Page title:</b></td><td><input type="text" name="title" size="30"></td></tr>
+<tr><td></td><td align="right"><input type="submit" name="Save" value="Save config" class="bigbutton"></td></tr>
+</table>
+</form></body></html>
 HTML;
     exit;
 }
+
+// Generates the timezone selection form and javascript.
+// Input: (optional) current timezone (can be 'UTC/UTC'). It will be pre-selected.
+// Output: array(html,js)
+// Example: list($htmlform,$js) = templateTZform('Europe/Paris');  // Europe/Paris pre-selected.
+// Returns array('','') if server does not support timezones list. (eg. php 5.1 on free.fr)
+function templateTZform($ptz=false)
+{
+    if (function_exists('timezone_identifiers_list')) // because of old php version (5.1) which can be found on free.fr
+    {
+        // Try to split the provided timezone.
+        if ($ptz==false) { $l=timezone_identifiers_list(); $ptz=$l[0]; }
+        $spos=strpos($ptz,'/'); $pcontinent=substr($ptz,0,$spos); $pcity=substr($ptz,$spos+1);
+      
+        // Display config form:
+        $timezone_form = '';
+        $timezone_js = '';
+        // The list is in the forme "Europe/Paris", "America/Argentina/Buenos_Aires"...
+        // We split the list in continents/cities.
+        $continents = array();
+        $cities = array();
+        foreach(timezone_identifiers_list() as $tz) 
+        {
+            if ($tz=='UTC') $tz='UTC/UTC';
+            $spos = strpos($tz,'/');
+            if ($spos)
+            {
+                $continent=substr($tz,0,$spos); $city=substr($tz,$spos+1);
+                $continents[$continent]=1;
+                if (!isset($cities[$continent])) $cities[$continent]=array();
+                $cities[$continent].='<option value="'.$city.'"'.($pcity==$city?'selected':'').'>'.$city.'</option>';
+            }
+        }
+        $continents_html = '';
+        $continents = array_keys($continents);
+        foreach($continents as $continent)
+            $continents_html.='<option  value="'.$continent.'"'.($pcontinent==$continent?'selected':'').'>'.$continent.'</option>';  
+        $cities_html = $cities[$pcontinent];
+        $timezone_form = "Continent: <select name=\"continent\" id=\"continent\" onChange=\"onChangecontinent();\">${continents_html}</select><br /><br />";
+        $timezone_form .= "City: <select name=\"city\" id=\"city\">${cities[$pcontinent]}</select><br /><br />"; 
+        $timezone_js = "<script language=\"JavaScript\">";
+        $timezone_js .= "function onChangecontinent(){document.getElementById(\"city\").innerHTML = citiescontinent[document.getElementById(\"continent\").value];}"; 
+        $timezone_js .= "var citiescontinent = ".json_encode($cities).";" ;
+        $timezone_js .= "</script>" ;
+        return array($timezone_form,$timezone_js);
+    }
+    return array('','');
+}
+
+// Tells if a timezone is valid or not.
+// If not valid, returns false.
+// If system does not support timezone list, returns false.
+function isTZvalid($continent,$city)
+{
+    $tz = $continent.'/'.$city;
+    if (function_exists('timezone_identifiers_list')) // because of old php version (5.1) which can be found on free.fr
+    {
+        if (in_array($tz, timezone_identifiers_list())) // it's a valid timezone ?
+                    return true;
+    }
+    return false;
+}
+
 
 // Webservices (for use with jQuery/jQueryUI)
 // eg.  index.php?ws=tags&term=minecr
@@ -1355,6 +1457,22 @@ function processWS()
         echo json_encode(array_keys($suggested));
         exit;
     }    
+}
+
+// Re-write configuration file according to globals.
+// Requires some $GLOBALS to be set (login,hash,salt,title).
+// If the config file cannot be saved, an error message is dislayed and the user is redirected to "Tools" menu.
+// (otherwise, the function simply returns.)
+function writeConfig()
+{
+    if (is_file(CONFIG_FILE) && !isLoggedIn()) die('You are not authorized to alter config.'); // Only logged in user can alter config.
+    $config='<?php $GLOBALS[\'login\']='.var_export($GLOBALS['login'],true).'; $GLOBALS[\'hash\']='.var_export($GLOBALS['hash'],true).'; $GLOBALS[\'salt\']='.var_export($GLOBALS['salt'],true).'; ';
+    $config .='$GLOBALS[\'timezone\']='.var_export($GLOBALS['timezone'],true).'; date_default_timezone_set('.var_export($GLOBALS['timezone'],true).'); $GLOBALS[\'title\']='.var_export($GLOBALS['title'],true).'; ?>';    
+    if (!file_put_contents(CONFIG_FILE,$config) || strcmp(file_get_contents(CONFIG_FILE),$config)!=0)
+    {
+        echo '<script language="JavaScript">alert("Shaarli could not create the config file. Please make sure Shaarli has the right to write in the folder is it installed in.");document.location=\'?\';</script>';
+        exit;
+    }
 }
 
 // Invalidate caches when the database is changed or the user logs out.
