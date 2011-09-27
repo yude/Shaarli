@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.18 beta - Shaare your links...
+// Shaarli 0.0.19 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -47,7 +47,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.18 beta');
+define('shaarli_version','0.0.19 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
@@ -89,7 +89,7 @@ function checkUpdate()
     }
     // Compare versions:
     $newestversion=file_get_contents(UPDATECHECK_FILENAME);
-    if ($newestversion!=shaarli_version) return $newestversion;
+    if (version_compare($newestversion,shaarli_version)==1) return $newestversion;
     return '';
 }
 
@@ -308,6 +308,13 @@ function linkdate2timestamp($linkdate)
 function linkdate2rfc822($linkdate)
 {
     return date('r',linkdate2timestamp($linkdate)); // 'r' is for RFC822 date format.
+}
+
+/*  Converts a linkdate time (YYYYMMDD_HHMMSS) of an article to a ISO 8601 date.
+    (used to build the updated tags in ATOM feed.)  */
+function linkdate2iso8601($linkdate)
+{
+    return date('c',linkdate2timestamp($linkdate)); // 'c' is for ISO 8601 date format.
 }
 
 /*  Converts a linkdate time (YYYYMMDD_HHMMSS) of an article to a localized date format.
@@ -584,6 +591,46 @@ function showRSS()
         $i++;
     }
     echo '</channel></rss>';
+    exit;
+}
+
+// ------------------------------------------------------------------------------------------
+// Ouput the last 50 links in ATOM format.
+function showATOM()
+{
+    global $LINKSDB;
+    
+    // Optionnaly filter the results:
+    $linksToDisplay=array();
+    if (!empty($_GET['searchterm'])) $linksToDisplay = $LINKSDB->filterFulltext($_GET['searchterm']);
+    elseif (!empty($_GET['searchtags']))   $linksToDisplay = $LINKSDB->filterTags(trim($_GET['searchtags']));
+    else $linksToDisplay = $LINKSDB;
+    
+    header('Content-Type: application/xhtml+xml; charset=utf-8');
+    $pageaddr=htmlspecialchars(serverUrl().$_SERVER["SCRIPT_NAME"]);
+    $latestDate = '';
+    $entries='';
+    $i=0;
+    $keys=array(); foreach($linksToDisplay as $key=>$value) { $keys[]=$key; }  // No, I can't use array_keys().
+    while ($i<50 && $i<count($keys))
+    {
+        $link = $linksToDisplay[$keys[$i]];
+        $iso8601date = linkdate2iso8601($link['linkdate']);
+        $latestDate = max($latestDate,$iso8601date);
+        $entries.='<entry><title>'.htmlspecialchars($link['title']).'</title><link href="'.htmlspecialchars($link['url']).'"/><id>'.htmlspecialchars($link['url']).'</id>';
+        if (!HIDE_TIMESTAMPS || isLoggedIn()) $entries.='<updated>'.htmlspecialchars($iso8601date).'</updated>';
+        $entries.='<summary>'.nl2br(htmlspecialchars($link['description'])).'</summary></entry>'."\n";      
+        $i++;
+    }
+    $feed='<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">';
+    $feed.='<title>'.htmlspecialchars($GLOBALS['title']).'</title>';
+    if (!HIDE_TIMESTAMPS || isLoggedIn()) $feed.='<updated>'.htmlspecialchars($latestDate).'</updated>';
+    $feed.='<link href="'.htmlspecialchars($pageaddr).'" />';
+    $feed.='<author><uri>'.htmlspecialchars($pageaddr).'</uri></author>';
+    $feed.='<id>'.htmlspecialchars($pageaddr).'</id>'."\n\n"; // Yes, I know I should use a real IRI (RFC3987), but the site URL will do.
+    $feed.=$entries;
+    $feed.='</feed>';
+    echo $feed;
     exit;
 }
 
@@ -1284,7 +1331,7 @@ $(document).ready(function()
 </script>
 JS;
     }
-    $feedurl=htmlspecialchars(serverUrl().$_SERVER['SCRIPT_NAME'].'?do=rss'); 
+    $feedurl=htmlspecialchars(serverUrl().$_SERVER['SCRIPT_NAME']); 
     if (!empty($_GET['searchtags'])) $feedurl.='&searchtags='.$_GET['searchtags'];
     elseif (!empty($_GET['searchterm'])) $feedurl.='&searchterm='.$_GET['searchterm'];
 
@@ -1299,7 +1346,7 @@ JS;
 </head>
 <body {$data['onload']}>{$newversion}
 <div id="pageheader"><div style="float:right; font-style:italic; color:#bbb; text-align:right; padding:0 5 0 0;">Shaare your links...<br>{$linkcount} links</div>
-    <b><i>{$title}</i></b> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}" style="padding-left:30px;">RSS Feed</a>
+    <b><i>{$title}</i></b> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}?do=rss" style="padding-left:30px;">RSS Feed</a> <a href="{$feedurl}?do=atom" style="padding-left:10px;">ATOM Feed</a>
 &nbsp;&nbsp; <a href="?do=tagcloud">Tag cloud</a>
 {$data['pageheader']}
 </div>
@@ -1486,5 +1533,6 @@ $LINKSDB=new linkdb(isLoggedIn() || OPEN_SHAARLI);  // Read links from database 
 if (startswith($_SERVER["QUERY_STRING"],'ws=')) { processWS(); exit; } // Webservices (for jQuery/jQueryUI)
 if (!isset($_SESSION['LINKS_PER_PAGE'])) $_SESSION['LINKS_PER_PAGE']=LINKS_PER_PAGE;
 if (startswith($_SERVER["QUERY_STRING"],'do=rss')) { showRSS(); exit; }
+if (startswith($_SERVER["QUERY_STRING"],'do=atom')) { showATOM(); exit; }
 renderPage();
 ?>
