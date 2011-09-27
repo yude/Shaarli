@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.19 beta - Shaare your links...
+// Shaarli 0.0.20 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -47,7 +47,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.19 beta');
+define('shaarli_version','0.0.20 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
@@ -574,7 +574,7 @@ function showRSS()
     elseif (!empty($_GET['searchtags']))   $linksToDisplay = $LINKSDB->filterTags(trim($_GET['searchtags']));
     else $linksToDisplay = $LINKSDB;
         
-    header('Content-Type: application/xhtml+xml; charset=utf-8');
+    header('Content-Type: application/rss+xml; charset=utf-8');
     $pageaddr=htmlspecialchars(serverUrl().$_SERVER["SCRIPT_NAME"]);
     echo '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">';
     echo '<channel><title>'.htmlspecialchars($GLOBALS['title']).'</title><link>'.$pageaddr.'</link>';
@@ -606,7 +606,7 @@ function showATOM()
     elseif (!empty($_GET['searchtags']))   $linksToDisplay = $LINKSDB->filterTags(trim($_GET['searchtags']));
     else $linksToDisplay = $LINKSDB;
     
-    header('Content-Type: application/xhtml+xml; charset=utf-8');
+    header('Content-Type: application/atom+xml; charset=utf-8');
     $pageaddr=htmlspecialchars(serverUrl().$_SERVER["SCRIPT_NAME"]);
     $latestDate = '';
     $entries='';
