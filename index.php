@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.20 beta - Shaare your links...
+// Shaarli 0.0.21 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -17,6 +17,7 @@ define('BAN_AFTER',4);       // Ban IP after this many failures.
 define('BAN_DURATION',1800); // Ban duration for IP address after login failures (in seconds) (1800 sec. = 30 minutes)
 define('OPEN_SHAARLI',false); // If true, anyone can add/edit/delete links without having to login
 define('HIDE_TIMESTAMPS',false); // If true, the moment when links were saved are not shown to users that are not logged in.
+define('ENABLE_THUMBNAILS',true);  // Enable thumbnails in links.
 
 // -----------------------------------------------------------------------------------------------
 // Program config (touch at your own risks !)
@@ -47,7 +48,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.20 beta');
+define('shaarli_version','0.0.21 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
@@ -750,8 +751,7 @@ function renderPage()
     <form method="GET" name="tagfilter" style="display:inline;padding-left:24px;"><input type="text" name="searchtags" id="searchtags" style="width:20%" value=""> <input type="submit" value="Filter by tag" class="bigbutton"></form>
 </div>
 HTML;
-        $onload = 'onload="document.searchform.searchterm.focus();"';
-        $data = array('pageheader'=>$searchform,'body'=>templateLinkList(),'onload'=>$onload); 
+        $data = array('pageheader'=>$searchform,'body'=>templateLinkList(),'onload'=>''); 
         templatePage($data);
         exit; // Never remove this one ! All operations below are reserved for logged in user.
     }
@@ -1101,8 +1101,7 @@ HTML;
     <form method="GET" name="tagfilter" style="display:inline;padding-left:24px;"><input type="text" name="searchtags" id="searchtags" style="width:20%" value=""> <input type="submit" value="Filter by tag" class="bigbutton"></form>
 </div>
 HTML;
-    $onload = 'onload="document.searchform.searchterm.focus();"';
-    $data = array('pageheader'=>$searchform,'body'=>templateLinkList(),'onload'=>$onload); 
+    $data = array('pageheader'=>$searchform,'body'=>templateLinkList(),'onload'=>''); 
     templatePage($data);
     exit;
 }    
@@ -1262,10 +1261,11 @@ function templateLinkList()
         if (isLoggedIn()) $actions=' <form method="GET" class="buttoneditform"><input type="hidden" name="edit_link" value="'.$link['linkdate'].'"><input type="submit" value="Edit" class="smallbutton"></form>';
         $tags='';
         if ($link['tags']!='') foreach(explode(' ',$link['tags']) as $tag) { $tags.='<span class="linktag" title="Add tag"><a href="?addtag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).'</a></span> '; }
-        $linklist.='<li '.$classprivate.'><span class="linktitle"><a href="'.htmlspecialchars($link['url']).'">'.htmlspecialchars($title).'</a></span>'.$actions.'<br>';
+        $linklist.='<li '.$classprivate.'>'.thumbnail($link['url']);
+        $linklist.='<div class="linkcontainer"><span class="linktitle"><a href="'.htmlspecialchars($link['url']).'">'.htmlspecialchars($title).'</a></span>'.$actions.'<br>';
         if ($description!='') $linklist.='<div class="linkdescription">'.nl2br(htmlspecialchars($description)).'</div><br>';
         if (!HIDE_TIMESTAMPS || isLoggedIn()) $linklist.='<span class="linkdate">'.htmlspecialchars(linkdate2locale($link['linkdate'])).' - </span>';
-        $linklist.='<span class="linkurl">'.htmlspecialchars($link['url']).'</span><br>'.$tags."</li>\n";  
+        $linklist.='<span class="linkurl">'.htmlspecialchars($link['url']).'</span><br>'.$tags."</div></li>\n";  
         $i++;
     } 
     
@@ -1284,6 +1284,53 @@ HTML;
     $paging = '<div class="paging">'.$linksperpage.$paging.'</div>';
     $linklist='<div id="linklist">'.$paging.$searched.'<ul>'.$linklist.'</ul>'.$paging.'</div>';
     return $linklist;
+}
+
+// Returns the HTML code to display a thumbnail for a link.
+// Understands various services (youtube.com...)
+function thumbnail($url)
+{
+    if (!ENABLE_THUMBNAILS) return '';
+    $domain = parse_url($url,PHP_URL_HOST);
+    if ($domain=='youtube.com' || $domain=='www.youtube.com')
+    {
+        parse_str(parse_url($url,PHP_URL_QUERY), $params); // Extract video ID and get thumbnail
+        if (!empty($params['v'])) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://img.youtube.com/vi/'.htmlspecialchars($params['v']).'/2.jpg" width="120" height="90"></a></div>';
+    }
+    if ($domain=='imgur.com')
+    {
+        $path = parse_url($url,PHP_URL_PATH);
+        if (substr_count($path,'/')==1) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars(substr($path,1)).'s.jpg" width="90" height="90"></a></div>';
+    }
+    if ($domain=='i.imgur.com')
+    {
+        $pi = pathinfo(parse_url($url,PHP_URL_PATH));
+        if (!empty($pi['filename'])) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars($pi['filename']).'s.jpg" width="90" height="90"></a></div>';
+    } 
+    if ($domain=='dailymotion.com' || $domain=='www.dailymotion.com')
+    {
+        if (strpos($url,'dailymotion.com/video/'))
+        {
+            $thumburl=str_replace('dailymotion.com/video/','dailymotion.com/thumbnail/video/',$url);
+            return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a></div>';
+        }
+    } 
+    if ($domain=='vimeo.com')
+    {
+        // This is more complex: we have to perform a HTTP request, then parse the result.
+        // This slows down page generation :-(
+        // Maybe we should deport this to javascript ? Example: http://stackoverflow.com/questions/1361149/get-img-thumbnails-from-vimeo/4285098#4285098
+        $vid = substr(parse_url($url,PHP_URL_PATH),1);
+        // We allow 2 seconds for Vimeo servers to respond.
+        list($httpstatus,$headers,$data) = getHTTP('http://vimeo.com/api/v2/video/'.htmlspecialchars($vid).'.php',2);
+        if (strpos($httpstatus,'200 OK'))
+        {
+            $t = unserialize($data);
+            if (!empty($t[0]['thumbnail_medium'])) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="'.htmlspecialchars($t[0]['thumbnail_medium']).'" width="120" style="height:auto;"></a></div>';
+        }
+    }
+    return ''; // No thumbnail.
+
 }
 
 // -----------------------------------------------------------------------------------------------

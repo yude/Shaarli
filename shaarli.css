@@ -44,7 +44,7 @@ margin: auto;
 .paging a:active { color:#fff;  }
 #headerform { padding:5 5 5 5;  }
 #editlinkform {  padding:5 5 5 15px; width:80%; }
-#linklist li { padding:4 10 8 20; border-bottom: 1px solid #bbb;}
+#linklist li { padding:4 10 8 20; border-top: 1px solid #bbb; clear:both; }
 #linklist li.private { background-color: #ccc; border-left:8px solid #888; }
 .linktitle { font-size:14pt; font-weight:bold; }
 .linktitle a { text-decoration: none; color:#0000EE; }
@@ -63,6 +63,13 @@ border-bottom:1px solid #aaa; border-right:1px solid #aaa;  }
 #cloudtag a { color:black; text-decoration:none; }
 #installform td  { font-size: 10pt; padding:10 5 10 5; }
 #configform td  { color:#ccc; font-size: 10pt; padding:10 5 10 5; }
+.thumbnail { float:right;  margin-left: 10px;   }
+
+/* If you want thumbnails on the right:
+.thumbnail { float:left;  margin-right: 10px;   }
+.linkcontainer { position: static; margin-left:130px; }
+*/
+
 
 /* Minimal customisation for jQuery widgets */
 .ui-autocomplete { background-color:#fff; padding-left:5px;}
