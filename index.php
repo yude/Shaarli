@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.21 beta - Shaare your links...
+// Shaarli 0.0.22 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -18,7 +18,8 @@ define('BAN_DURATION',1800); // Ban duration for IP address after login failures
 define('OPEN_SHAARLI',false); // If true, anyone can add/edit/delete links without having to login
 define('HIDE_TIMESTAMPS',false); // If true, the moment when links were saved are not shown to users that are not logged in.
 define('ENABLE_THUMBNAILS',true);  // Enable thumbnails in links.
-
+define('CACHEDIR','cache'); // Cache directory for thumbnails for SLOW services (like flickr)
+        
 // -----------------------------------------------------------------------------------------------
 // Program config (touch at your own risks !)
 define('UPDATECHECK_FILENAME',DATADIR.'/lastupdatecheck.txt'); // For updates check of Shaarli.
@@ -48,9 +49,11 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.21 beta');
+define('shaarli_version','0.0.22 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
+if (!is_dir(CACHEDIR)) { mkdir(CACHEDIR,0705); chmod(CACHEDIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
+if (!is_file(CACHEDIR.'/.htaccess')) { file_put_contents(CACHEDIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if (!is_file(CONFIG_FILE)) install();
 require CONFIG_FILE;  // Read login/password hash into $GLOBALS.
 // Small protection against dodgy config files:
@@ -162,7 +165,9 @@ function isLoggedIn()
         logout();
         return false;
     }
-    $_SESSION['expires_on']=time()+INACTIVITY_TIMEOUT;  // User accessed a page : Update his/her session expiration date.
+    if (!empty($_SESSION['longlastingsession']))  $_SESSION['expires_on']=time()+$_SESSION['longlastingsession']; // In case of "Stay signed in" checked.
+    else $_SESSION['expires_on']=time()+INACTIVITY_TIMEOUT; // Standard session expiration date.
+    
     return true;
 }
 
@@ -225,9 +230,22 @@ if (isset($_POST['login']))
     if (!ban_canLogin()) die('I said: NO. You are banned for the moment. Go away.');
     if (isset($_POST['password']) && tokenOk($_POST['token']) && (check_auth($_POST['login'], $_POST['password'])))
     {   // Login/password is ok.
-        ban_loginOk();
+        ban_loginOk();  
+        // If user wants to keep the session cookie even after the browser closes:
+        if (!empty($_POST['longlastingsession']))
+        {
+            $_SESSION['longlastingsession']=31536000;  // (31536000 seconds = 1 year)
+            $_SESSION['expires_on']=time()+$_SESSION['longlastingsession'];  // Set session expiration on server-side.
+            session_set_cookie_params($_SESSION['longlastingsession']); // Set session cookie expiration on client side 
+            session_regenerate_id(true);  // Send cookie with new expiration date to browser.
+        }
+        else // Standard session expiration (=when browser closes)
+        {
+            session_set_cookie_params(0); // 0 means "When browser closes"
+            session_regenerate_id(true); 
+        }
         // Optional redirect after login:
-        if (isset($_GET['post'])) { header('Location: ?post='.urlencode($_GET['post']).(!empty($_GET['source'])?'&source='.urlencode($_GET['source']):'')); exit; }
+        if (isset($_GET['post'])) { header('Location: ?post='.urlencode($_GET['post']).(!empty($_GET['title'])?'&title='.urlencode($_GET['title']):'').(!empty($_GET['source'])?'&source='.urlencode($_GET['source']):'')); exit; }
         if (isset($_POST['returnurl']))
         { 
             if (endsWith($_POST['returnurl'],'?do=login')) { header('Location: ?'); exit; } // Prevent loops over login screen.
@@ -657,13 +675,13 @@ function renderPage()
             exit;
         }
         $returnurl_html = (isset($_SERVER['HTTP_REFERER']) ? '<input type="hidden" name="returnurl" value="'.htmlspecialchars($_SERVER['HTTP_REFERER']).'">' : '');        
-        $loginform='<div id="headerform"><form method="post" name="loginform">Login: <input type="text" name="login">&nbsp;&nbsp;&nbsp;Password : <input type="password" name="password"> <input type="submit" value="Login" class="bigbutton"><input type="hidden" name="token" value="'.getToken().'">'.$returnurl_html.'</form></div>';
+        $loginform='<div id="headerform"><form method="post" name="loginform">Login: <input type="text" name="login">&nbsp;&nbsp;&nbsp;Password : <input type="password" name="password"> <input type="submit" value="Login" class="bigbutton"><br>';
+        $loginform.='<input style="margin:10 0 0 40;" type="checkbox" name="longlastingsession">&nbsp;Stay signed in (Do not check on public computers)<input type="hidden" name="token" value="'.getToken().'">'.$returnurl_html.'</form></div>';
         $onload = 'onload="document.loginform.login.focus();"';
         $data = array('pageheader'=>$loginform,'body'=>'','onload'=>$onload); 
         templatePage($data);
         exit;
     }
-    
     // -------- User wants to logout.
     if (startswith($_SERVER["QUERY_STRING"],'do=logout'))
     { 
@@ -740,7 +758,7 @@ function renderPage()
         // Show login screen, then redirect to ?post=...
         if (isset($_GET['post'])) 
         {
-            header('Location: ?do=login&post='.urlencode($_GET['post']).(isset($_GET['source'])?'&source='.urlencode($_GET['source']):'')); // Redirect to login page, then back to post link.
+            header('Location: ?do=login&post='.urlencode($_GET['post']).(isset($_GET['title'])?'&title='.urlencode($_GET['title']):'').(isset($_GET['source'])?'&source='.urlencode($_GET['source']):'')); // Redirect to login page, then back to post link.
             exit;
         }
         
@@ -1291,6 +1309,10 @@ HTML;
 function thumbnail($url)
 {
     if (!ENABLE_THUMBNAILS) return '';
+    
+    // For most hosts, the URL of the thumbnail can be easily deduced from the URL of the link.
+    // (eg. http://www.youtube.com/watch?v=spVypYk4kto --->  http://img.youtube.com/vi/spVypYk4kto/2.jpg )
+    //                                     ^^^^^^^^^^^                                 ^^^^^^^^^^^
     $domain = parse_url($url,PHP_URL_HOST);
     if ($domain=='youtube.com' || $domain=='www.youtube.com')
     {
@@ -1315,20 +1337,16 @@ function thumbnail($url)
             return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a></div>';
         }
     } 
-    if ($domain=='vimeo.com')
+    
+    // Some other hosts are SLOW AS HELL and usually require an extra HTTP request to get the thumbnail URL.
+    // So we deport the thumbnail generation in order not to slow down page generation
+    // (and we also cache the thumbnail)
+    if ($domain=='flickr.com' || endsWith($domain,'.flickr.com') || $domain=='vimeo.com')
     {
-        // This is more complex: we have to perform a HTTP request, then parse the result.
-        // This slows down page generation :-(
-        // Maybe we should deport this to javascript ? Example: http://stackoverflow.com/questions/1361149/get-img-thumbnails-from-vimeo/4285098#4285098
-        $vid = substr(parse_url($url,PHP_URL_PATH),1);
-        // We allow 2 seconds for Vimeo servers to respond.
-        list($httpstatus,$headers,$data) = getHTTP('http://vimeo.com/api/v2/video/'.htmlspecialchars($vid).'.php',2);
-        if (strpos($httpstatus,'200 OK'))
-        {
-            $t = unserialize($data);
-            if (!empty($t[0]['thumbnail_medium'])) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="'.htmlspecialchars($t[0]['thumbnail_medium']).'" width="120" style="height:auto;"></a></div>';
-        }
+        $sign = hash_hmac('sha256', $url, $GLOBALS['salt']); // We use the salt to sign data (it's random, secret, and specific to each installation)
+        return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a></div>';
     }
+
     return ''; // No thumbnail.
 
 }
@@ -1569,6 +1587,113 @@ function writeConfig()
     }
 }
 
+/* Because some f*cking services like Flickr require an extra HTTP request to get the thumbnail URL,
+   I have deported the thumbnail URL code generation here, otherwise this would slow down page generation.
+   The following function takes the URL a link (eg. a flickr page) and return the proper thumbnail.
+   This function is called by passing the url:
+   http://mywebsite.com/shaarli/?do=genthumbnail&hmac=[HMAC]&url=[URL]
+   [URL] is the URL of the link (eg. a flickr page)
+   [HMAC] is the signature for the [URL] (so that these URL cannot be forged).
+   The function below will fetch the image from the webservice and store it in the cache.
+*/
+function genThumbnail()
+{
+    // Make sure the parameters in the URL were generated by us.
+    $sign = hash_hmac('sha256', $_GET['url'], $GLOBALS['salt']);
+    if ($sign!=$_GET['hmac']) die('Naughty boy !'); 
+    
+    // Let's see if we don't already have the image for this URL in the cache.
+    $thumbname=hash('sha1',$_GET['url']).'.jpg';
+    if (is_file(CACHEDIR.'/'.$thumbname))
+    {   // We have the thumbnail, just serve it:
+        header('Content-Type: image/jpeg');
+        echo file_get_contents(CACHEDIR.'/'.$thumbname);  
+        return;
+    }
+    // We may also serve a blank image (if service did not respond)
+    $blankname=hash('sha1',$_GET['url']).'.gif';
+    if (is_file(CACHEDIR.'/'.$blankname))
+    {
+        header('Content-Type: image/gif');
+        echo file_get_contents(CACHEDIR.'/'.$blankname);  
+        return;
+    }    
+    
+    // Otherwise, generate the thumbnail.
+    $url = $_GET['url'];
+    $domain = parse_url($url,PHP_URL_HOST);
+
+    if ($domain=='flickr.com' || endsWith($domain,'.flickr.com'))
+    {    
+        // WTF ? I need a flickr API key to get a fucking thumbnail ? No way.
+        // I'll extract the thumbnail URL myself. First, we have to get the flickr HTML page.
+        // All images in Flickr are in the form:
+        // http://farm[farm].static.flickr.com/[server]/[id]_[secret]_[size].jpg
+        // Example: http://farm7.static.flickr.com/6205/6088513739_fc158467fe_z.jpg
+        // We want the 240x120 format, which is _m.jpg.
+        // We search for the first image in the page which does not have the _s size,
+        // when use the _m to get the thumbnail.
+
+        // Is this a link to an image, or to a flickr page ?
+        $imageurl='';
+        logm('url: '.$url);
+        if (endswith(parse_url($url,PHP_URL_PATH),'.jpg'))
+        {  // This is a direct link to an image. eg. http://farm1.static.flickr.com/5/5921913_ac83ed27bd_o.jpg
+            preg_match('!(http://farm\d+.static.flickr.com/\d+/\d+_\w+_)\w.jpg!',$url,$matches);
+            if (!empty($matches[1])) $imageurl=$matches[1].'m.jpg';  
+        }
+        else // this is a flickr page (html)
+        {
+            list($httpstatus,$headers,$data) = getHTTP($url,20); // Get the flickr html page.
+            if (strpos($httpstatus,'200 OK'))
+            {
+                preg_match('!(http://farm\d+.static.flickr.com/\d+/\d+_\w+_)[^s].jpg!',$data,$matches);
+                if (!empty($matches[1])) $imageurl=$matches[1].'m.jpg';  
+            }
+        }
+        if ($imageurl!='')
+        {   // Let's download the image.
+            list($httpstatus,$headers,$data) = getHTTP($imageurl,10); // Image is 240x120, so 10 seconds to download should be enough.
+            if (strpos($httpstatus,'200 OK'))
+            {
+                file_put_contents(CACHEDIR.'/'.$thumbname,$data); // Save image to cache.
+                header('Content-Type: image/jpeg');
+                echo $data;
+                return;
+            }
+        } 
+        else logm('unkown flickr url: '.$url);
+    }
+
+    if ($domain=='vimeo.com' )
+    {
+        // This is more complex: we have to perform a HTTP request, then parse the result.
+        // Maybe we should deport this to javascript ? Example: http://stackoverflow.com/questions/1361149/get-img-thumbnails-from-vimeo/4285098#4285098
+        $vid = substr(parse_url($url,PHP_URL_PATH),1);
+        list($httpstatus,$headers,$data) = getHTTP('http://vimeo.com/api/v2/video/'.htmlspecialchars($vid).'.php',5);
+        if (strpos($httpstatus,'200 OK'))
+        {
+            $t = unserialize($data);
+            $imageurl = $t[0]['thumbnail_medium'];
+            // Then we download the image and serve it to our client.
+            list($httpstatus,$headers,$data) = getHTTP($imageurl,10);
+            if (strpos($httpstatus,'200 OK'))
+            {
+                file_put_contents(CACHEDIR.'/'.$thumbname,$data); // Save image to cache.
+                header('Content-Type: image/jpeg');
+                echo $data;
+                return;
+            }           
+        }  
+    }
+
+    // Otherwise, return an empty image (8x8 transparent gif)
+    $blankgif = base64_decode('R0lGODlhCAAIAIAAAP///////yH5BAEKAAEALAAAAAAIAAgAAAIHjI+py+1dAAA7');
+    file_put_contents(CACHEDIR.'/'.$blankname,$blankgif); // Also put something in cache so that this URL is not requested twice.
+    header('Content-Type: image/gif');
+    echo $blankgif;
+}
+
 // Invalidate caches when the database is changed or the user logs out.
 // (eg. tags cache).
 function invalidateCaches()
@@ -1576,6 +1701,7 @@ function invalidateCaches()
     unset($_SESSION['tags']);
 }
 
+if (startswith($_SERVER["QUERY_STRING"],'do=genthumbnail')) { genThumbnail(); exit; }  // Thumbnail generation/cache does not need the link database.
 $LINKSDB=new linkdb(isLoggedIn() || OPEN_SHAARLI);  // Read links from database (and filter private links if used it not logged in).
 if (startswith($_SERVER["QUERY_STRING"],'ws=')) { processWS(); exit; } // Webservices (for jQuery/jQueryUI)
 if (!isset($_SESSION['LINKS_PER_PAGE'])) $_SESSION['LINKS_PER_PAGE']=LINKS_PER_PAGE;
