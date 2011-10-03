@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.22 beta - Shaare your links...
+// Shaarli 0.0.23 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -49,7 +49,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.22 beta');
+define('shaarli_version','0.0.23 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_dir(CACHEDIR)) { mkdir(CACHEDIR,0705); chmod(CACHEDIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
@@ -676,7 +676,7 @@ function renderPage()
         }
         $returnurl_html = (isset($_SERVER['HTTP_REFERER']) ? '<input type="hidden" name="returnurl" value="'.htmlspecialchars($_SERVER['HTTP_REFERER']).'">' : '');        
         $loginform='<div id="headerform"><form method="post" name="loginform">Login: <input type="text" name="login">&nbsp;&nbsp;&nbsp;Password : <input type="password" name="password"> <input type="submit" value="Login" class="bigbutton"><br>';
-        $loginform.='<input style="margin:10 0 0 40;" type="checkbox" name="longlastingsession">&nbsp;Stay signed in (Do not check on public computers)<input type="hidden" name="token" value="'.getToken().'">'.$returnurl_html.'</form></div>';
+        $loginform.='<input style="margin:10 0 0 40;" type="checkbox" name="longlastingsession" id="longlastingsession"><label for="longlastingsession">&nbsp;Stay signed in (Do not check on public computers)</label><input type="hidden" name="token" value="'.getToken().'">'.$returnurl_html.'</form></div>';
         $onload = 'onload="document.loginform.login.focus();"';
         $data = array('pageheader'=>$loginform,'body'=>'','onload'=>$onload); 
         templatePage($data);
@@ -941,7 +941,7 @@ HTML;
         $tags = trim(preg_replace('/\s\s+/',' ', $_POST['lf_tags'])); // Remove multiple spaces.
         $linkdate=$_POST['lf_linkdate'];
         $link = array('title'=>trim($_POST['lf_title']),'url'=>trim($_POST['lf_url']),'description'=>trim($_POST['lf_description']),'private'=>(isset($_POST['lf_private']) ? 1 : 0),
-                      'linkdate'=>$linkdate,'tags'=>$tags);        
+                      'linkdate'=>$linkdate,'tags'=>str_replace(',',' ',$tags));        
         if ($link['title']=='') $link['title']=$link['url']; // If title is empty, use the URL as title.
         $LINKSDB[$linkdate] = $link;
         $LINKSDB->savedb(); // save to disk
@@ -1337,7 +1337,16 @@ function thumbnail($url)
             return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a></div>';
         }
     } 
-    
+    if (endsWith($domain,'.imageshack.us'))
+    {
+        $ext=strtolower(pathinfo($url,PATHINFO_EXTENSION));
+        if ($ext=='jpg' || $ext=='jpeg' || $ext=='png' || $ext=='gif')
+        {
+            $thumburl = substr($url,0,strlen($url)-strlen($ext)).'th.'.$ext;
+            return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a></div>';
+        }
+    }
+   
     // Some other hosts are SLOW AS HELL and usually require an extra HTTP request to get the thumbnail URL.
     // So we deport the thumbnail generation in order not to slow down page generation
     // (and we also cache the thumbnail)
@@ -1544,14 +1553,14 @@ function processWS()
     // Search in tags (case insentitive, cumulative search)
     if ($_GET['ws']=='tags')
     { 
-        $tags=explode(' ',$term); $last = array_pop($tags); // Get the last term ("a b c d" ==> "a b c", "d")
+        $tags=explode(' ',str_replace(',',' ',$term)); $last = array_pop($tags); // Get the last term ("a b c d" ==> "a b c", "d")
         $addtags=''; if ($tags) $addtags=implode(' ',$tags).' '; // We will pre-pend previous tags
         $suggested=array();
         /* To speed up things, we store list of tags in session */
         if (empty($_SESSION['tags'])) $_SESSION['tags'] = $LINKSDB->allTags(); 
         foreach($_SESSION['tags'] as $key=>$value)
         {
-            if (startsWith($key,$last,$case=false)) $suggested[$addtags.$key.' ']=0;
+            if (startsWith($key,$last,$case=false) && !in_array($key,$tags)) $suggested[$addtags.$key.' ']=0;//FIXME
         }      
         echo json_encode(array_keys($suggested));
         exit;
