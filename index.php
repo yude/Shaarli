@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.23 beta - Shaare your links...
+// Shaarli 0.0.24 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -49,7 +49,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.23 beta');
+define('shaarli_version','0.0.24 beta');
 if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
 if (!is_dir(CACHEDIR)) { mkdir(CACHEDIR,0705); chmod(CACHEDIR,0705); }
 if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
@@ -105,6 +105,29 @@ function logm($message)
     file_put_contents(DATADIR.'/log.txt',$t,FILE_APPEND);
 }
 
+/* Returns the small hash of a string
+   eg. smallHash('20111006_131924') --> yZH23w
+   Small hashes:
+     - are unique (well, as unique as crc32, at last)
+     - are always 6 characters long.
+     - only use the following characters: a-z A-Z 0-9 - _ @
+     - are NOT cryptographically secure (they CAN be forged)
+   In Shaarli, they are used as a tinyurl-like link to individual entries.
+*/  
+function smallHash($text)
+{
+    $t = rtrim(base64_encode(hash('crc32',$text,true)),'=');
+    $t = str_replace('+','-',$t); // Get rid of characters which need encoding in URLs.
+    $t = str_replace('/','_',$t);
+    $t = str_replace('=','@',$t);
+    return $t;
+}
+
+// Function inspired from http://www.php.net/manual/en/function.preg-replace.php#85722
+function text2clickable($url)
+{
+    return preg_replace('!((?:https?|ftp)://\S+[[:alnum:]]/?)!si','<a href="$1" rel="nofollow">$1</a> ',$url);
+}
 // ------------------------------------------------------------------------------------------
 // Sniff browser language to display dates in the right format automatically.
 // (Note that is may not work on your server if the corresponding local is not installed.)
@@ -381,7 +404,7 @@ function getHTTP($url,$timeout=30)
     {
         $options = array('http'=>array('method'=>'GET','timeout' => $timeout)); // Force network timeout
         $context = stream_context_create($options);
-        $data=file_get_contents($url,false,$context,-1, 2000000); // We download at most 2 Mb from source.
+        $data=file_get_contents($url,false,$context,-1, 4000000); // We download at most 4 Mb from source.
         if (!$data) { $lasterror=error_get_last();  return array($lasterror['message'],array(),''); }
         $httpStatus=$http_response_header[0]; // eg. "HTTP/1.1 200 OK"
         $responseHeaders=http_parse_headers($http_response_header);
@@ -567,6 +590,22 @@ class linkdb implements Iterator, Countable, ArrayAccess
         krsort($filtered);
         return $filtered;
     }   
+    
+    // Filter by smallHash.
+    // Only 1 article is returned.
+    public function filterSmallHash($smallHash)
+    {
+        $filtered=array();
+        foreach($this->links as $l)
+        { 
+            if ($smallHash==smallHash($l['linkdate'])) // Yes, this is ugly and slow
+            {
+                $filtered[$l['linkdate']] = $l;
+                return $filtered;
+            }
+        }
+        return $filtered;
+    }     
 
     // Returns the list of all tags
     // Output: associative array key=tags, value=0
@@ -1011,7 +1050,7 @@ HTML;
             $linkdate = strval(date('Ymd_His'));
             $title = (empty($_GET['title']) ? '' : $_GET['title'] ); // Get title if it was provided in URL (by the bookmarklet).
             $description=''; $tags=''; $private=0;
-            if (parse_url($url,PHP_URL_SCHEME)=='') $url = 'http://'.$url;                
+            if (($url!='') && parse_url($url,PHP_URL_SCHEME)=='') $url = 'http://'.$url;                
             // If this is an HTTP link, we try go get the page to extact the title (otherwise we will to straight to the edit form.)
             if (empty($title) && parse_url($url,PHP_URL_SCHEME)=='http')
             {
@@ -1019,6 +1058,7 @@ HTML;
                 // FIXME: Decode charset according to specified in either 1) HTTP response headers or 2) <head> in html 
                 if (strpos($status,'200 OK')) $title=html_entity_decode(html_extract_title($data),ENT_QUOTES,'UTF-8');
             }
+            if ($url=='') $url='?'.smallHash($linkdate); // In case of empty URL, this is just a text (with a link that point to itself)
             $link = array('linkdate'=>$linkdate,'title'=>$title,'url'=>$url,'description'=>$description,'tags'=>$tags,'private'=>0); 
         }
         list($editform,$onload)=templateEditForm($link,$link_is_new); 
@@ -1236,7 +1276,7 @@ HTML;
 function templateLinkList()
 {     
     global $LINKSDB;
-    
+
     // Search according to entered search terms:
     $linksToDisplay=array();
     $searched='';
@@ -1250,6 +1290,10 @@ function templateLinkList()
         $linksToDisplay = $LINKSDB->filterTags(trim($_GET['searchtags']));
         $tagshtml=''; foreach(explode(' ',trim($_GET['searchtags'])) as $tag) $tagshtml.='<span class="linktag" title="Remove tag"><a href="?removetag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).' <span style="border-left:1px solid #aaa; padding-left:5px; color:#6767A7;">x</span></a></span> ';
         $searched='&nbsp;<b>'.count($linksToDisplay).' results for tags '.$tagshtml.':</b>';    
+    }
+    elseif (preg_match('/[a-zA-Z0-9-_@]{6}/',$_SERVER["QUERY_STRING"])) // Detect smallHashes in URL
+    {
+        $linksToDisplay = $LINKSDB->filterSmallHash($_SERVER["QUERY_STRING"]);
     }
     else
         $linksToDisplay = $LINKSDB;  // otherwise, display without filtering.
@@ -1273,7 +1317,7 @@ function templateLinkList()
     while ($i<$end && $i<count($keys))
     {  
         $link = $linksToDisplay[$keys[$i]];
-        $description=$link['description'];
+        $description=text2clickable(htmlspecialchars($link['description']));
         $title=$link['title'];
         $classprivate = ($link['private']==0 ? '' : 'class="private"');
         if (isLoggedIn()) $actions=' <form method="GET" class="buttoneditform"><input type="hidden" name="edit_link" value="'.$link['linkdate'].'"><input type="submit" value="Edit" class="smallbutton"></form>';
@@ -1281,9 +1325,10 @@ function templateLinkList()
         if ($link['tags']!='') foreach(explode(' ',$link['tags']) as $tag) { $tags.='<span class="linktag" title="Add tag"><a href="?addtag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).'</a></span> '; }
         $linklist.='<li '.$classprivate.'>'.thumbnail($link['url']);
         $linklist.='<div class="linkcontainer"><span class="linktitle"><a href="'.htmlspecialchars($link['url']).'">'.htmlspecialchars($title).'</a></span>'.$actions.'<br>';
-        if ($description!='') $linklist.='<div class="linkdescription">'.nl2br(htmlspecialchars($description)).'</div><br>';
-        if (!HIDE_TIMESTAMPS || isLoggedIn()) $linklist.='<span class="linkdate">'.htmlspecialchars(linkdate2locale($link['linkdate'])).' - </span>';
-        $linklist.='<span class="linkurl">'.htmlspecialchars($link['url']).'</span><br>'.$tags."</div></li>\n";  
+        if ($description!='') $linklist.='<div class="linkdescription">'.nl2br($description).'</div><br>';
+        if (!HIDE_TIMESTAMPS || isLoggedIn()) $linklist.='<span class="linkdate" title="Short link here"><a href="?'.smallHash($link['linkdate']).'">'.htmlspecialchars(linkdate2locale($link['linkdate'])).' </a> - </span>';
+        else $linklist.='<span class="linkdate" title="Short link here"><a href="?'.smallHash($link['linkdate']).'">link</a> - </span>';
+        $linklist.='<span class="linkurl" title="Short link">'.htmlspecialchars($link['url']).'</span><br>'.$tags."</div></li>\n";  
         $i++;
     } 
     
@@ -1323,6 +1368,7 @@ function thumbnail($url)
     {
         $path = parse_url($url,PHP_URL_PATH);
         if (substr_count($path,'/')==1) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars(substr($path,1)).'s.jpg" width="90" height="90"></a></div>';
+        if (strpos($path,'/gallery/')==0) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com'.htmlspecialchars(substr($path,8)).'s.jpg" width="90" height="90"></a></div>';
     }
     if ($domain=='i.imgur.com')
     {
@@ -1356,6 +1402,15 @@ function thumbnail($url)
         return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a></div>';
     }
 
+    // For all other, we try to make a thumbnail of links ending with .jpg/jpeg/png/gif
+    // Technically speaking, we should download ALL links and check their Content-Type to see if they are images.
+    // But using the extension will do.
+    $ext=strtolower(pathinfo($url,PATHINFO_EXTENSION));
+    if ($ext=='jpg' || $ext=='jpeg' || $ext=='png' || $ext=='gif')
+    {
+        $sign = hash_hmac('sha256', $url, $GLOBALS['salt']); // We use the salt to sign data (it's random, secret, and specific to each installation)
+        return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a></div>';        
+    }
     return ''; // No thumbnail.
 
 }
@@ -1406,8 +1461,10 @@ $(document).ready(function()
 JS;
     }
     $feedurl=htmlspecialchars(serverUrl().$_SERVER['SCRIPT_NAME']); 
-    if (!empty($_GET['searchtags'])) $feedurl.='&searchtags='.$_GET['searchtags'];
-    elseif (!empty($_GET['searchterm'])) $feedurl.='&searchterm='.$_GET['searchterm'];
+    $feedsearch='';
+    if (!empty($_GET['searchtags'])) $feedsearch.='&searchtags='.$_GET['searchtags'];
+    elseif (!empty($_GET['searchterm'])) $feedsearch.='&searchterm='.$_GET['searchterm'];
+    $version=shaarli_version;
 
     $title = htmlspecialchars( $GLOBALS['title'] );
     echo <<<HTML
@@ -1415,12 +1472,12 @@ JS;
 <head>
 <title>{$title}</title>
 <link rel="alternate" type="application/rss+xml" href="{$feedurl}" />
-<link type="text/css" rel="stylesheet" href="shaarli.css" />
+<link type="text/css" rel="stylesheet" href="shaarli.css?version={$version}" />
 {$jsincludes}
 </head>
 <body {$data['onload']}>{$newversion}
 <div id="pageheader"><div style="float:right; font-style:italic; color:#bbb; text-align:right; padding:0 5 0 0;">Shaare your links...<br>{$linkcount} links</div>
-    <b><i>{$title}</i></b> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}?do=rss" style="padding-left:30px;">RSS Feed</a> <a href="{$feedurl}?do=atom" style="padding-left:10px;">ATOM Feed</a>
+    <b><i>{$title}</i></b> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}?do=rss{$feedsearch}" style="padding-left:30px;">RSS Feed</a> <a href="{$feedurl}?do=atom{$feedsearch}" style="padding-left:10px;">ATOM Feed</a>
 &nbsp;&nbsp; <a href="?do=tagcloud">Tag cloud</a>
 {$data['pageheader']}
 </div>
@@ -1645,7 +1702,6 @@ function genThumbnail()
 
         // Is this a link to an image, or to a flickr page ?
         $imageurl='';
-        logm('url: '.$url);
         if (endswith(parse_url($url,PHP_URL_PATH),'.jpg'))
         {  // This is a direct link to an image. eg. http://farm1.static.flickr.com/5/5921913_ac83ed27bd_o.jpg
             preg_match('!(http://farm\d+.static.flickr.com/\d+/\d+_\w+_)\w.jpg!',$url,$matches);
@@ -1671,7 +1727,6 @@ function genThumbnail()
                 return;
             }
         } 
-        else logm('unkown flickr url: '.$url);
     }
 
     if ($domain=='vimeo.com' )
@@ -1695,12 +1750,56 @@ function genThumbnail()
             }           
         }  
     }
+    
+    // For all other domains, we try to download the image and make a thumbnail.
+    list($httpstatus,$headers,$data) = getHTTP($url,30);  // We allow 30 seconds max to download (and downloads are limited to 4 Mb)
+    if (strpos($httpstatus,'200 OK'))
+    {
+        $filepath=CACHEDIR.'/'.$thumbname;
+        file_put_contents($filepath,$data); // Save image to cache.
+        if (resizeImage($filepath))
+        {
+            header('Content-Type: image/jpeg');
+            echo file_get_contents($filepath);  
+            return;
+        }
+    }  
 
     // Otherwise, return an empty image (8x8 transparent gif)
     $blankgif = base64_decode('R0lGODlhCAAIAIAAAP///////yH5BAEKAAEALAAAAAAIAAgAAAIHjI+py+1dAAA7');
     file_put_contents(CACHEDIR.'/'.$blankname,$blankgif); // Also put something in cache so that this URL is not requested twice.
     header('Content-Type: image/gif');
     echo $blankgif;
+}
+
+// Make a thumbnail of the image (to width: 120 pixels)
+// Returns true if success, false otherwise.
+function resizeImage($filepath)
+{
+    if (!function_exists('imagecreatefromjpeg')) return false; // GD not present: no thumbnail possible.
+
+    // Trick: some stupid people rename GIF as JPEG... or else.
+    // So we really try to open each image type whatever the extension is.
+    $header=file_get_contents($filepath,false,NULL,0,256); // Read first 256 bytes and try to sniff file type.
+    $im=false;
+    if (strpos($header,'GIF8')==0) $im = imagecreatefromgif($filepath); // Well this is crude, but it should be enough.
+    if (strpos($header,'PNG')==1) $im = imagecreatefrompng($filepath);
+    if (strpos($header,'JFIF')) $im = imagecreatefromjpeg($filepath);
+    if (!$im) return false;  // Unable to open image (corrupted or not an image)
+    $w = imagesx($im);
+    $h = imagesy($im);
+    $nw = 120;   // Desired width
+    $nh = floor(($h*$nw)/$w); // Compute new width/height while keeping ratio
+    // Resize image:
+    $im2 = imagecreatetruecolor($nw,$nh);
+    imagecopyresampled($im2, $im, 0, 0, 0, 0, $nw, $nh, $w, $h);
+    imageinterlace($im2,true); // For progressive JPEG.
+    $tempname=$filepath.'_TEMP.jpg';
+    imagejpeg($im2, $tempname, 90);
+    imagedestroy($im);
+    imagedestroy($im2);
+    rename($tempname,$filepath);  // Overwrite original picture with thumbnail.
+    return true;
 }
 
 // Invalidate caches when the database is changed or the user logs out.
