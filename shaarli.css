@@ -33,10 +33,13 @@ filter: progid:DXImageTransform.Microsoft.gradient(startColorStr='#6A6A6A', EndC
 padding: 0 10 5 10;
 margin: auto;
 }
+#shaarli_title { font-weight:bold; font-style:italic; }
+#shaarli_title a { color: #fff !important; }
 #pageheader a:link { color:#bbb; text-decoration:none;}
 #pageheader a:visited { color:#bbb; text-decoration:none;}
 #pageheader a:hover { color:#FFFFC9; text-decoration:none;}
 #pageheader a:active { color:#bbb; text-decoration:none;} 
+#searchcriteria { padding: 4 0 5 5; font-weight:bold;}
 .paging { background-color:#777; color:#ccc; text-align:center; padding:0 0 3 0; clear:both;}
 .paging a:link { color:#ccc; text-decoration:none;}
 .paging a:visited { color:#ccc;  }
@@ -47,17 +50,20 @@ margin: auto;
 #linklist li { padding:4 10 8 20; border-top: 1px solid #bbb; clear:both; }
 #linklist li.private { background-color: #ccc; border-left:8px solid #888; }
 .linktitle { font-size:14pt; font-weight:bold; }
-.linktitle a { text-decoration: none; color:#0000EE; }
-.linktitle a:hover { text-decoration: underline; }
-.linktitle a:visited { color:#0000BB; }
+.linktitle a { text-decoration: none; color:#3465A4; }
+.linktitle a:hover { color:#F57900; }
 .linkdate { font-size:8pt; color:#888; }
 .linkdate a { text-decoration: none; color:#888;  }
-.linkdate a:hover { text-decoration: underline; }
+.linkdate a:hover { color: #F57900 }
 .linkurl { font-size:8pt; color:#4BAA74; }
 .linkdescription { color:#000; margin-top:0px; margin-bottom:0px; font-weight:normal; }
+.linkdescription a { text-decoration: none; color:#3465A4; }
+.linkdescription a:hover { color:#F57900; }
+.linktaglist { }
 .linktag { font-size:9pt; color:#777; background-color:#ddd; padding:0 6 0 6; -moz-box-shadow: inset 2px 2px 3px #ffffff; -webkit-box-shadow: inset 2px 2px 3px #ffffff; box-shadow: inset 2px 2px 3px ffffff;
-border-bottom:1px solid #aaa; border-right:1px solid #aaa;  }
-.linktag a { color:#777; text-decoration:none;  }
+border-bottom:1px solid #aaa; border-right:1px solid #aaa; border-radius: 0.3em; }
+.linktag:hover { border-color: #555573; color:#000; }
+.linktag a { color:#777; text-decoration:none; }
 .linkshort { font-size:8pt; color:#888; }
 .linkshort a { text-decoration: none; color:#393964; }
 .linkshort a:hover { text-decoration: underline; }
@@ -68,16 +74,27 @@ border-bottom:1px solid #aaa; border-right:1px solid #aaa;  }
 #cloudtag a { color:black; text-decoration:none; }
 #installform td  { font-size: 10pt; padding:10 5 10 5; }
 #configform td  { color:#ccc; font-size: 10pt; padding:10 5 10 5; }
-.thumbnail { float:right;  margin-left: 10px;   }
-
-/* If you want thumbnails on the right:
+.thumbnail { float:right;  margin-left: 10px; }
+/* If you want thumbnails on the left:
 .thumbnail { float:left;  margin-right: 10px;   }
 .linkcontainer { position: static; margin-left:130px; }
 */
 
-
 /* Minimal customisation for jQuery widgets */
 .ui-autocomplete { background-color:#fff; padding-left:5px;}
 .ui-state-hover { background-color: #604dff; color:#fff; }
+
+@media print {
+html {border:none;background:#fff!important;color:#000!important;}
+body {font-size:12pt;width:auto!important;margin:auto!important;}
+p {orphans:3; /*pas de ligne seule en bas */widows:3;/*pas de ligne seule en haut*/}
+a {color:#000!important;text-decoration:none!important;}
+#pageheader, .paging, #linklist li form, #footer {display:none;}
+#linklist li { padding:2 0 10 0; border-top: 2px solid #000; clear:both; }
+#linklist li.private { background-color: none; border-left:0; }
+.linkdate { line-height:2; }
+.linkurl { color:#000; }
+.linkdescription { font-size:10pt;}
+.linktag { border: 1px solid black; font-style:italic;  font-size:8pt;}
 
 }

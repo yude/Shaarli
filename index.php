@@ -1,29 +1,30 @@
 <?php
-// Shaarli 0.0.24 beta - Shaare your links...
+// Shaarli 0.0.25 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
 
 // Requires: php 5.1.x
-
+// (but autocomplete fields will only work if you have php 5.2.x)
 // -----------------------------------------------------------------------------------------------
 // User config:
-define('DATADIR','data'); // Data subdirectory
-define('CONFIG_FILE',DATADIR.'/config.php'); // Configuration file (user login/password)
-define('DATASTORE',DATADIR.'/datastore.php'); // Data storage file.
-define('LINKS_PER_PAGE',20); // Default links per page.
-define('IPBANS_FILENAME',DATADIR.'/ipbans.php'); // File storage for failures and bans.
-define('BAN_AFTER',4);       // Ban IP after this many failures.
-define('BAN_DURATION',1800); // Ban duration for IP address after login failures (in seconds) (1800 sec. = 30 minutes)
-define('OPEN_SHAARLI',false); // If true, anyone can add/edit/delete links without having to login
-define('HIDE_TIMESTAMPS',false); // If true, the moment when links were saved are not shown to users that are not logged in.
-define('ENABLE_THUMBNAILS',true);  // Enable thumbnails in links.
-define('CACHEDIR','cache'); // Cache directory for thumbnails for SLOW services (like flickr)
+$GLOBALS['config']['DATADIR'] = 'data'; // Data subdirectory
+$GLOBALS['config']['CONFIG_FILE'] = $GLOBALS['config']['DATADIR'].'/config.php'; // Configuration file (user login/password)
+$GLOBALS['config']['DATASTORE'] = $GLOBALS['config']['DATADIR'].'/datastore.php'; // Data storage file.
+$GLOBALS['config']['LINKS_PER_PAGE'] = 20; // Default links per page.
+$GLOBALS['config']['IPBANS_FILENAME'] = $GLOBALS['config']['DATADIR'].'/ipbans.php'; // File storage for failures and bans.
+$GLOBALS['config']['BAN_AFTER'] = 4;        // Ban IP after this many failures.
+$GLOBALS['config']['BAN_DURATION'] = 1800;  // Ban duration for IP address after login failures (in seconds) (1800 sec. = 30 minutes)
+$GLOBALS['config']['OPEN_SHAARLI'] = false; // If true, anyone can add/edit/delete links without having to login
+$GLOBALS['config']['HIDE_TIMESTAMPS'] = false; // If true, the moment when links were saved are not shown to users that are not logged in.
+$GLOBALS['config']['ENABLE_THUMBNAILS'] = true; // Enable thumbnails in links.
+$GLOBALS['config']['CACHEDIR'] = 'cache'; // Cache directory for thumbnails for SLOW services (like flickr)
+$GLOBALS['config']['ENABLE_LOCALCACHE'] = true; // Enable Shaarli to store thumbnail in a local cache. Disable to reduce webspace usage.
         
 // -----------------------------------------------------------------------------------------------
 // Program config (touch at your own risks !)
-define('UPDATECHECK_FILENAME',DATADIR.'/lastupdatecheck.txt'); // For updates check of Shaarli.
-define('UPDATECHECK_INTERVAL',86400); // Updates check frequency for Shaarli. 86400 seconds=24 hours
+$GLOBALS['config']['UPDATECHECK_FILENAME'] = $GLOBALS['config']['DATADIR'].'/lastupdatecheck.txt'; // For updates check of Shaarli.
+$GLOBALS['config']['UPDATECHECK_INTERVAL'] = 86400 ; // Updates check frequency for Shaarli. 86400 seconds=24 hours
 ini_set('max_input_time','60');  // High execution time in case of problematic imports/exports.
 ini_set('memory_limit', '128M');  // Try to set max upload file size and read (May not work on some hosts).
 ini_set('post_max_size', '16M');
@@ -35,6 +36,9 @@ checkphpversion();
 error_reporting(E_ALL^E_WARNING);  // See all error except warnings.
 //error_reporting(-1); // See all errors (for debugging only)
 ob_start();
+
+// Optionnal config file.
+if (is_file($GLOBALS['config']['DATADIR'].'/options.php')) require($GLOBALS['config']['DATADIR'].'/options.php');
 
 // In case stupid admin has left magic_quotes enabled in php.ini:
 if (get_magic_quotes_gpc()) 
@@ -49,13 +53,16 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.24 beta');
-if (!is_dir(DATADIR)) { mkdir(DATADIR,0705); chmod(DATADIR,0705); }
-if (!is_dir(CACHEDIR)) { mkdir(CACHEDIR,0705); chmod(CACHEDIR,0705); }
-if (!is_file(DATADIR.'/.htaccess')) { file_put_contents(DATADIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
-if (!is_file(CACHEDIR.'/.htaccess')) { file_put_contents(CACHEDIR.'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
-if (!is_file(CONFIG_FILE)) install();
-require CONFIG_FILE;  // Read login/password hash into $GLOBALS.
+define('shaarli_version','0.0.25 beta');
+if (!is_dir($GLOBALS['config']['DATADIR'])) { mkdir($GLOBALS['config']['DATADIR'],0705); chmod($GLOBALS['config']['DATADIR'],0705); }
+if (!is_file($GLOBALS['config']['DATADIR'].'/.htaccess')) { file_put_contents($GLOBALS['config']['DATADIR'].'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
+if ($GLOBALS['config']['ENABLE_LOCALCACHE'])
+{
+    if (!is_dir($GLOBALS['config']['CACHEDIR'])) { mkdir($GLOBALS['config']['CACHEDIR'],0705); chmod($GLOBALS['config']['CACHEDIR'],0705); }
+    if (!is_file($GLOBALS['config']['CACHEDIR'].'/.htaccess')) { file_put_contents($GLOBALS['config']['CACHEDIR'].'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
+}
+if (!is_file($GLOBALS['config']['CONFIG_FILE'])) install();
+require $GLOBALS['config']['CONFIG_FILE'];  // Read login/password hash into $GLOBALS.
 // Small protection against dodgy config files:
 if (empty($GLOBALS['title'])) $GLOBALS['title']='Shared links on '.htmlspecialchars(serverUrl().$_SERVER['SCRIPT_NAME']);
 if (empty($GLOBALS['timezone'])) $GLOBALS['timezone']=date_default_timezone_get();
@@ -83,16 +90,16 @@ function checkUpdate()
     if (!isLoggedIn()) return ''; // Do not check versions for visitors.
     
     // Get latest version number at most once a day.
-    if (!is_file(UPDATECHECK_FILENAME) || (filemtime(UPDATECHECK_FILENAME)<time()-(UPDATECHECK_INTERVAL)))
+    if (!is_file($GLOBALS['config']['UPDATECHECK_FILENAME']) || (filemtime($GLOBALS['config']['UPDATECHECK_FILENAME'])<time()-($GLOBALS['config']['UPDATECHECK_INTERVAL'])))
     {
         $version=shaarli_version;
         list($httpstatus,$headers,$data) = getHTTP('http://sebsauvage.net/files/shaarli_version.txt',2);
         if (strpos($httpstatus,'200 OK')) $version=$data;
         // If failed, nevermind. We don't want to bother the user with that.  
-        file_put_contents(UPDATECHECK_FILENAME,$version); // touch file date
+        file_put_contents($GLOBALS['config']['UPDATECHECK_FILENAME'],$version); // touch file date
     }
     // Compare versions:
-    $newestversion=file_get_contents(UPDATECHECK_FILENAME);
+    $newestversion=file_get_contents($GLOBALS['config']['UPDATECHECK_FILENAME']);
     if (version_compare($newestversion,shaarli_version)==1) return $newestversion;
     return '';
 }
@@ -102,7 +109,7 @@ function checkUpdate()
 function logm($message)
 {
     $t = strval(date('Y/m/d_H:i:s')).' - '.$_SERVER["REMOTE_ADDR"].' - '.strval($message)."\n";
-    file_put_contents(DATADIR.'/log.txt',$t,FILE_APPEND);
+    file_put_contents($GLOBALS['config']['DATADIR'].'/log.txt',$t,FILE_APPEND);
 }
 
 /* Returns the small hash of a string
@@ -126,7 +133,8 @@ function smallHash($text)
 // Function inspired from http://www.php.net/manual/en/function.preg-replace.php#85722
 function text2clickable($url)
 {
-    return preg_replace('!((?:https?|ftp)://\S+[[:alnum:]]/?)!si','<a href="$1" rel="nofollow">$1</a> ',$url);
+    $redir = empty($GLOBALS['redirector']) ? '' : $GLOBALS['redirector'];
+    return preg_replace('!((?:https?|ftp)://\S+[[:alnum:]]/?)!si','<a href="'.$redir.'$1" rel="nofollow">$1</a> ',$url);
 }
 // ------------------------------------------------------------------------------------------
 // Sniff browser language to display dates in the right format automatically.
@@ -180,7 +188,7 @@ function check_auth($login,$password)
 // Returns true if the user is logged in.
 function isLoggedIn()
 { 
-    if (OPEN_SHAARLI) return true; 
+    if ($GLOBALS['config']['OPEN_SHAARLI']) return true; 
     
     // If session does not exist on server side, or IP address has changed, or session has expired, logout.
     if (empty($_SESSION['uid']) || $_SESSION['ip']!=allIPs() || time()>=$_SESSION['expires_on'])
@@ -201,21 +209,21 @@ function logout() { if (isset($_SESSION)) { unset($_SESSION['uid']); unset($_SES
 // ------------------------------------------------------------------------------------------
 // Brute force protection system
 // Several consecutive failed logins will ban the IP address for 30 minutes.
-if (!is_file(IPBANS_FILENAME)) file_put_contents(IPBANS_FILENAME, "<?php\n\$GLOBALS['IPBANS']=".var_export(array('FAILURES'=>array(),'BANS'=>array()),true).";\n?>");
-include IPBANS_FILENAME;
+if (!is_file($GLOBALS['config']['IPBANS_FILENAME'])) file_put_contents($GLOBALS['config']['IPBANS_FILENAME'], "<?php\n\$GLOBALS['IPBANS']=".var_export(array('FAILURES'=>array(),'BANS'=>array()),true).";\n?>");
+include $GLOBALS['config']['IPBANS_FILENAME'];
 // Signal a failed login. Will ban the IP if too many failures:
 function ban_loginFailed()
 {
     $ip=$_SERVER["REMOTE_ADDR"]; $gb=$GLOBALS['IPBANS'];
     if (!isset($gb['FAILURES'][$ip])) $gb['FAILURES'][$ip]=0;
     $gb['FAILURES'][$ip]++;
-    if ($gb['FAILURES'][$ip]>(BAN_AFTER-1))
+    if ($gb['FAILURES'][$ip]>($GLOBALS['config']['BAN_AFTER']-1))
     {
-        $gb['BANS'][$ip]=time()+BAN_DURATION;
+        $gb['BANS'][$ip]=time()+$GLOBALS['config']['BAN_DURATION'];
         logm('IP address banned from login');
     }
     $GLOBALS['IPBANS'] = $gb;
-    file_put_contents(IPBANS_FILENAME, "<?php\n\$GLOBALS['IPBANS']=".var_export($gb,true).";\n?>");
+    file_put_contents($GLOBALS['config']['IPBANS_FILENAME'], "<?php\n\$GLOBALS['IPBANS']=".var_export($gb,true).";\n?>");
 }
 
 // Signals a successful login. Resets failed login counter.
@@ -224,7 +232,7 @@ function ban_loginOk()
     $ip=$_SERVER["REMOTE_ADDR"]; $gb=$GLOBALS['IPBANS'];
     unset($gb['FAILURES'][$ip]); unset($gb['BANS'][$ip]);
     $GLOBALS['IPBANS'] = $gb;
-    file_put_contents(IPBANS_FILENAME, "<?php\n\$GLOBALS['IPBANS']=".var_export($gb,true).";\n?>");
+    file_put_contents($GLOBALS['config']['IPBANS_FILENAME'], "<?php\n\$GLOBALS['IPBANS']=".var_export($gb,true).";\n?>");
 }
 
 // Checks if the user CAN login. If 'true', the user can try to login.
@@ -238,7 +246,7 @@ function ban_canLogin()
         {   // Ban expired, user can try to login again.
             logm('Ban lifted.');
             unset($gb['FAILURES'][$ip]); unset($gb['BANS'][$ip]);
-            file_put_contents(IPBANS_FILENAME, "<?php\n\$GLOBALS['IPBANS']=".var_export($gb,true).";\n?>");
+            file_put_contents($GLOBALS['config']['IPBANS_FILENAME'], "<?php\n\$GLOBALS['IPBANS']=".var_export($gb,true).";\n?>");
             return true; // Ban has expired, user can login.
         }
         return false; // User is banned.
@@ -420,7 +428,7 @@ function getHTTP($url,$timeout=30)
 // (Returns an empty string if not found.)
 function html_extract_title($html) 
 {
-  return preg_match('!<title>(.*?)</title>!i', $html, $matches) ? $matches[1] : '';
+  return preg_match('!<title>(.*)</title>!is', $html, $matches) ? trim(str_replace("\n",' ', $matches[1])) : '' ;   
 }
 
 // ------------------------------------------------------------------------------------------
@@ -511,14 +519,14 @@ class linkdb implements Iterator, Countable, ArrayAccess
     // ---- Misc methods
     private function checkdb() // Check if db directory and file exists.
     {
-        if (!file_exists(DATASTORE)) // Create a dummy database for example.
+        if (!file_exists($GLOBALS['config']['DATASTORE'])) // Create a dummy database for example.
         {
              $this->links = array();
              $link = array('title'=>'Shaarli - sebsauvage.net','url'=>'http://sebsauvage.net/wiki/doku.php?id=php:shaarli','description'=>'Welcome to Shaarli ! This is a bookmark. To edit or delete me, you must first login.','private'=>0,'linkdate'=>'20110914_190000','tags'=>'opensource software');
              $this->links[$link['linkdate']] = $link;
              $link = array('title'=>'My secret stuff... - Pastebin.com','url'=>'http://pastebin.com/smCEEeSn','description'=>'SShhhh!!  I\'m a private link only YOU can see. You can delete me too.','private'=>1,'linkdate'=>'20110914_074522','tags'=>'secretstuff');
              $this->links[$link['linkdate']] = $link;             
-             file_put_contents(DATASTORE, PHPPREFIX.base64_encode(gzdeflate(serialize($this->links))).PHPSUFFIX); // Write database to disk
+             file_put_contents($GLOBALS['config']['DATASTORE'], PHPPREFIX.base64_encode(gzdeflate(serialize($this->links))).PHPSUFFIX); // Write database to disk
         }    
     }
     
@@ -526,7 +534,7 @@ class linkdb implements Iterator, Countable, ArrayAccess
     private function readdb() 
     {
         // Read data
-        $this->links=(file_exists(DATASTORE) ? unserialize(gzinflate(base64_decode(substr(file_get_contents(DATASTORE),strlen(PHPPREFIX),-strlen(PHPSUFFIX))))) : array() );
+        $this->links=(file_exists($GLOBALS['config']['DATASTORE']) ? unserialize(gzinflate(base64_decode(substr(file_get_contents($GLOBALS['config']['DATASTORE']),strlen(PHPPREFIX),-strlen(PHPSUFFIX))))) : array() );
         // Note that gzinflate is faster than gzuncompress. See: http://www.php.net/manual/en/function.gzdeflate.php#96439
         
         // If user is not logged in, filter private links.
@@ -546,7 +554,7 @@ class linkdb implements Iterator, Countable, ArrayAccess
     public function savedb() 
     {
         if (!$this->loggedin) die('You are not authorized to change the database.');
-        file_put_contents(DATASTORE, PHPPREFIX.base64_encode(gzdeflate(serialize($this->links))).PHPSUFFIX);
+        file_put_contents($GLOBALS['config']['DATASTORE'], PHPPREFIX.base64_encode(gzdeflate(serialize($this->links))).PHPSUFFIX);
     }
     
     // Returns the link for a given URL (if it exists). false it does not exist.
@@ -644,7 +652,7 @@ function showRSS()
         $link = $linksToDisplay[$keys[$i]];
         $rfc822date = linkdate2rfc822($link['linkdate']);
         echo '<item><title>'.htmlspecialchars($link['title']).'</title><guid>'.htmlspecialchars($link['url']).'</guid><link>'.htmlspecialchars($link['url']).'</link>';
-        if (!HIDE_TIMESTAMPS || isLoggedIn()) echo '<pubDate>'.htmlspecialchars($rfc822date).'</pubDate>';
+        if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) echo '<pubDate>'.htmlspecialchars($rfc822date).'</pubDate>';
         echo '<description><![CDATA['.nl2br(htmlspecialchars($link['description'])).']]></description></item>'."\n";      
         $i++;
     }
@@ -676,13 +684,13 @@ function showATOM()
         $iso8601date = linkdate2iso8601($link['linkdate']);
         $latestDate = max($latestDate,$iso8601date);
         $entries.='<entry><title>'.htmlspecialchars($link['title']).'</title><link href="'.htmlspecialchars($link['url']).'"/><id>'.htmlspecialchars($link['url']).'</id>';
-        if (!HIDE_TIMESTAMPS || isLoggedIn()) $entries.='<updated>'.htmlspecialchars($iso8601date).'</updated>';
+        if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) $entries.='<updated>'.htmlspecialchars($iso8601date).'</updated>';
         $entries.='<summary>'.nl2br(htmlspecialchars($link['description'])).'</summary></entry>'."\n";      
         $i++;
     }
     $feed='<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">';
     $feed.='<title>'.htmlspecialchars($GLOBALS['title']).'</title>';
-    if (!HIDE_TIMESTAMPS || isLoggedIn()) $feed.='<updated>'.htmlspecialchars($latestDate).'</updated>';
+    if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) $feed.='<updated>'.htmlspecialchars($latestDate).'</updated>';
     $feed.='<link href="'.htmlspecialchars($pageaddr).'" />';
     $feed.='<author><uri>'.htmlspecialchars($pageaddr).'</uri></author>';
     $feed.='<id>'.htmlspecialchars($pageaddr).'</id>'."\n\n"; // Yes, I know I should use a real IRI (RFC3987), but the site URL will do.
@@ -705,7 +713,7 @@ function renderPage()
     // -------- Display login form.
     if (startswith($_SERVER["QUERY_STRING"],'do=login'))
     {
-        if (OPEN_SHAARLI) { header('Location: ?'); exit; }  // No need to login for open Shaarli
+        if ($GLOBALS['config']['OPEN_SHAARLI']) { header('Location: ?'); exit; }  // No need to login for open Shaarli
         if (!ban_canLogin())
         { 
             $loginform='<div id="headerform">You have been banned from login after too many failed attempts. Try later.</div>';
@@ -820,7 +828,7 @@ HTML;
     {
         $pageabsaddr=serverUrl().$_SERVER["SCRIPT_NAME"]; // Why doesn't php have a built-in function for that ?
         // The javascript code for the bookmarklet:
-        $changepwd = (OPEN_SHAARLI ? '' : '<a href="?do=changepasswd"><b>Change password</b></a> - Change your password.<br><br>' );
+        $changepwd = ($GLOBALS['config']['OPEN_SHAARLI'] ? '' : '<a href="?do=changepasswd"><b>Change password</b></a> - Change your password.<br><br>' );
         $toolbar= <<<HTML
 <div id="headerform"><br>
     {$changepwd}        
@@ -839,7 +847,7 @@ HTML;
     // -------- User wants to change his/her password.
     if (startswith($_SERVER["QUERY_STRING"],'do=changepasswd'))
     {
-        if (OPEN_SHAARLI) die('You are not supposed to change a password on an Open Shaarli.');
+        if ($GLOBALS['config']['OPEN_SHAARLI']) die('You are not supposed to change a password on an Open Shaarli.');
         if (!empty($_POST['setpassword']) && !empty($_POST['oldpassword']))
         {
             if (!tokenOk($_POST['token'])) die('Wrong token.'); // Go away !
@@ -882,6 +890,7 @@ HTML;
                     $tz = $_POST['continent'].'/'.$_POST['city'];            
             $GLOBALS['timezone'] = $tz;
             $GLOBALS['title']=$_POST['title'];
+            $GLOBALS['redirector']=$_POST['redirector'];
             writeConfig();
             echo '<script language="JavaScript">alert("Configuration was saved.");document.location=\'?do=tools\';</script>';
             exit;
@@ -890,6 +899,7 @@ HTML;
         {
             $token = getToken();
             $title = htmlspecialchars( empty($GLOBALS['title']) ? '' : $GLOBALS['title'] , ENT_QUOTES);
+            $redirector = htmlspecialchars( empty($GLOBALS['redirector']) ? '' : $GLOBALS['redirector'] , ENT_QUOTES);
             list($timezone_form,$timezone_js) = templateTZform($GLOBALS['timezone']);
             $timezone_html=''; if ($timezone_form!='') $timezone_html='<tr><td valign="top"><b>Timezone:</b></td><td>'.$timezone_form.'</td></tr>';
             $changepwdform= <<<HTML
@@ -897,6 +907,7 @@ ${timezone_js}<form method="POST" action="" name="configform" id="configform"><i
 <table border="0" cellpadding="20">
 <tr><td><b>Page title:</b></td><td><input type="text" name="title" id="title" size="50" value="{$title}"></td></tr>
 {$timezone_html}
+<tr><td valign="top"><b>Redirector</b></td><td><input type="text" name="redirector" id="redirector" size="50" value="{$redirector}"><br>(e.g. <i>http://anonym.to/?</i> will mask the HTTP_REFERER)</td></tr>
 <tr><td></td><td align="right"><input type="submit" name="Save" value="Save config" class="bigbutton"></td></tr>
 </table>
 </form>
@@ -1283,13 +1294,13 @@ function templateLinkList()
     if (!empty($_GET['searchterm'])) // Fulltext search
     {
         $linksToDisplay = $LINKSDB->filterFulltext(trim($_GET['searchterm']));
-        $searched='&nbsp;<b>'.count($linksToDisplay).' results for <i>'.htmlspecialchars(trim($_GET['searchterm'])).'</i></b>:';
+        $searched=count($linksToDisplay).' results for <i>'.htmlspecialchars(trim($_GET['searchterm'])).'</i>:';
     }
     elseif (!empty($_GET['searchtags'])) // Search by tag
     {
         $linksToDisplay = $LINKSDB->filterTags(trim($_GET['searchtags']));
         $tagshtml=''; foreach(explode(' ',trim($_GET['searchtags'])) as $tag) $tagshtml.='<span class="linktag" title="Remove tag"><a href="?removetag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).' <span style="border-left:1px solid #aaa; padding-left:5px; color:#6767A7;">x</span></a></span> ';
-        $searched='&nbsp;<b>'.count($linksToDisplay).' results for tags '.$tagshtml.':</b>';    
+        $searched=''.count($linksToDisplay).' results for tags '.$tagshtml.':';    
     }
     elseif (preg_match('/[a-zA-Z0-9-_@]{6}/',$_SERVER["QUERY_STRING"])) // Detect smallHashes in URL
     {
@@ -1297,7 +1308,7 @@ function templateLinkList()
     }
     else
         $linksToDisplay = $LINKSDB;  // otherwise, display without filtering.
-   
+    if ($searched!='') $searched='<div id="searchcriteria">'.$searched.'</div>';
     $linklist='';
     $actions='';
     
@@ -1307,13 +1318,19 @@ function templateLinkList()
        If my class implements ArrayAccess, why won't array_keys() accept it ?  ( $keys=array_keys($linksToDisplay); )
     */
     $keys=array(); foreach($linksToDisplay as $key=>$value) { $keys[]=$key; } // Stupid and ugly. Thanks php.
+
+    // If there is only a single link, we change on-the-fly the title of the page.
+    if (count($linksToDisplay)==1) $GLOBALS['pagetitle'] = $linksToDisplay[$keys[0]]['title'].' - '.$GLOBALS['title'];
+
     $pagecount = ceil(count($keys)/$_SESSION['LINKS_PER_PAGE']);
     $pagecount = ($pagecount==0 ? 1 : $pagecount);
     $page=( empty($_GET['page']) ? 1 : intval($_GET['page']));
     $page = ( $page<1 ? 1 : $page );
     $page = ( $page>$pagecount ? $pagecount : $page );
     $i = ($page-1)*$_SESSION['LINKS_PER_PAGE']; // Start index.
-    $end = $i+$_SESSION['LINKS_PER_PAGE'];    
+    $end = $i+$_SESSION['LINKS_PER_PAGE'];  
+    $redir = empty($GLOBALS['redirector']) ? '' : $GLOBALS['redirector']; // optional redirector URL
+    
     while ($i<$end && $i<count($keys))
     {  
         $link = $linksToDisplay[$keys[$i]];
@@ -1322,11 +1339,15 @@ function templateLinkList()
         $classprivate = ($link['private']==0 ? '' : 'class="private"');
         if (isLoggedIn()) $actions=' <form method="GET" class="buttoneditform"><input type="hidden" name="edit_link" value="'.$link['linkdate'].'"><input type="submit" value="Edit" class="smallbutton"></form>';
         $tags='';
-        if ($link['tags']!='') foreach(explode(' ',$link['tags']) as $tag) { $tags.='<span class="linktag" title="Add tag"><a href="?addtag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).'</a></span> '; }
+        if ($link['tags']!='')
+        {
+            foreach(explode(' ',$link['tags']) as $tag) { $tags.='<span class="linktag" title="Add tag"><a href="?addtag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).'</a></span> '; }
+            $tags='<div class="linktaglist">'.$tags.'</div>';
+        }
         $linklist.='<li '.$classprivate.'>'.thumbnail($link['url']);
-        $linklist.='<div class="linkcontainer"><span class="linktitle"><a href="'.htmlspecialchars($link['url']).'">'.htmlspecialchars($title).'</a></span>'.$actions.'<br>';
+        $linklist.='<div class="linkcontainer"><span class="linktitle"><a href="'.$redir.htmlspecialchars($link['url']).'">'.htmlspecialchars($title).'</a></span>'.$actions.'<br>';
         if ($description!='') $linklist.='<div class="linkdescription">'.nl2br($description).'</div><br>';
-        if (!HIDE_TIMESTAMPS || isLoggedIn()) $linklist.='<span class="linkdate" title="Short link here"><a href="?'.smallHash($link['linkdate']).'">'.htmlspecialchars(linkdate2locale($link['linkdate'])).' </a> - </span>';
+        if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) $linklist.='<span class="linkdate" title="Short link here"><a href="?'.smallHash($link['linkdate']).'">'.htmlspecialchars(linkdate2locale($link['linkdate'])).' </a> - </span>';
         else $linklist.='<span class="linkdate" title="Short link here"><a href="?'.smallHash($link['linkdate']).'">link</a> - </span>';
         $linklist.='<span class="linkurl" title="Short link">'.htmlspecialchars($link['url']).'</span><br>'.$tags."</div></li>\n";  
         $i++;
@@ -1353,16 +1374,16 @@ HTML;
 // Understands various services (youtube.com...)
 function thumbnail($url)
 {
-    if (!ENABLE_THUMBNAILS) return '';
+    if (!$GLOBALS['config']['ENABLE_THUMBNAILS']) return '';
     
     // For most hosts, the URL of the thumbnail can be easily deduced from the URL of the link.
-    // (eg. http://www.youtube.com/watch?v=spVypYk4kto --->  http://img.youtube.com/vi/spVypYk4kto/2.jpg )
+    // (eg. http://www.youtube.com/watch?v=spVypYk4kto --->  http://img.youtube.com/vi/spVypYk4kto/default.jpg )
     //                                     ^^^^^^^^^^^                                 ^^^^^^^^^^^
     $domain = parse_url($url,PHP_URL_HOST);
     if ($domain=='youtube.com' || $domain=='www.youtube.com')
     {
         parse_str(parse_url($url,PHP_URL_QUERY), $params); // Extract video ID and get thumbnail
-        if (!empty($params['v'])) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://img.youtube.com/vi/'.htmlspecialchars($params['v']).'/2.jpg" width="120" height="90"></a></div>';
+        if (!empty($params['v'])) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://img.youtube.com/vi/'.htmlspecialchars($params['v']).'/default.jpg" width="120" height="90"></a></div>';
     }
     if ($domain=='imgur.com')
     {
@@ -1393,9 +1414,13 @@ function thumbnail($url)
         }
     }
    
+   
     // Some other hosts are SLOW AS HELL and usually require an extra HTTP request to get the thumbnail URL.
     // So we deport the thumbnail generation in order not to slow down page generation
     // (and we also cache the thumbnail)
+    
+    if (!$GLOBALS['config']['ENABLE_LOCALCACHE']) return ''; // If local cache is disabled, no thumbnails for services which require the use a local cache.
+    
     if ($domain=='flickr.com' || endsWith($domain,'.flickr.com') || $domain=='vimeo.com')
     {
         $sign = hash_hmac('sha256', $url, $GLOBALS['salt']); // We use the salt to sign data (it's random, secret, and specific to each installation)
@@ -1432,7 +1457,7 @@ function templatePage($data)
     if ($newversion!='') $newversion='<div id="newversion"><span style="text-decoration:blink;">&#x25CF;</span> Shaarli '.htmlspecialchars($newversion).' is <a href="http://sebsauvage.net/wiki/doku.php?id=php:shaarli#download">available</a>.</div>';
     $linkcount = count($LINKSDB);
     $open='';
-    if (OPEN_SHAARLI)
+    if ($GLOBALS['config']['OPEN_SHAARLI'])
     {
         $menu=' <a href="?do=tools">Tools</a> &nbsp;<a href="?do=addlink"><b>Add link</b></a>';
         $open='Open ';
@@ -1445,10 +1470,10 @@ function templatePage($data)
         if (!array_key_exists($k,$data)) $data[$k]='';
     }
     $jsincludes=''; $jsincludes_bottom = '';
-    if (OPEN_SHAARLI || isLoggedIn())
+    if ($GLOBALS['config']['OPEN_SHAARLI'] || isLoggedIn())
     { 
-        $jsincludes='<script language="JavaScript" src="jquery.min.js"></script><script language="JavaScript" src="jquery-ui.custom.min.js"></script>'; 
         $source = serverUrl().$_SERVER['SCRIPT_NAME'];  
+        $jsincludes='<script language="JavaScript" src="jquery.min.js"></script><script language="JavaScript" src="jquery-ui.custom.min.js"></script>'; 
         $jsincludes_bottom = <<<JS
 <script language="JavaScript">
 $(document).ready(function() 
@@ -1464,20 +1489,23 @@ JS;
     $feedsearch='';
     if (!empty($_GET['searchtags'])) $feedsearch.='&searchtags='.$_GET['searchtags'];
     elseif (!empty($_GET['searchterm'])) $feedsearch.='&searchterm='.$_GET['searchterm'];
+    $filtered_feed= ($feedsearch=='' ? '' : 'Filtered ');
     $version=shaarli_version;
 
     $title = htmlspecialchars( $GLOBALS['title'] );
+    $pagetitle = htmlspecialchars( empty($GLOBALS['pagetitle']) ? $title : $GLOBALS['pagetitle'] );
     echo <<<HTML
 <html>
 <head>
-<title>{$title}</title>
-<link rel="alternate" type="application/rss+xml" href="{$feedurl}" />
+<title>{$pagetitle}</title>
+<link rel="alternate" type="application/rss+xml" href="{$feedurl}?do=rss{$feedsearch}" title="{$filtered_feed}RSS Feed" />
+<link rel="alternate" type="application/atom+xml" href="{$feedurl}?do=atom{$feedsearch}" title="{$filtered_feed}ATOM Feed" />
 <link type="text/css" rel="stylesheet" href="shaarli.css?version={$version}" />
 {$jsincludes}
 </head>
 <body {$data['onload']}>{$newversion}
 <div id="pageheader"><div style="float:right; font-style:italic; color:#bbb; text-align:right; padding:0 5 0 0;">Shaare your links...<br>{$linkcount} links</div>
-    <b><i>{$title}</i></b> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}?do=rss{$feedsearch}" style="padding-left:30px;">RSS Feed</a> <a href="{$feedurl}?do=atom{$feedsearch}" style="padding-left:10px;">ATOM Feed</a>
+    <span id="shaarli_title"><a href="?">{$title}</a></span> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}?do=rss{$feedsearch}" style="padding-left:30px;">RSS Feed</a> <a href="{$feedurl}?do=atom{$feedsearch}" style="padding-left:10px;">ATOM Feed</a>
 &nbsp;&nbsp; <a href="?do=tagcloud">Tag cloud</a>
 {$data['pageheader']}
 </div>
@@ -1617,7 +1645,7 @@ function processWS()
         if (empty($_SESSION['tags'])) $_SESSION['tags'] = $LINKSDB->allTags(); 
         foreach($_SESSION['tags'] as $key=>$value)
         {
-            if (startsWith($key,$last,$case=false) && !in_array($key,$tags)) $suggested[$addtags.$key.' ']=0;//FIXME
+            if (startsWith($key,$last,$case=false) && !in_array($key,$tags)) $suggested[$addtags.$key.' ']=0;
         }      
         echo json_encode(array_keys($suggested));
         exit;
@@ -1643,10 +1671,13 @@ function processWS()
 // (otherwise, the function simply returns.)
 function writeConfig()
 {
-    if (is_file(CONFIG_FILE) && !isLoggedIn()) die('You are not authorized to alter config.'); // Only logged in user can alter config.
+    if (is_file($GLOBALS['config']['CONFIG_FILE']) && !isLoggedIn()) die('You are not authorized to alter config.'); // Only logged in user can alter config.
+    if (empty($GLOBALS['redirector'])) $GLOBALS['redirector']='';
     $config='<?php $GLOBALS[\'login\']='.var_export($GLOBALS['login'],true).'; $GLOBALS[\'hash\']='.var_export($GLOBALS['hash'],true).'; $GLOBALS[\'salt\']='.var_export($GLOBALS['salt'],true).'; ';
-    $config .='$GLOBALS[\'timezone\']='.var_export($GLOBALS['timezone'],true).'; date_default_timezone_set('.var_export($GLOBALS['timezone'],true).'); $GLOBALS[\'title\']='.var_export($GLOBALS['title'],true).'; ?>';    
-    if (!file_put_contents(CONFIG_FILE,$config) || strcmp(file_get_contents(CONFIG_FILE),$config)!=0)
+    $config .='$GLOBALS[\'timezone\']='.var_export($GLOBALS['timezone'],true).'; date_default_timezone_set('.var_export($GLOBALS['timezone'],true).'); $GLOBALS[\'title\']='.var_export($GLOBALS['title'],true).';';
+    $config .= '$GLOBALS[\'redirector\']='.var_export($GLOBALS['redirector'],true).'; ';
+    $config .= ' ?>';    
+    if (!file_put_contents($GLOBALS['config']['CONFIG_FILE'],$config) || strcmp(file_get_contents($GLOBALS['config']['CONFIG_FILE']),$config)!=0)
     {
         echo '<script language="JavaScript">alert("Shaarli could not create the config file. Please make sure Shaarli has the right to write in the folder is it installed in.");document.location=\'?\';</script>';
         exit;
@@ -1670,18 +1701,18 @@ function genThumbnail()
     
     // Let's see if we don't already have the image for this URL in the cache.
     $thumbname=hash('sha1',$_GET['url']).'.jpg';
-    if (is_file(CACHEDIR.'/'.$thumbname))
+    if (is_file($GLOBALS['config']['CACHEDIR'].'/'.$thumbname))
     {   // We have the thumbnail, just serve it:
         header('Content-Type: image/jpeg');
-        echo file_get_contents(CACHEDIR.'/'.$thumbname);  
+        echo file_get_contents($GLOBALS['config']['CACHEDIR'].'/'.$thumbname);  
         return;
     }
     // We may also serve a blank image (if service did not respond)
     $blankname=hash('sha1',$_GET['url']).'.gif';
-    if (is_file(CACHEDIR.'/'.$blankname))
+    if (is_file($GLOBALS['config']['CACHEDIR'].'/'.$blankname))
     {
         header('Content-Type: image/gif');
-        echo file_get_contents(CACHEDIR.'/'.$blankname);  
+        echo file_get_contents($GLOBALS['config']['CACHEDIR'].'/'.$blankname);  
         return;
     }    
     
@@ -1721,7 +1752,7 @@ function genThumbnail()
             list($httpstatus,$headers,$data) = getHTTP($imageurl,10); // Image is 240x120, so 10 seconds to download should be enough.
             if (strpos($httpstatus,'200 OK'))
             {
-                file_put_contents(CACHEDIR.'/'.$thumbname,$data); // Save image to cache.
+                file_put_contents($GLOBALS['config']['CACHEDIR'].'/'.$thumbname,$data); // Save image to cache.
                 header('Content-Type: image/jpeg');
                 echo $data;
                 return;
@@ -1743,7 +1774,7 @@ function genThumbnail()
             list($httpstatus,$headers,$data) = getHTTP($imageurl,10);
             if (strpos($httpstatus,'200 OK'))
             {
-                file_put_contents(CACHEDIR.'/'.$thumbname,$data); // Save image to cache.
+                file_put_contents($GLOBALS['config']['CACHEDIR'].'/'.$thumbname,$data); // Save image to cache.
                 header('Content-Type: image/jpeg');
                 echo $data;
                 return;
@@ -1755,7 +1786,7 @@ function genThumbnail()
     list($httpstatus,$headers,$data) = getHTTP($url,30);  // We allow 30 seconds max to download (and downloads are limited to 4 Mb)
     if (strpos($httpstatus,'200 OK'))
     {
-        $filepath=CACHEDIR.'/'.$thumbname;
+        $filepath=$GLOBALS['config']['CACHEDIR'].'/'.$thumbname;
         file_put_contents($filepath,$data); // Save image to cache.
         if (resizeImage($filepath))
         {
@@ -1765,9 +1796,10 @@ function genThumbnail()
         }
     }  
 
+
     // Otherwise, return an empty image (8x8 transparent gif)
     $blankgif = base64_decode('R0lGODlhCAAIAIAAAP///////yH5BAEKAAEALAAAAAAIAAgAAAIHjI+py+1dAAA7');
-    file_put_contents(CACHEDIR.'/'.$blankname,$blankgif); // Also put something in cache so that this URL is not requested twice.
+    file_put_contents($GLOBALS['config']['CACHEDIR'].'/'.$blankname,$blankgif); // Also put something in cache so that this URL is not requested twice.
     header('Content-Type: image/gif');
     echo $blankgif;
 }
@@ -1788,11 +1820,13 @@ function resizeImage($filepath)
     if (!$im) return false;  // Unable to open image (corrupted or not an image)
     $w = imagesx($im);
     $h = imagesy($im);
+    $ystart = 0; $yheight=$h;
+    if ($h>$w) { $ystart= ($h/2)-($w/2); $yheight=$w/2; }
     $nw = 120;   // Desired width
-    $nh = floor(($h*$nw)/$w); // Compute new width/height while keeping ratio
+    $nh = min(floor(($h*$nw)/$w),120); // Compute new width/height, but maximum 120 pixels height.
     // Resize image:
     $im2 = imagecreatetruecolor($nw,$nh);
-    imagecopyresampled($im2, $im, 0, 0, 0, 0, $nw, $nh, $w, $h);
+    imagecopyresampled($im2, $im, 0, 0, 0, $ystart, $nw, $nh, $w, $yheight);
     imageinterlace($im2,true); // For progressive JPEG.
     $tempname=$filepath.'_TEMP.jpg';
     imagejpeg($im2, $tempname, 90);
@@ -1810,9 +1844,9 @@ function invalidateCaches()
 }
 
 if (startswith($_SERVER["QUERY_STRING"],'do=genthumbnail')) { genThumbnail(); exit; }  // Thumbnail generation/cache does not need the link database.
-$LINKSDB=new linkdb(isLoggedIn() || OPEN_SHAARLI);  // Read links from database (and filter private links if used it not logged in).
+$LINKSDB=new linkdb(isLoggedIn() || $GLOBALS['config']['OPEN_SHAARLI']);  // Read links from database (and filter private links if used it not logged in).
 if (startswith($_SERVER["QUERY_STRING"],'ws=')) { processWS(); exit; } // Webservices (for jQuery/jQueryUI)
-if (!isset($_SESSION['LINKS_PER_PAGE'])) $_SESSION['LINKS_PER_PAGE']=LINKS_PER_PAGE;
+if (!isset($_SESSION['LINKS_PER_PAGE'])) $_SESSION['LINKS_PER_PAGE']=$GLOBALS['config']['LINKS_PER_PAGE'];
 if (startswith($_SERVER["QUERY_STRING"],'do=rss')) { showRSS(); exit; }
 if (startswith($_SERVER["QUERY_STRING"],'do=atom')) { showATOM(); exit; }
 renderPage();
