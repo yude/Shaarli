@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.25 beta - Shaare your links...
+// Shaarli 0.0.26 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -53,7 +53,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.25 beta');
+define('shaarli_version','0.0.26 beta');
 if (!is_dir($GLOBALS['config']['DATADIR'])) { mkdir($GLOBALS['config']['DATADIR'],0705); chmod($GLOBALS['config']['DATADIR'],0705); }
 if (!is_file($GLOBALS['config']['DATADIR'].'/.htaccess')) { file_put_contents($GLOBALS['config']['DATADIR'].'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if ($GLOBALS['config']['ENABLE_LOCALCACHE'])
@@ -134,7 +134,7 @@ function smallHash($text)
 function text2clickable($url)
 {
     $redir = empty($GLOBALS['redirector']) ? '' : $GLOBALS['redirector'];
-    return preg_replace('!((?:https?|ftp)://\S+[[:alnum:]]/?)!si','<a href="'.$redir.'$1" rel="nofollow">$1</a> ',$url);
+    return preg_replace('!((?:https?|ftp)://\S+[[:alnum:]]/?)!si','<a href="'.$redir.'$1" rel="nofollow">$1</a>',$url);
 }
 // ------------------------------------------------------------------------------------------
 // Sniff browser language to display dates in the right format automatically.
@@ -1347,8 +1347,8 @@ function templateLinkList()
         $linklist.='<li '.$classprivate.'>'.thumbnail($link['url']);
         $linklist.='<div class="linkcontainer"><span class="linktitle"><a href="'.$redir.htmlspecialchars($link['url']).'">'.htmlspecialchars($title).'</a></span>'.$actions.'<br>';
         if ($description!='') $linklist.='<div class="linkdescription">'.nl2br($description).'</div><br>';
-        if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) $linklist.='<span class="linkdate" title="Short link here"><a href="?'.smallHash($link['linkdate']).'">'.htmlspecialchars(linkdate2locale($link['linkdate'])).' </a> - </span>';
-        else $linklist.='<span class="linkdate" title="Short link here"><a href="?'.smallHash($link['linkdate']).'">link</a> - </span>';
+        if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) $linklist.='<span class="linkdate" title="Permalink"><a href="?'.smallHash($link['linkdate']).'">'.htmlspecialchars(linkdate2locale($link['linkdate'])).' - permalink</a> - </span>';
+        else $linklist.='<span class="linkdate" title="Short link here"><a href="?'.smallHash($link['linkdate']).'">permalink</a> - </span>';
         $linklist.='<span class="linkurl" title="Short link">'.htmlspecialchars($link['url']).'</span><br>'.$tags."</div></li>\n";  
         $i++;
     } 
@@ -1388,8 +1388,9 @@ function thumbnail($url)
     if ($domain=='imgur.com')
     {
         $path = parse_url($url,PHP_URL_PATH);
-        if (substr_count($path,'/')==1) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars(substr($path,1)).'s.jpg" width="90" height="90"></a></div>';
+        if (strpos($path,'/r/')==0) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars(basename($path)).'s.jpg" width="90" height="90"></a></div>';
         if (strpos($path,'/gallery/')==0) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com'.htmlspecialchars(substr($path,8)).'s.jpg" width="90" height="90"></a></div>';
+        if (substr_count($path,'/')==1) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars(substr($path,1)).'s.jpg" width="90" height="90"></a></div>';
     }
     if ($domain=='i.imgur.com')
     {
