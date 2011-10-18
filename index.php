@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.26 beta - Shaare your links...
+// Shaarli 0.0.27 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -53,7 +53,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.26 beta');
+define('shaarli_version','0.0.27 beta');
 if (!is_dir($GLOBALS['config']['DATADIR'])) { mkdir($GLOBALS['config']['DATADIR'],0705); chmod($GLOBALS['config']['DATADIR'],0705); }
 if (!is_file($GLOBALS['config']['DATADIR'].'/.htaccess')) { file_put_contents($GLOBALS['config']['DATADIR'].'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if ($GLOBALS['config']['ENABLE_LOCALCACHE'])
@@ -738,6 +738,32 @@ function renderPage()
         exit; 
     }  
 
+    // -------- Picture wall
+    if (startswith($_SERVER["QUERY_STRING"],'do=picwall'))
+    { 
+        // Optionnaly filter the results:
+        $linksToDisplay=array();
+        if (!empty($_GET['searchterm'])) $linksToDisplay = $LINKSDB->filterFulltext($_GET['searchterm']);
+        elseif (!empty($_GET['searchtags']))   $linksToDisplay = $LINKSDB->filterTags(trim($_GET['searchtags']));
+        else $linksToDisplay = $LINKSDB;
+        $body='';
+        foreach($linksToDisplay as $link)
+        {
+            $thumb=thumbnail($link['url']);
+            if ($thumb!='')
+            {
+                $url=htmlspecialchars($link['url'],ENT_QUOTES);
+                $body.='<div class="picwall_pictureframe">'.$thumb.'<a href="'.$url.'"><span class="info">'.htmlspecialchars($link['title']).'</span></a></div>';
+                
+            }
+        }
+        $body = '<center><div id="picwall_container">'.$body.'<hr style="width:0;height:0;clear:both;"></div></center>';
+        $data = array('pageheader'=>'<br>&nbsp;','body'=>$body,'onload'=>''); 
+        templatePage($data);
+        exit;        
+        
+    }      
+
     // -------- Tag cloud
     if (startswith($_SERVER["QUERY_STRING"],'do=tagcloud'))
     { 
@@ -1344,7 +1370,7 @@ function templateLinkList()
             foreach(explode(' ',$link['tags']) as $tag) { $tags.='<span class="linktag" title="Add tag"><a href="?addtag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).'</a></span> '; }
             $tags='<div class="linktaglist">'.$tags.'</div>';
         }
-        $linklist.='<li '.$classprivate.'>'.thumbnail($link['url']);
+        $linklist.='<li '.$classprivate.'><div class="thumbnail">'.thumbnail($link['url']).'</div>';
         $linklist.='<div class="linkcontainer"><span class="linktitle"><a href="'.$redir.htmlspecialchars($link['url']).'">'.htmlspecialchars($title).'</a></span>'.$actions.'<br>';
         if ($description!='') $linklist.='<div class="linkdescription">'.nl2br($description).'</div><br>';
         if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) $linklist.='<span class="linkdate" title="Permalink"><a href="?'.smallHash($link['linkdate']).'">'.htmlspecialchars(linkdate2locale($link['linkdate'])).' - permalink</a> - </span>';
@@ -1383,26 +1409,26 @@ function thumbnail($url)
     if ($domain=='youtube.com' || $domain=='www.youtube.com')
     {
         parse_str(parse_url($url,PHP_URL_QUERY), $params); // Extract video ID and get thumbnail
-        if (!empty($params['v'])) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://img.youtube.com/vi/'.htmlspecialchars($params['v']).'/default.jpg" width="120" height="90"></a></div>';
+        if (!empty($params['v'])) return '<a href="'.htmlspecialchars($url).'"><img src="http://img.youtube.com/vi/'.htmlspecialchars($params['v']).'/default.jpg" width="120" height="90"></a>';
     }
     if ($domain=='imgur.com')
     {
         $path = parse_url($url,PHP_URL_PATH);
-        if (strpos($path,'/r/')==0) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars(basename($path)).'s.jpg" width="90" height="90"></a></div>';
-        if (strpos($path,'/gallery/')==0) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com'.htmlspecialchars(substr($path,8)).'s.jpg" width="90" height="90"></a></div>';
-        if (substr_count($path,'/')==1) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars(substr($path,1)).'s.jpg" width="90" height="90"></a></div>';
+        if (strpos($path,'/r/')==0) return '<a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars(basename($path)).'s.jpg" width="90" height="90"></a>';
+        if (strpos($path,'/gallery/')==0) return '<a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com'.htmlspecialchars(substr($path,8)).'s.jpg" width="90" height="90"></a>';
+        if (substr_count($path,'/')==1) return '<a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars(substr($path,1)).'s.jpg" width="90" height="90"></a>';
     }
     if ($domain=='i.imgur.com')
     {
         $pi = pathinfo(parse_url($url,PHP_URL_PATH));
-        if (!empty($pi['filename'])) return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars($pi['filename']).'s.jpg" width="90" height="90"></a></div>';
+        if (!empty($pi['filename'])) return '<a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars($pi['filename']).'s.jpg" width="90" height="90"></a>';
     } 
     if ($domain=='dailymotion.com' || $domain=='www.dailymotion.com')
     {
         if (strpos($url,'dailymotion.com/video/'))
         {
             $thumburl=str_replace('dailymotion.com/video/','dailymotion.com/thumbnail/video/',$url);
-            return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a></div>';
+            return '<a href="'.htmlspecialchars($url).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a>';
         }
     } 
     if (endsWith($domain,'.imageshack.us'))
@@ -1411,7 +1437,7 @@ function thumbnail($url)
         if ($ext=='jpg' || $ext=='jpeg' || $ext=='png' || $ext=='gif')
         {
             $thumburl = substr($url,0,strlen($url)-strlen($ext)).'th.'.$ext;
-            return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a></div>';
+            return '<a href="'.htmlspecialchars($url).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a>';
         }
     }
    
@@ -1425,7 +1451,7 @@ function thumbnail($url)
     if ($domain=='flickr.com' || endsWith($domain,'.flickr.com') || $domain=='vimeo.com')
     {
         $sign = hash_hmac('sha256', $url, $GLOBALS['salt']); // We use the salt to sign data (it's random, secret, and specific to each installation)
-        return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a></div>';
+        return '<a href="'.htmlspecialchars($url).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a>';
     }
 
     // For all other, we try to make a thumbnail of links ending with .jpg/jpeg/png/gif
@@ -1435,7 +1461,7 @@ function thumbnail($url)
     if ($ext=='jpg' || $ext=='jpeg' || $ext=='png' || $ext=='gif')
     {
         $sign = hash_hmac('sha256', $url, $GLOBALS['salt']); // We use the salt to sign data (it's random, secret, and specific to each installation)
-        return '<div class="thumbnail"><a href="'.htmlspecialchars($url).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a></div>';        
+        return '<a href="'.htmlspecialchars($url).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a>';        
     }
     return ''; // No thumbnail.
 
@@ -1487,10 +1513,10 @@ $(document).ready(function()
 JS;
     }
     $feedurl=htmlspecialchars(serverUrl().$_SERVER['SCRIPT_NAME']); 
-    $feedsearch='';
-    if (!empty($_GET['searchtags'])) $feedsearch.='&searchtags='.$_GET['searchtags'];
-    elseif (!empty($_GET['searchterm'])) $feedsearch.='&searchterm='.$_GET['searchterm'];
-    $filtered_feed= ($feedsearch=='' ? '' : 'Filtered ');
+    $searchcrits=''; // Search criteria
+    if (!empty($_GET['searchtags'])) $searchcrits.='&searchtags='.$_GET['searchtags'];
+    elseif (!empty($_GET['searchterm'])) $searchcrits.='&searchterm='.$_GET['searchterm'];
+    $filtered_feed= ($searchcrits=='' ? '' : 'Filtered ');
     $version=shaarli_version;
 
     $title = htmlspecialchars( $GLOBALS['title'] );
@@ -1499,15 +1525,15 @@ JS;
 <html>
 <head>
 <title>{$pagetitle}</title>
-<link rel="alternate" type="application/rss+xml" href="{$feedurl}?do=rss{$feedsearch}" title="{$filtered_feed}RSS Feed" />
-<link rel="alternate" type="application/atom+xml" href="{$feedurl}?do=atom{$feedsearch}" title="{$filtered_feed}ATOM Feed" />
+<link rel="alternate" type="application/rss+xml" href="{$feedurl}?do=rss{$searchcrits}" title="{$filtered_feed}RSS Feed" />
+<link rel="alternate" type="application/atom+xml" href="{$feedurl}?do=atom{$searchcrits}" title="{$filtered_feed}ATOM Feed" />
 <link type="text/css" rel="stylesheet" href="shaarli.css?version={$version}" />
 {$jsincludes}
 </head>
 <body {$data['onload']}>{$newversion}
 <div id="pageheader"><div style="float:right; font-style:italic; color:#bbb; text-align:right; padding:0 5 0 0;">Shaare your links...<br>{$linkcount} links</div>
-    <span id="shaarli_title"><a href="?">{$title}</a></span> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}?do=rss{$feedsearch}" style="padding-left:30px;">RSS Feed</a> <a href="{$feedurl}?do=atom{$feedsearch}" style="padding-left:10px;">ATOM Feed</a>
-&nbsp;&nbsp; <a href="?do=tagcloud">Tag cloud</a>
+    <span id="shaarli_title"><a href="?">{$title}</a></span> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}?do=rss{$searchcrits}" style="padding-left:30px;">RSS Feed</a> <a href="{$feedurl}?do=atom{$searchcrits}" style="padding-left:10px;">ATOM Feed</a>
+&nbsp;&nbsp; <a href="?do=tagcloud">Tag cloud</a>&nbsp;&nbsp; <a href="?do=picwall{$searchcrits}">Picture wall</a>
 {$data['pageheader']}
 </div>
 {$data['body']}
