@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.27 beta - Shaare your links...
+// Shaarli 0.0.28 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -20,7 +20,8 @@ $GLOBALS['config']['HIDE_TIMESTAMPS'] = false; // If true, the moment when links
 $GLOBALS['config']['ENABLE_THUMBNAILS'] = true; // Enable thumbnails in links.
 $GLOBALS['config']['CACHEDIR'] = 'cache'; // Cache directory for thumbnails for SLOW services (like flickr)
 $GLOBALS['config']['ENABLE_LOCALCACHE'] = true; // Enable Shaarli to store thumbnail in a local cache. Disable to reduce webspace usage.
-        
+$GLOBALS['config']['PUBSUBHUB_URL'] = ''; // PubSubHub support. Put an empty string to disable, or put your hub url here to enable.
+                                          // Note: You must have publisher.php in the same directory as Shaarli index.php   
 // -----------------------------------------------------------------------------------------------
 // Program config (touch at your own risks !)
 $GLOBALS['config']['UPDATECHECK_FILENAME'] = $GLOBALS['config']['DATADIR'].'/lastupdatecheck.txt'; // For updates check of Shaarli.
@@ -53,7 +54,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.27 beta');
+define('shaarli_version','0.0.28 beta');
 if (!is_dir($GLOBALS['config']['DATADIR'])) { mkdir($GLOBALS['config']['DATADIR'],0705); chmod($GLOBALS['config']['DATADIR'],0705); }
 if (!is_file($GLOBALS['config']['DATADIR'].'/.htaccess')) { file_put_contents($GLOBALS['config']['DATADIR'].'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if ($GLOBALS['config']['ENABLE_LOCALCACHE'])
@@ -94,7 +95,7 @@ function checkUpdate()
     {
         $version=shaarli_version;
         list($httpstatus,$headers,$data) = getHTTP('http://sebsauvage.net/files/shaarli_version.txt',2);
-        if (strpos($httpstatus,'200 OK')) $version=$data;
+        if (strpos($httpstatus,'200 OK')!==false) $version=$data;
         // If failed, nevermind. We don't want to bother the user with that.  
         file_put_contents($GLOBALS['config']['UPDATECHECK_FILENAME'],$version); // touch file date
     }
@@ -147,6 +148,23 @@ function autoLocale()
         if (preg_match('/([a-z]{2}(-[a-z]{2})?)/i',$_SERVER['HTTP_ACCEPT_LANGUAGE'],$matches)) $loc=$matches[1];
     }
     setlocale(LC_TIME,$loc);  // LC_TIME = Set local for date/time format only.
+}
+
+// ------------------------------------------------------------------------------------------
+// PubSubHub protocol support (if enabled)  [UNTESTED]
+// (Source: http://aldarone.fr/les-flux-rss-shaarli-et-pubsubhubbub/ )
+if (!empty($GLOBALS['config']['PUBSUBHUB_URL'])) include './publisher.php';
+function pubsubhub()
+{
+    if (!empty($GLOBALS['config']['PUBSUBHUB_URL']))
+    {
+       $p = new Publisher($GLOBALS['config']['PUBSUBHUB_URL']);
+       $topic_url = array (
+                       serverUrl().$_SERVER['SCRIPT_NAME'].'?do=atom',
+                       serverUrl().$_SERVER['SCRIPT_NAME'].'?do=rss'
+                    );
+       $p->publish_update($topic_url);
+    }
 }
 
 // ------------------------------------------------------------------------------------------
@@ -378,13 +396,13 @@ function linkdate2locale($linkdate)
 }
 
 // Parse HTTP response headers and return an associative array.
-function http_parse_headers( $headers ) 
+function http_parse_headers_shaarli( $headers ) 
 {
     $res=array();
     foreach($headers as $header)
     {
         $i = strpos($header,': ');
-        if ($i)
+        if ($i!==false)
         {
             $key=substr($header,0,$i);
             $value=substr($header,$i+2,strlen($header)-$i-2);
@@ -401,7 +419,7 @@ function http_parse_headers( $headers )
                       [1] = associative array containing HTTP response headers (eg. echo getHTTP($url)[1]['Content-Type'])
                       [2] = data
     Example: list($httpstatus,$headers,$data) = getHTTP('http://sebauvage.net/');
-             if (strpos($httpstatus,'200 OK'))
+             if (strpos($httpstatus,'200 OK')!==false)
                  echo 'Data type: '.htmlspecialchars($headers['Content-Type']);
              else
                  echo 'There was an error: '.htmlspecialchars($httpstatus)
@@ -415,7 +433,7 @@ function getHTTP($url,$timeout=30)
         $data=file_get_contents($url,false,$context,-1, 4000000); // We download at most 4 Mb from source.
         if (!$data) { $lasterror=error_get_last();  return array($lasterror['message'],array(),''); }
         $httpStatus=$http_response_header[0]; // eg. "HTTP/1.1 200 OK"
-        $responseHeaders=http_parse_headers($http_response_header);
+        $responseHeaders=http_parse_headers_shaarli($http_response_header);
         return array($httpStatus,$responseHeaders,$data);
     }
     catch (Exception $e)  // getHTTP *can* fail silentely (we don't care if the title cannot be fetched)
@@ -428,7 +446,7 @@ function getHTTP($url,$timeout=30)
 // (Returns an empty string if not found.)
 function html_extract_title($html) 
 {
-  return preg_match('!<title>(.*)</title>!is', $html, $matches) ? trim(str_replace("\n",' ', $matches[1])) : '' ;   
+  return preg_match('!<title>(.*?)</title>!is', $html, $matches) ? trim(str_replace("\n",' ', $matches[1])) : '' ;   
 }
 
 // ------------------------------------------------------------------------------------------
@@ -574,7 +592,10 @@ class linkdb implements Iterator, Countable, ArrayAccess
         $s = strtolower($searchterms);
         foreach($this->links as $l)
         { 
-            $found=strpos(strtolower($l['title']),$s) || strpos(strtolower($l['description']),$s) || strpos(strtolower($l['url']),$s) || strpos(strtolower($l['tags']),$s);
+            $found=   (strpos(strtolower($l['title']),$s)!==false)
+                   || (strpos(strtolower($l['description']),$s)!==false)
+                   || (strpos(strtolower($l['url']),$s)!==false)
+                   || (strpos(strtolower($l['tags']),$s)!==false);
             if ($found) $filtered[$l['linkdate']] = $l;
         }
         krsort($filtered);
@@ -644,16 +665,29 @@ function showRSS()
     $pageaddr=htmlspecialchars(serverUrl().$_SERVER["SCRIPT_NAME"]);
     echo '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">';
     echo '<channel><title>'.htmlspecialchars($GLOBALS['title']).'</title><link>'.$pageaddr.'</link>';
-    echo '<description>Shared links</description><language></language><copyright>'.$pageaddr.'</copyright>'."\n\n";
+    echo '<description>Shared links</description><language>en-en</language><copyright>'.$pageaddr.'</copyright>'."\n\n";
+    if (!empty($GLOBALS['config']['PUBSUBHUB_URL']))
+    {
+        echo '<!-- PubSubHubbub Discovery -->';
+        echo '<link rel="hub" href="'.htmlspecialchars($GLOBALS['config']['PUBSUBHUB_URL']).'" xmlns="http://www.w3.org/2005/Atom" />';
+        echo '<link rel="self" href="'.htmlspecialchars($pageaddr).'?do=rss" xmlns="http://www.w3.org/2005/Atom" />';
+        echo '<!-- End Of PubSubHubbub Discovery -->';
+    }
     $i=0;
     $keys=array(); foreach($linksToDisplay as $key=>$value) { $keys[]=$key; }  // No, I can't use array_keys().
     while ($i<50 && $i<count($keys))
     {
         $link = $linksToDisplay[$keys[$i]];
         $rfc822date = linkdate2rfc822($link['linkdate']);
-        echo '<item><title>'.htmlspecialchars($link['title']).'</title><guid>'.htmlspecialchars($link['url']).'</guid><link>'.htmlspecialchars($link['url']).'</link>';
-        if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) echo '<pubDate>'.htmlspecialchars($rfc822date).'</pubDate>';
-        echo '<description><![CDATA['.nl2br(htmlspecialchars($link['description'])).']]></description></item>'."\n";      
+        $absurl = htmlspecialchars($link['url']);
+        if (startsWith($absurl,'?')) $absurl=$pageaddr.$absurl;  // make permalink URL absolute
+        echo '<item><title>'.htmlspecialchars($link['title']).'</title><guid>'.$absurl.'</guid><link>'.$absurl.'</link>';
+        if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) echo '<pubDate>'.htmlspecialchars($rfc822date)."</pubDate>\n";
+        if ($link['tags']!='') // Adding tags to each RSS entry (as mentioned in RSS specification)
+        {     
+            foreach(explode(' ',$link['tags']) as $tag) { echo '<category domain="'.htmlspecialchars($pageaddr).'">'.htmlspecialchars($tag).'</category>'."\n"; }
+        }          
+        echo '<description><![CDATA['.nl2br(text2clickable(htmlspecialchars($link['description']))).']]></description>'."\n</item>\n";      
         $i++;
     }
     echo '</channel></rss>';
@@ -683,15 +717,29 @@ function showATOM()
         $link = $linksToDisplay[$keys[$i]];
         $iso8601date = linkdate2iso8601($link['linkdate']);
         $latestDate = max($latestDate,$iso8601date);
-        $entries.='<entry><title>'.htmlspecialchars($link['title']).'</title><link href="'.htmlspecialchars($link['url']).'"/><id>'.htmlspecialchars($link['url']).'</id>';
+        $absurl = htmlspecialchars($link['url']);
+        if (startsWith($absurl,'?')) $absurl=$pageaddr.$absurl;  // make permalink URL absolute        
+        $entries.='<entry><title>'.htmlspecialchars($link['title']).'</title><link href="'.$absurl.'" /><id>'.$absurl.'</id>';
         if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) $entries.='<updated>'.htmlspecialchars($iso8601date).'</updated>';
-        $entries.='<summary>'.nl2br(htmlspecialchars($link['description'])).'</summary></entry>'."\n";      
+        $entries.='<summary>'.nl2br(text2clickable(htmlspecialchars($link['description'])))."</summary>\n";
+        if ($link['tags']!='') // Adding tags to each ATOM entry (as mentioned in ATOM specification)
+        {     
+            foreach(explode(' ',$link['tags']) as $tag)
+                { $entries.='<category scheme="'.htmlspecialchars($pageaddr,ENT_QUOTES).'" term="'.htmlspecialchars($tag,ENT_QUOTES).'" />'."\n"; }
+        }  
+        $entries.="</entry>\n";      
         $i++;
     }
     $feed='<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">';
     $feed.='<title>'.htmlspecialchars($GLOBALS['title']).'</title>';
     if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) $feed.='<updated>'.htmlspecialchars($latestDate).'</updated>';
-    $feed.='<link href="'.htmlspecialchars($pageaddr).'" />';
+    $feed.='<link rel="self" href="'.htmlspecialchars($pageaddr).'" />';
+    if (!empty($GLOBALS['config']['PUBSUBHUB_URL']))
+    {
+        $feed.='<!-- PubSubHubbub Discovery -->';
+        $feed.='<link rel="hub" href="'.htmlspecialchars($GLOBALS['config']['PUBSUBHUB_URL']).'" />';
+        $feed.='<!-- End Of PubSubHubbub Discovery -->';
+    }
     $feed.='<author><uri>'.htmlspecialchars($pageaddr).'</uri></author>';
     $feed.='<id>'.htmlspecialchars($pageaddr).'</id>'."\n\n"; // Yes, I know I should use a real IRI (RFC3987), but the site URL will do.
     $feed.=$entries;
@@ -747,13 +795,14 @@ function renderPage()
         elseif (!empty($_GET['searchtags']))   $linksToDisplay = $LINKSDB->filterTags(trim($_GET['searchtags']));
         else $linksToDisplay = $LINKSDB;
         $body='';
+        
         foreach($linksToDisplay as $link)
         {
-            $thumb=thumbnail($link['url']);
+        	$href='?'.htmlspecialchars(smallhash($link['linkdate']),ENT_QUOTES);
+            $thumb=thumbnail($link['url'],$href);
             if ($thumb!='')
             {
-                $url=htmlspecialchars($link['url'],ENT_QUOTES);
-                $body.='<div class="picwall_pictureframe">'.$thumb.'<a href="'.$url.'"><span class="info">'.htmlspecialchars($link['title']).'</span></a></div>';
+                $body.='<div class="picwall_pictureframe">'.$thumb.'<a href="'.$href.'"><span class="info">'.htmlspecialchars($link['title']).'</span></a></div>';
                 
             }
         }
@@ -831,15 +880,15 @@ function renderPage()
         // Show login screen, then redirect to ?post=...
         if (isset($_GET['post'])) 
         {
-            header('Location: ?do=login&post='.urlencode($_GET['post']).(isset($_GET['title'])?'&title='.urlencode($_GET['title']):'').(isset($_GET['source'])?'&source='.urlencode($_GET['source']):'')); // Redirect to login page, then back to post link.
+            header('Location: ?do=login&post='.urlencode($_GET['post']).(iset($_GET['title'])?'&title='.urlencode($_GET['title']):'').(isset($_GET['source'])?'&source='.urlencode($_GET['source']):'')); // Redirect to login page, then back to post link.
             exit;
         }
         
         // Show search form and display list of links.
         $searchform=<<<HTML
 <div id="headerform" style="width:100%; white-space:nowrap;";>
-    <form method="GET" name="searchform" style="display:inline;"><input type="text" name="searchterm" style="width:50%" value=""> <input type="submit" value="Search" class="bigbutton"></form>
-    <form method="GET" name="tagfilter" style="display:inline;padding-left:24px;"><input type="text" name="searchtags" id="searchtags" style="width:20%" value=""> <input type="submit" value="Filter by tag" class="bigbutton"></form>
+    <form method="GET" class="searchform" name="searchform" style="display:inline;"><input type="text" name="searchterm" style="width:30%" value=""> <input type="submit" value="Search" class="bigbutton"></form>
+    <form method="GET" class="tagfilter" name="tagfilter" style="display:inline;margin-left:24px;"><input type="text" name="searchtags" id="searchtags" style="width:10%" value=""> <input type="submit" value="Filter by tag" class="bigbutton"></form>
 </div>
 HTML;
         $data = array('pageheader'=>$searchform,'body'=>templateLinkList(),'onload'=>''); 
@@ -856,13 +905,13 @@ HTML;
         // The javascript code for the bookmarklet:
         $changepwd = ($GLOBALS['config']['OPEN_SHAARLI'] ? '' : '<a href="?do=changepasswd"><b>Change password</b></a> - Change your password.<br><br>' );
         $toolbar= <<<HTML
-<div id="headerform"><br>
+<div id="toolsdiv"><br>
     {$changepwd}        
     <a href="?do=configure"><b>Configure your Shaarli</b></a> - Change Title, timezone...<br><br>
     <a href="?do=changetag"><b>Rename/delete tags</b></a> - Rename or delete a tag in all links.<br><br>
     <a href="?do=import"><b>Import</b></a> - Import Netscape html bookmarks (as exported from Firefox, Chrome, Opera, delicious...)<br><br>
     <a href="?do=export"><b>Export</b></a> - Export Netscape html bookmarks (which can be imported in Firefox, Chrome, Opera, delicious...)<br><br>
-    <a class="smallbutton" style="color:black;" onclick="alert('Drag this link to your bookmarks toolbar, or right-click it and choose Bookmark This Link...');return false;" href="javascript:javascript:(function(){var%20url%20=%20location.href;var%20title%20=%20document.title%20||%20url;window.open('{$pageabsaddr}?post='%20+%20encodeURIComponent(url)+'&amp;title='%20+%20encodeURIComponent(title)+'&amp;source=bookmarklet','_blank','menubar=no,height=400,width=608,toolbar=no,scrollbars=no,status=no');})();">Shaare link</a> - Drag this link to your bookmarks toolbar (or right-click it and choose Bookmark This Link....). Then click "Shaare link" button in any page you want to share.<br><br>
+    <a class="smallbutton"  onclick="alert('Drag this link to your bookmarks toolbar, or right-click it and choose Bookmark This Link...');return false;" href="javascript:javascript:(function(){var%20url%20=%20location.href;var%20title%20=%20document.title%20||%20url;window.open('{$pageabsaddr}?post='%20+%20encodeURIComponent(url)+'&amp;title='%20+%20encodeURIComponent(title)+'&amp;source=bookmarklet','_blank','menubar=no,height=400,width=608,toolbar=no,scrollbars=no,status=no');})();">Shaare link</a> - Drag this link to your bookmarks toolbar (or right-click it and choose Bookmark This Link....). Then click "Shaare link" button in any page you want to share.<br><br>
 </div>
 HTML;
         $data = array('pageheader'=>$toolbar,'body'=>'','onload'=>''); 
@@ -892,7 +941,7 @@ HTML;
         {
             $token = getToken();
             $changepwdform= <<<HTML
-<form method="POST" action="" name="changepasswordform" style="padding:10 10 10 10;">
+<form method="POST" action="" name="changepasswordform" id="changepasswordform">
 Old password: <input type="password" name="oldpassword">&nbsp; &nbsp;
 New password: <input type="password" name="setpassword">
 <input type="hidden" name="token" value="{$token}">
@@ -951,7 +1000,7 @@ HTML;
         {
             $token = getToken();
             $changetagform = <<<HTML
-<form method="POST" action="" name="changetag" style="padding:10 10 10 10;">
+<form method="POST" action="" name="changetag" id="changetag">
 <input type="hidden" name="token" value="{$token}">
 Tag: <input type="text" name="fromtag" id="fromtag">
 <input type="text" name="totag" style="margin-left:40px;"><input type="submit" name="renametag" value="Rename tag" class="bigbutton">      
@@ -976,6 +1025,7 @@ HTML;
                 $LINKSDB[$key]=$value;
             }
             $LINKSDB->savedb(); // save to disk
+            pubsubhub();
             invalidateCaches();
             echo '<script language="JavaScript">alert("Tag was removed from '.count($linksToAlter).' links.");document.location=\'?\';</script>';
             exit;
@@ -1004,7 +1054,7 @@ HTML;
     if (startswith($_SERVER["QUERY_STRING"],'do=addlink'))
     {
         $onload = 'onload="document.addform.post.focus();"';
-        $addform= '<div id="headerform"><form method="GET" action="" name="addform"><input type="text" name="post" style="width:70%;"> <input type="submit" value="Add link" class="bigbutton"></div>';
+        $addform= '<div id="headerform"><form method="GET" action="" name="addform" class="addform"><input type="text" name="post" style="width:50%;"> <input type="submit" value="Add link" class="bigbutton"></div>';
         $data = array('pageheader'=>$addform,'body'=>'','onload'=>$onload); 
         templatePage($data);
         exit;
@@ -1075,9 +1125,9 @@ HTML;
         $url=$_GET['post'];
 
         // We remove the annoying parameters added by FeedBurner and GoogleFeedProxy (?utm_source=...)
-        $i=strpos($url,'&utm_source='); if ($i) $url=substr($url,0,$i);
-        $i=strpos($url,'?utm_source='); if ($i) $url=substr($url,0,$i);
-        $i=strpos($url,'#xtor=RSS-'); if ($i) $url=substr($url,0,$i);
+        $i=strpos($url,'&utm_source='); if ($i!==false) $url=substr($url,0,$i);
+        $i=strpos($url,'?utm_source='); if ($i!==false) $url=substr($url,0,$i);
+        $i=strpos($url,'#xtor=RSS-'); if ($i!==false) $url=substr($url,0,$i);
         
         $link_is_new = false;
         $link = $LINKSDB->getLinkFromUrl($url); // Check if URL is not already in database (in this case, we will edit the existing link)
@@ -1093,7 +1143,7 @@ HTML;
             {
                 list($status,$headers,$data) = getHTTP($url,4); // Short timeout to keep the application responsive.
                 // FIXME: Decode charset according to specified in either 1) HTTP response headers or 2) <head> in html 
-                if (strpos($status,'200 OK')) $title=html_entity_decode(html_extract_title($data),ENT_QUOTES,'UTF-8');
+                if (strpos($status,'200 OK')!==false) $title=html_entity_decode(html_extract_title($data),ENT_QUOTES,'UTF-8');
             }
             if ($url=='') $url='?'.smallHash($linkdate); // In case of empty URL, this is just a text (with a link that point to itself)
             $link = array('linkdate'=>$linkdate,'title'=>$title,'url'=>$url,'description'=>$description,'tags'=>$tags,'private'=>0); 
@@ -1110,7 +1160,7 @@ HTML;
         if (empty($_GET['what']))
         {
             $toolbar= <<<HTML
-<div id="headerform"><br>
+<div id="toolsdiv">
     <a href="?do=export&what=all"><b>Export all</b></a> - Export all links<br><br>
     <a href="?do=export&what=public"><b>Export public</b></a> - Export public links only<br><br>
     <a href="?do=export&what=private"><b>Export private</b></a> - Export private links only<br><br>
@@ -1172,9 +1222,9 @@ HTML;
         $maxfilesize=getMaxFileSize();
         $onload = 'onload="document.uploadform.filetoupload.focus();"';
         $uploadform=<<<HTML
-<div id="headerform">
+<div id="uploaddiv">
 Import Netscape html bookmarks (as exported from Firefox/Chrome/Opera/delicious/diigo...) (Max: {$maxfilesize} bytes).
-<form method="POST" action="?do=upload" enctype="multipart/form-data" name="uploadform">
+<form method="POST" action="?do=upload" enctype="multipart/form-data" name="uploadform" id="uploadform">
     <input type="hidden" name="token" value="{$token}">
     <input type="file" name="filetoupload" size="80">
     <input type="hidden" name="MAX_FILE_SIZE" value="{$maxfilesize}">
@@ -1192,8 +1242,8 @@ HTML;
     // -------- Otherwise, simply display search form and links:
     $searchform=<<<HTML
 <div id="headerform" style="width:100%; white-space:nowrap;";>
-    <form method="GET" name="searchform" style="display:inline;"><input type="text" name="searchterm" style="width:50%" value=""> <input type="submit" value="Search" class="bigbutton"></form>
-    <form method="GET" name="tagfilter" style="display:inline;padding-left:24px;"><input type="text" name="searchtags" id="searchtags" style="width:20%" value=""> <input type="submit" value="Filter by tag" class="bigbutton"></form>
+    <form method="GET" class="searchform" name="searchform"><input type="text" name="searchterm" style="width:30%" value=""> <input type="submit" value="Search" class="bigbutton"></form>
+    <form method="GET" class="tagfilter" name="tagfilter" style="margin-left:24px;"><input type="text" name="searchtags" id="searchtags" style="width:10%" value=""> <input type="submit" value="Filter by tag" class="bigbutton"></form>
 </div>
 HTML;
     $data = array('pageheader'=>$searchform,'body'=>templateLinkList(),'onload'=>''); 
@@ -1362,7 +1412,8 @@ function templateLinkList()
         $link = $linksToDisplay[$keys[$i]];
         $description=text2clickable(htmlspecialchars($link['description']));
         $title=$link['title'];
-        $classprivate = ($link['private']==0 ? '' : 'class="private"');
+        $classLi =  $i%2!=0 ? '' : 'class="publicLinkHightLight"';
+        $classprivate = ($link['private']==0 ? $classLi : 'class="private"');
         if (isLoggedIn()) $actions=' <form method="GET" class="buttoneditform"><input type="hidden" name="edit_link" value="'.$link['linkdate'].'"><input type="submit" value="Edit" class="smallbutton"></form>';
         $tags='';
         if ($link['tags']!='')
@@ -1389,18 +1440,23 @@ function templateLinkList()
     $linksperpage = <<<HTML
 <div style="float:right; padding-right:5px;">
 Links per page: <a href="?linksperpage=20">20</a> <a href="?linksperpage=50">50</a> <a href="?linksperpage=100">100</a>
- <form method="GET" style="display:inline;"><input type="text" name="linksperpage" size="2" style="height:15px;"></form></div>
+ <form method="GET" style="display:inline;" class="linksperpage"><input type="text" name="linksperpage" size="2" style="height:15px;"></form></div>
 HTML;
     $paging = '<div class="paging">'.$linksperpage.$paging.'</div>';
     $linklist='<div id="linklist">'.$paging.$searched.'<ul>'.$linklist.'</ul>'.$paging.'</div>';
     return $linklist;
 }
 
-// Returns the HTML code to display a thumbnail for a link.
+// Returns the HTML code to display a thumbnail for a link
+// with a link to the original URL.
 // Understands various services (youtube.com...)
-function thumbnail($url)
+// Input: $url = url for which the thumbnail must be found.
+//        $href = if provided, this URL will be followed instead of $url 
+function thumbnail($url,$href=false)
 {
     if (!$GLOBALS['config']['ENABLE_THUMBNAILS']) return '';
+    
+    if ($href==false) $href=$url;
     
     // For most hosts, the URL of the thumbnail can be easily deduced from the URL of the link.
     // (eg. http://www.youtube.com/watch?v=spVypYk4kto --->  http://img.youtube.com/vi/spVypYk4kto/default.jpg )
@@ -1409,26 +1465,32 @@ function thumbnail($url)
     if ($domain=='youtube.com' || $domain=='www.youtube.com')
     {
         parse_str(parse_url($url,PHP_URL_QUERY), $params); // Extract video ID and get thumbnail
-        if (!empty($params['v'])) return '<a href="'.htmlspecialchars($url).'"><img src="http://img.youtube.com/vi/'.htmlspecialchars($params['v']).'/default.jpg" width="120" height="90"></a>';
+        if (!empty($params['v'])) return '<a href="'.htmlspecialchars($href).'"><img src="http://img.youtube.com/vi/'.htmlspecialchars($params['v']).'/default.jpg" width="120" height="90"></a>';
     }
+    if ($domain=='youtu.be') // Youtube short links
+    {
+        $path = parse_url($url,PHP_URL_PATH);
+        return '<a href="'.htmlspecialchars($href).'"><img src="http://img.youtube.com/vi'.htmlspecialchars($path).'/default.jpg" width="120" height="90"></a>';
+    } 
     if ($domain=='imgur.com')
     {
         $path = parse_url($url,PHP_URL_PATH);
-        if (strpos($path,'/r/')==0) return '<a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars(basename($path)).'s.jpg" width="90" height="90"></a>';
-        if (strpos($path,'/gallery/')==0) return '<a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com'.htmlspecialchars(substr($path,8)).'s.jpg" width="90" height="90"></a>';
-        if (substr_count($path,'/')==1) return '<a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars(substr($path,1)).'s.jpg" width="90" height="90"></a>';
+        if (startsWith($path,'/a/')) return ''; // Thumbnails for albums are not available.
+        if (startsWith($path,'/r/')) return '<a href="'.htmlspecialchars($href).'"><img src="http://i.imgur.com/'.htmlspecialchars(basename($path)).'s.jpg" width="90" height="90"></a>';
+        if (startsWith($path,'/gallery/')) return '<a href="'.htmlspecialchars($href).'"><img src="http://i.imgur.com'.htmlspecialchars(substr($path,8)).'s.jpg" width="90" height="90"></a>';
+        if (substr_count($path,'/')==1) return '<a href="'.htmlspecialchars($href).'"><img src="http://i.imgur.com/'.htmlspecialchars(substr($path,1)).'s.jpg" width="90" height="90"></a>';
     }
     if ($domain=='i.imgur.com')
     {
         $pi = pathinfo(parse_url($url,PHP_URL_PATH));
-        if (!empty($pi['filename'])) return '<a href="'.htmlspecialchars($url).'"><img src="http://i.imgur.com/'.htmlspecialchars($pi['filename']).'s.jpg" width="90" height="90"></a>';
+        if (!empty($pi['filename'])) return '<a href="'.htmlspecialchars($href).'"><img src="http://i.imgur.com/'.htmlspecialchars($pi['filename']).'s.jpg" width="90" height="90"></a>';
     } 
     if ($domain=='dailymotion.com' || $domain=='www.dailymotion.com')
     {
-        if (strpos($url,'dailymotion.com/video/'))
+        if (strpos($url,'dailymotion.com/video/')!==false)
         {
             $thumburl=str_replace('dailymotion.com/video/','dailymotion.com/thumbnail/video/',$url);
-            return '<a href="'.htmlspecialchars($url).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a>';
+            return '<a href="'.htmlspecialchars($href).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a>';
         }
     } 
     if (endsWith($domain,'.imageshack.us'))
@@ -1437,11 +1499,10 @@ function thumbnail($url)
         if ($ext=='jpg' || $ext=='jpeg' || $ext=='png' || $ext=='gif')
         {
             $thumburl = substr($url,0,strlen($url)-strlen($ext)).'th.'.$ext;
-            return '<a href="'.htmlspecialchars($url).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a>';
+            return '<a href="'.htmlspecialchars($href).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a>';
         }
     }
-   
-   
+
     // Some other hosts are SLOW AS HELL and usually require an extra HTTP request to get the thumbnail URL.
     // So we deport the thumbnail generation in order not to slow down page generation
     // (and we also cache the thumbnail)
@@ -1450,8 +1511,13 @@ function thumbnail($url)
     
     if ($domain=='flickr.com' || endsWith($domain,'.flickr.com') || $domain=='vimeo.com')
     {
+    	if ($domain=='vimeo.com')
+    	{   // Make sure this vimeo url points to a video (/xxx... where xxx is numeric)
+    		$path = parse_url($url,PHP_URL_PATH); 
+    		if (!preg_match('!/\d+.+?!',$path)) return ''; // This is not a single video URL.
+    	}
         $sign = hash_hmac('sha256', $url, $GLOBALS['salt']); // We use the salt to sign data (it's random, secret, and specific to each installation)
-        return '<a href="'.htmlspecialchars($url).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a>';
+        return '<a href="'.htmlspecialchars($href).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a>';
     }
 
     // For all other, we try to make a thumbnail of links ending with .jpg/jpeg/png/gif
@@ -1461,7 +1527,7 @@ function thumbnail($url)
     if ($ext=='jpg' || $ext=='jpeg' || $ext=='png' || $ext=='gif')
     {
         $sign = hash_hmac('sha256', $url, $GLOBALS['salt']); // We use the salt to sign data (it's random, secret, and specific to each installation)
-        return '<a href="'.htmlspecialchars($url).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a>';        
+        return '<a href="'.htmlspecialchars($href).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a>';        
     }
     return ''; // No thumbnail.
 
@@ -1527,12 +1593,13 @@ JS;
 <title>{$pagetitle}</title>
 <link rel="alternate" type="application/rss+xml" href="{$feedurl}?do=rss{$searchcrits}" title="{$filtered_feed}RSS Feed" />
 <link rel="alternate" type="application/atom+xml" href="{$feedurl}?do=atom{$searchcrits}" title="{$filtered_feed}ATOM Feed" />
+<link href="./images/favicon.ico" rel="shortcut icon" type="image/x-icon" />
 <link type="text/css" rel="stylesheet" href="shaarli.css?version={$version}" />
 {$jsincludes}
 </head>
 <body {$data['onload']}>{$newversion}
-<div id="pageheader"><div style="float:right; font-style:italic; color:#bbb; text-align:right; padding:0 5 0 0;">Shaare your links...<br>{$linkcount} links</div>
-    <span id="shaarli_title"><a href="?">{$title}</a></span> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}?do=rss{$searchcrits}" style="padding-left:30px;">RSS Feed</a> <a href="{$feedurl}?do=atom{$searchcrits}" style="padding-left:10px;">ATOM Feed</a>
+<div id="pageheader"><div id="logo" title="Share your links !"></div><div style="float:right; font-style:italic; color:#bbb; text-align:right; padding:0 5 0 0;">Shaare your links...<br>{$linkcount} links</div>
+    <span id="shaarli_title"><a href="?">{$title}</a></span> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}?do=rss{$searchcrits}">RSS Feed</a> <a href="{$feedurl}?do=atom{$searchcrits}" style="padding-left:10px;">ATOM Feed</a>
 &nbsp;&nbsp; <a href="?do=tagcloud">Tag cloud</a>&nbsp;&nbsp; <a href="?do=picwall{$searchcrits}">Picture wall</a>
 {$data['pageheader']}
 </div>
@@ -1540,7 +1607,7 @@ JS;
 
 HTML;
     $exectime = round(microtime(true)-$STARTTIME,4);
-    echo '<div id="footer"><b><a href="http://sebsauvage.net/wiki/doku.php?id=php:shaarli">Shaarli '.shaarli_version.'</a></b> - The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net<br>Who gives a shit that this page was generated in '.$exectime.' seconds&nbsp;?</div>';
+    echo '<div id="footer"><b><a href="http://sebsauvage.net/wiki/doku.php?id=php:shaarli">Shaarli '.shaarli_version.'</a></b> - The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net. Theme by idleman.fr.<br>Who gives a shit that this page was generated in '.$exectime.' seconds&nbsp;?</div>';
     if (isLoggedIn()) echo '<script language="JavaScript">function confirmDeleteLink() { var agree=confirm("Are you sure you want to delete this link ?"); if (agree) return true ; else return false ; }</script>';
     echo $jsincludes_bottom.'</body></html>';
 }
@@ -1614,7 +1681,7 @@ function templateTZform($ptz=false)
         {
             if ($tz=='UTC') $tz='UTC/UTC';
             $spos = strpos($tz,'/');
-            if ($spos)
+            if ($spos!==false)
             {
                 $continent=substr($tz,0,$spos); $city=substr($tz,$spos+1);
                 $continents[$continent]=1;
@@ -1768,7 +1835,7 @@ function genThumbnail()
         else // this is a flickr page (html)
         {
             list($httpstatus,$headers,$data) = getHTTP($url,20); // Get the flickr html page.
-            if (strpos($httpstatus,'200 OK'))
+            if (strpos($httpstatus,'200 OK')!==false)
             {
                 preg_match('!(http://farm\d+.static.flickr.com/\d+/\d+_\w+_)[^s].jpg!',$data,$matches);
                 if (!empty($matches[1])) $imageurl=$matches[1].'m.jpg';  
@@ -1777,7 +1844,7 @@ function genThumbnail()
         if ($imageurl!='')
         {   // Let's download the image.
             list($httpstatus,$headers,$data) = getHTTP($imageurl,10); // Image is 240x120, so 10 seconds to download should be enough.
-            if (strpos($httpstatus,'200 OK'))
+            if (strpos($httpstatus,'200 OK')!==false)
             {
                 file_put_contents($GLOBALS['config']['CACHEDIR'].'/'.$thumbname,$data); // Save image to cache.
                 header('Content-Type: image/jpeg');
@@ -1793,13 +1860,13 @@ function genThumbnail()
         // Maybe we should deport this to javascript ? Example: http://stackoverflow.com/questions/1361149/get-img-thumbnails-from-vimeo/4285098#4285098
         $vid = substr(parse_url($url,PHP_URL_PATH),1);
         list($httpstatus,$headers,$data) = getHTTP('http://vimeo.com/api/v2/video/'.htmlspecialchars($vid).'.php',5);
-        if (strpos($httpstatus,'200 OK'))
+        if (strpos($httpstatus,'200 OK')!==false)
         {
             $t = unserialize($data);
             $imageurl = $t[0]['thumbnail_medium'];
             // Then we download the image and serve it to our client.
             list($httpstatus,$headers,$data) = getHTTP($imageurl,10);
-            if (strpos($httpstatus,'200 OK'))
+            if (strpos($httpstatus,'200 OK')!==false)
             {
                 file_put_contents($GLOBALS['config']['CACHEDIR'].'/'.$thumbname,$data); // Save image to cache.
                 header('Content-Type: image/jpeg');
@@ -1811,7 +1878,7 @@ function genThumbnail()
     
     // For all other domains, we try to download the image and make a thumbnail.
     list($httpstatus,$headers,$data) = getHTTP($url,30);  // We allow 30 seconds max to download (and downloads are limited to 4 Mb)
-    if (strpos($httpstatus,'200 OK'))
+    if (strpos($httpstatus,'200 OK')!==false)
     {
         $filepath=$GLOBALS['config']['CACHEDIR'].'/'.$thumbname;
         file_put_contents($filepath,$data); // Save image to cache.
@@ -1841,9 +1908,9 @@ function resizeImage($filepath)
     // So we really try to open each image type whatever the extension is.
     $header=file_get_contents($filepath,false,NULL,0,256); // Read first 256 bytes and try to sniff file type.
     $im=false;
-    if (strpos($header,'GIF8')==0) $im = imagecreatefromgif($filepath); // Well this is crude, but it should be enough.
-    if (strpos($header,'PNG')==1) $im = imagecreatefrompng($filepath);
-    if (strpos($header,'JFIF')) $im = imagecreatefromjpeg($filepath);
+    $i=strpos($header,'GIF8'); if (($i!==false) && ($i==0)) $im = imagecreatefromgif($filepath); // Well this is crude, but it should be enough.
+    $i=strpos($header,'PNG'); if (($i!==false) && ($i==1)) $im = imagecreatefrompng($filepath);
+    $i=strpos($header,'JFIF'); if ($i!==false) $im = imagecreatefromjpeg($filepath);
     if (!$im) return false;  // Unable to open image (corrupted or not an image)
     $w = imagesx($im);
     $h = imagesy($im);
