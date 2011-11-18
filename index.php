@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.29 beta - Shaare your links...
+// Shaarli 0.0.30 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -20,7 +20,7 @@ $GLOBALS['config']['HIDE_TIMESTAMPS'] = false; // If true, the moment when links
 $GLOBALS['config']['ENABLE_THUMBNAILS'] = true; // Enable thumbnails in links.
 $GLOBALS['config']['CACHEDIR'] = 'cache'; // Cache directory for thumbnails for SLOW services (like flickr)
 $GLOBALS['config']['ENABLE_LOCALCACHE'] = true; // Enable Shaarli to store thumbnail in a local cache. Disable to reduce webspace usage.
-$GLOBALS['config']['PUBSUBHUB_URL'] = ''; // PubSubHub support. Put an empty string to disable, or put your hub url here to enable.
+$GLOBALS['config']['PUBSUBHUB_URL'] = ''; // PubSubHubbub support. Put an empty string to disable, or put your hub url here to enable.
                                           // Note: You must have publisher.php in the same directory as Shaarli index.php   
 // -----------------------------------------------------------------------------------------------
 // Program config (touch at your own risks !)
@@ -54,7 +54,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.29 beta');
+define('shaarli_version','0.0.30 beta');
 if (!is_dir($GLOBALS['config']['DATADIR'])) { mkdir($GLOBALS['config']['DATADIR'],0705); chmod($GLOBALS['config']['DATADIR'],0705); }
 if (!is_file($GLOBALS['config']['DATADIR'].'/.htaccess')) { file_put_contents($GLOBALS['config']['DATADIR'].'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if ($GLOBALS['config']['ENABLE_LOCALCACHE'])
@@ -151,7 +151,7 @@ function autoLocale()
 }
 
 // ------------------------------------------------------------------------------------------
-// PubSubHub protocol support (if enabled)  [UNTESTED]
+// PubSubHubbub protocol support (if enabled)  [UNTESTED]
 // (Source: http://aldarone.fr/les-flux-rss-shaarli-et-pubsubhubbub/ )
 if (!empty($GLOBALS['config']['PUBSUBHUB_URL'])) include './publisher.php';
 function pubsubhub()
@@ -1025,7 +1025,6 @@ HTML;
                 $LINKSDB[$key]=$value;
             }
             $LINKSDB->savedb(); // save to disk
-            pubsubhub();
             invalidateCaches();
             echo '<script language="JavaScript">alert("Tag was removed from '.count($linksToAlter).' links.");document.location=\'?\';</script>';
             exit;
@@ -1071,6 +1070,7 @@ HTML;
         if ($link['title']=='') $link['title']=$link['url']; // If title is empty, use the URL as title.
         $LINKSDB[$linkdate] = $link;
         $LINKSDB->savedb(); // save to disk
+        pubsubhub();
         invalidateCaches();
         
         // If we are called from the bookmarklet, we must close the popup:
@@ -1406,6 +1406,7 @@ function templateLinkList()
     $i = ($page-1)*$_SESSION['LINKS_PER_PAGE']; // Start index.
     $end = $i+$_SESSION['LINKS_PER_PAGE'];  
     $redir = empty($GLOBALS['redirector']) ? '' : $GLOBALS['redirector']; // optional redirector URL
+    $token = ''; if (isLoggedIn()) $token=getToken();
     
     while ($i<$end && $i<count($keys))
     {  
@@ -1414,7 +1415,12 @@ function templateLinkList()
         $title=$link['title'];
         $classLi =  $i%2!=0 ? '' : 'class="publicLinkHightLight"';
         $classprivate = ($link['private']==0 ? $classLi : 'class="private"');
-        if (isLoggedIn()) $actions=' <form method="GET" class="buttoneditform"><input type="hidden" name="edit_link" value="'.$link['linkdate'].'"><input type="submit" value="Edit" class="smallbutton"></form>';
+        if (isLoggedIn())
+        {
+            $actions=' <form method="GET" class="buttoneditform"><input type="hidden" name="edit_link" value="'.$link['linkdate'].'"><input type="submit" value="Edit" class="smallbutton"></form>';
+            $actions.=' <form method="POST" class="buttoneditform"><input type="hidden" name="lf_linkdate" value="'.$link['linkdate'].'">';
+            $actions.='<input type="hidden" name="token" value="'.$token.'"><input type="submit" value="Delete" name="delete_link" class="smallbutton" onClick="return confirmDeleteLink();"></form>';
+        }
         $tags='';
         if ($link['tags']!='')
         {
