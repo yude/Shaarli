@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.28 beta - Shaare your links...
+// Shaarli 0.0.29 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -54,7 +54,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.28 beta');
+define('shaarli_version','0.0.29 beta');
 if (!is_dir($GLOBALS['config']['DATADIR'])) { mkdir($GLOBALS['config']['DATADIR'],0705); chmod($GLOBALS['config']['DATADIR'],0705); }
 if (!is_file($GLOBALS['config']['DATADIR'].'/.htaccess')) { file_put_contents($GLOBALS['config']['DATADIR'].'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if ($GLOBALS['config']['ENABLE_LOCALCACHE'])
@@ -880,7 +880,7 @@ function renderPage()
         // Show login screen, then redirect to ?post=...
         if (isset($_GET['post'])) 
         {
-            header('Location: ?do=login&post='.urlencode($_GET['post']).(iset($_GET['title'])?'&title='.urlencode($_GET['title']):'').(isset($_GET['source'])?'&source='.urlencode($_GET['source']):'')); // Redirect to login page, then back to post link.
+            header('Location: ?do=login&post='.urlencode($_GET['post']).(!empty($_GET['title'])?'&title='.urlencode($_GET['title']):'').(!empty($_GET['source'])?'&source='.urlencode($_GET['source']):'')); // Redirect to login page, then back to post link.
             exit;
         }
         
