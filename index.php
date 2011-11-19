@@ -1868,7 +1868,7 @@ function genThumbnail()
         } 
     }
 
-    if ($domain=='vimeo.com' )
+    elseif ($domain=='vimeo.com' )
     {
         // This is more complex: we have to perform a HTTP request, then parse the result.
         // Maybe we should deport this to javascript ? Example: http://stackoverflow.com/questions/1361149/get-img-thumbnails-from-vimeo/4285098#4285098
@@ -1890,7 +1890,7 @@ function genThumbnail()
         }  
     }
 
-    if ($domain=='ted.com' || endsWith($domain,'.ted.com'))
+    elseif ($domain=='ted.com' || endsWith($domain,'.ted.com'))
     {
         // The thumbnail for TED talks is located in the <link rel="image_src" [...]> tag on that page
         // http://www.ted.com/talks/mikko_hypponen_fighting_viruses_defending_the_net.html
@@ -1919,19 +1919,22 @@ function genThumbnail()
         }
     }
     
-    // For all other domains, we try to download the image and make a thumbnail.
-    list($httpstatus,$headers,$data) = getHTTP($url,30);  // We allow 30 seconds max to download (and downloads are limited to 4 Mb)
-    if (strpos($httpstatus,'200 OK')!==false)
+    else
     {
-        $filepath=$GLOBALS['config']['CACHEDIR'].'/'.$thumbname;
-        file_put_contents($filepath,$data); // Save image to cache.
-        if (resizeImage($filepath))
+        // For all other domains, we try to download the image and make a thumbnail.
+        list($httpstatus,$headers,$data) = getHTTP($url,30);  // We allow 30 seconds max to download (and downloads are limited to 4 Mb)
+        if (strpos($httpstatus,'200 OK')!==false)
         {
-            header('Content-Type: image/jpeg');
-            echo file_get_contents($filepath);  
-            return;
+            $filepath=$GLOBALS['config']['CACHEDIR'].'/'.$thumbname;
+            file_put_contents($filepath,$data); // Save image to cache.
+            if (resizeImage($filepath))
+            {
+                header('Content-Type: image/jpeg');
+                echo file_get_contents($filepath);  
+                return;
+            }
         }
-    }  
+    }
 
 
     // Otherwise, return an empty image (8x8 transparent gif)
