@@ -1515,12 +1515,20 @@ function thumbnail($url,$href=false)
     
     if (!$GLOBALS['config']['ENABLE_LOCALCACHE']) return ''; // If local cache is disabled, no thumbnails for services which require the use a local cache.
     
-    if ($domain=='flickr.com' || endsWith($domain,'.flickr.com') || $domain=='vimeo.com')
+    if ($domain=='flickr.com' || endsWith($domain,'.flickr.com')
+        || $domain=='vimeo.com'
+        || $domain=='ted.com' || endsWith($domain,'.ted.com')
+    )
     {
     	if ($domain=='vimeo.com')
     	{   // Make sure this vimeo url points to a video (/xxx... where xxx is numeric)
     		$path = parse_url($url,PHP_URL_PATH); 
     		if (!preg_match('!/\d+.+?!',$path)) return ''; // This is not a single video URL.
+    	}
+    	if ($domain=='ted.com' || endsWith($domain,'.ted.com'))
+    	{   // Make sure this TED url points to a video (/talks/...)
+    		$path = parse_url($url,PHP_URL_PATH);
+    		if ("/talks/" !== substr($path,0,7)) return ''; // This is not a single video URL.
     	}
         $sign = hash_hmac('sha256', $url, $GLOBALS['salt']); // We use the salt to sign data (it's random, secret, and specific to each installation)
         return '<a href="'.htmlspecialchars($href).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a>';
@@ -1880,6 +1888,35 @@ function genThumbnail()
                 return;
             }           
         }  
+    }
+
+    if ($domain=='ted.com' || endsWith($domain,'.ted.com'))
+    {
+        // The thumbnail for TED talks is located in the <link rel="image_src" [...]> tag on that page
+        // http://www.ted.com/talks/mikko_hypponen_fighting_viruses_defending_the_net.html
+        // <link rel="image_src" href="http://images.ted.com/images/ted/28bced335898ba54d4441809c5b1112ffaf36781_389x292.jpg" />
+        list($httpstatus,$headers,$data) = getHTTP($url,5);
+        if (strpos($httpstatus,'200 OK')!==false)
+        {
+            // Extract the link to the thumbnail
+            preg_match('!link rel="image_src" href="(http://images.ted.com/images/ted/.+_\d+x\d+\.jpg)[^s]!',$data,$matches);
+            if (!empty($matches[1]))
+            {   // Let's download the image.
+                $imageurl=$matches[1];
+                list($httpstatus,$headers,$data) = getHTTP($imageurl,20); // No control on image size, so wait long enough.
+                if (strpos($httpstatus,'200 OK')!==false)
+                {
+                    $filepath=$GLOBALS['config']['CACHEDIR'].'/'.$thumbname;
+                    file_put_contents($filepath,$data); // Save image to cache.
+                    if (resizeImage($filepath))
+                    {
+                        header('Content-Type: image/jpeg');
+                        echo file_get_contents($filepath);  
+                        return;
+                    }
+                }
+            }
+        }
     }
     
     // For all other domains, we try to download the image and make a thumbnail.
