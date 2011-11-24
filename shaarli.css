@@ -30,44 +30,46 @@ h1 { font-size:20pt; font-weight:bold; font-style:italic; margin-bottom:20px; }
 
 /* Buttons */
 .bigbutton {
-	background-color: #a0a0a0;
-   	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#a0a0a0), to(#d4d4d4));
-	background: -webkit-linear-gradient(#a0a0a0, #d4d4d4);
-	background: -moz-linear-gradient(#a0a0a0, #d4d4d4);
-	background: -ms-linear-gradient(#a0a0a0, #d4d4d4);
-	background: -o-linear-gradient(#a0a0a0, #d4d4d4);
-	background: linear-gradient(#a0a0a0, #d4d4d4);
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-	padding:0 5px 0 5px;
-	margin:5px 0 5px 0;
-	height:25px;
-
-	border-radius: 5px 5px 5px 5px;
-    -moz-border-radius:5px 5px 5px 5px;	
-	cursor:pointer;	
-	border:none;
+	background: -moz-linear-gradient(#c0c0c0, #ffffff) repeat scroll 0 0 transparent;
+	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#c0c0c0), to(#ffffff));
+	background: -webkit-linear-gradient(#c0c0c0, #ffffff);
+	background: -ms-linear-gradient(#c0c0c0, #ffffff);
+	background: -o-linear-gradient(#c0c0c0, #ffffff);
+	background: linear-gradient(#c0c0c0, #ffffff);
+    border-radius: 3px 3px 3px 3px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+    height: 24px;
+    margin-left: 5px;
+    padding: 0 5px;
+	color: #606060;
 	border-style:outset;
-	border-width:2px;
+	border-width:1px;
+
 	} 
 .smallbutton {
-	background-color: #a0a0a0;
-   	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#a0a0a0), to(#d4d4d4));
-	background: -webkit-linear-gradient(#a0a0a0, #d4d4d4);
-	background: -moz-linear-gradient(#a0a0a0, #d4d4d4);
-	background: -ms-linear-gradient(#a0a0a0, #d4d4d4);
-	background: -o-linear-gradient(#a0a0a0, #d4d4d4);
-	background: linear-gradient(#a0a0a0, #d4d4d4);
-	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-	padding:0;
-	margin:5px 0 5px 0;
-	border-radius: 5px 5px 5px 5px;
-    -moz-border-radius:5px 5px 5px 5px;	
-	cursor:pointer;	
-	padding:0 3px 0 3px;
+	background: -moz-linear-gradient(#c0c0c0, #ffffff) repeat scroll 0 0 transparent;
+	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#c0c0c0), to(#ffffff));
+	background: -webkit-linear-gradient(#c0c0c0, #ffffff);
+	background: -ms-linear-gradient(#c0c0c0, #ffffff);
+	background: -o-linear-gradient(#c0c0c0, #ffffff);
+	background: linear-gradient(#c0c0c0, #ffffff);
+    border-radius: 3px 3px 3px 3px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+    height: 20px;
+    margin-left: 5px;
+    padding: 0 5px;
+	color: #606060;
 	border-style:outset;
-	border-width:2px;
-	font-size:8pt;
+	border-width:1px;
+
 	}
+
+/* Edit/Delete buttons on links */
+.button_edit, .button_delete { border-radius:0; box-shadow:none; border-style:none; border-width:0; padding:0; background:none; } 
+.button_edit { margin-left:10px; }
+
 
 #pageheader #logo{
 background-image: url('./images/logo.png');
@@ -76,7 +78,9 @@ float:left;
 margin:0 10px 0 10px;
 width:105px;
 height:55px;
+cursor:pointer;
 }
+
 #pageheader
 {
 
@@ -101,15 +105,21 @@ height:55px;
 	background: -ms-linear-gradient(#333333, #000000);
 	background: -o-linear-gradient(#333333, #000000);
 	background: linear-gradient(#333333, #000000);
-	
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 	padding:5px;
 	border-radius: 5px 5px 5px 5px;
 	margin:10px 3px 3px 3px;
 	color:#A2DD42;
+	float:left;
 	text-decoration:none;
 }
 
+#toolsdiv a{
+	clear:both;
+}
+#toolsdiv a span{
+	color:#ffffff;   
+}
 .linksperpage,.tagfilter,.searchform,.addform {
 	background-color: #dedede;
 	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#dedede), to(#ffffff));
@@ -160,10 +170,10 @@ height:55px;
 	cursor:pointer;
 }
 
-#shaarli_title { font-weight:bold; font-style:italic; }
+#shaarli_title { font-weight:bold; font-style:italic; margin-top:0;}
 #shaarli_title a { color: #fff !important; }
 
-#pageheader a:visited { color:#bbb; text-decoration:none;}
+#pageheader a:visited { color:#98C943; text-decoration:none;}
 #pageheader a:hover { color:#FFFFC9; text-decoration:none;}
 #pageheader a:active { color:#bbb; text-decoration:none;} 
 #searchcriteria { padding: 4 0 5 5; font-weight:bold;}
@@ -172,10 +182,10 @@ height:55px;
 .paging a:visited { color:#ccc;  }
 .paging a:hover {  color:#FFFFC9;  }
 .paging a:active { color:#fff;  }
-#headerform { color:#ffffff; padding:5 5 5 5; }
+#headerform { color:#ffffff; padding:5 5 5 5; clear: both;}
 #toolsdiv { color:#ffffff; padding:5 5 5 5; clear:left; }
 #uploaddiv { color:#ffffff; padding:5 5 5 5; clear:left; }
-#editlinkform { color:#ffffff; padding:5 5 5 15px; width:80%; clear:left; }
+#editlinkform { height:100%;color:#ffffff; padding:5 5 5 15px; width:80%; clear:left; }
 #linklist li { 
 	padding:4 10 15 20; border-top: 1px solid #bbb; clear:both; 
 	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#F2F2F2), to(#ffffff));
@@ -190,7 +200,8 @@ height:55px;
 #linklist li.publicLinkHightLight:hover,#linklist li:hover{ 
 	background: #E9FFCE;
 }
-#linklist li.private { background-color: #ccc; border-left:8px solid #888; }
+#linklist li.private { background: url('./images/private.png') no-repeat 10px center; padding-left:60px; }
+.private  .linktitle a {color:#969696;}
 .linktitle { font-size:14pt; font-weight:bold; }
 .linktitle a { text-decoration: none; color:#80AD48; }
 .linktitle a:hover { color:#F57900; }
@@ -230,6 +241,8 @@ font-size:9pt;
 .linkshort a:hover { text-decoration: underline; }
 .buttoneditform { display:inline; }
 #footer { font-size:8pt; text-align:center; border-top:1px solid #ddd; color: #888; clear:both; }
+#footer  a{ color:#486D08;}
+#footer  a:hover{ color:#000000;}
 #newversion { background-color: #FFFFA0; color:#000; position:absolute; top:0;right:0; padding:2 7 2 7;  font-size:9pt;} 
 #cloudtag  { padding-left:10%; padding-right:10%; }
 #cloudtag a { color:black; text-decoration:none; }
@@ -275,6 +288,12 @@ text-shadow:2px 2px 1px #000000;
 
 #linklist li.publicLinkHightLight{
 	background: #ffffff;
+}
+
+/* Common css screwdriver */
+
+.clear{
+	clear:both;
 }
 
 @media print {

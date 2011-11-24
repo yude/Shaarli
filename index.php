@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.30 beta - Shaare your links...
+// Shaarli 0.0.31 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -54,7 +54,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.30 beta');
+define('shaarli_version','0.0.31 beta');
 if (!is_dir($GLOBALS['config']['DATADIR'])) { mkdir($GLOBALS['config']['DATADIR'],0705); chmod($GLOBALS['config']['DATADIR'],0705); }
 if (!is_file($GLOBALS['config']['DATADIR'].'/.htaccess')) { file_put_contents($GLOBALS['config']['DATADIR'].'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.    
 if ($GLOBALS['config']['ENABLE_LOCALCACHE'])
@@ -798,7 +798,7 @@ function renderPage()
         
         foreach($linksToDisplay as $link)
         {
-        	$href='?'.htmlspecialchars(smallhash($link['linkdate']),ENT_QUOTES);
+            $href='?'.htmlspecialchars(smallhash($link['linkdate']),ENT_QUOTES);
             $thumb=thumbnail($link['url'],$href);
             if ($thumb!='')
             {
@@ -903,16 +903,17 @@ HTML;
     {
         $pageabsaddr=serverUrl().$_SERVER["SCRIPT_NAME"]; // Why doesn't php have a built-in function for that ?
         // The javascript code for the bookmarklet:
-        $changepwd = ($GLOBALS['config']['OPEN_SHAARLI'] ? '' : '<a href="?do=changepasswd"><b>Change password</b></a> - Change your password.<br><br>' );
+        $changepwd = ($GLOBALS['config']['OPEN_SHAARLI'] ? '' : '<a href="?do=changepasswd"><b>Change password</b>  <span>: Change your password.</span></a><br><br>' );
         $toolbar= <<<HTML
-<div id="toolsdiv"><br>
+<div id="toolsdiv">
     {$changepwd}        
-    <a href="?do=configure"><b>Configure your Shaarli</b></a> - Change Title, timezone...<br><br>
-    <a href="?do=changetag"><b>Rename/delete tags</b></a> - Rename or delete a tag in all links.<br><br>
-    <a href="?do=import"><b>Import</b></a> - Import Netscape html bookmarks (as exported from Firefox, Chrome, Opera, delicious...)<br><br>
-    <a href="?do=export"><b>Export</b></a> - Export Netscape html bookmarks (which can be imported in Firefox, Chrome, Opera, delicious...)<br><br>
-    <a class="smallbutton"  onclick="alert('Drag this link to your bookmarks toolbar, or right-click it and choose Bookmark This Link...');return false;" href="javascript:javascript:(function(){var%20url%20=%20location.href;var%20title%20=%20document.title%20||%20url;window.open('{$pageabsaddr}?post='%20+%20encodeURIComponent(url)+'&amp;title='%20+%20encodeURIComponent(title)+'&amp;source=bookmarklet','_blank','menubar=no,height=400,width=608,toolbar=no,scrollbars=no,status=no');})();">Shaare link</a> - Drag this link to your bookmarks toolbar (or right-click it and choose Bookmark This Link....). Then click "Shaare link" button in any page you want to share.<br><br>
-</div>
+    <a href="?do=configure"><b>Configure your Shaarli</b> <span>:  Change Title, timezone...</span></a><br><br>
+    <a href="?do=changetag"><b>Rename/delete tags</b> <span>:  Rename or delete a tag in all links</span></a><br><br>
+    <a href="?do=import"><b>Import</b> <span>:  Import Netscape html bookmarks (as exported from Firefox, Chrome, Opera, delicious...)</span></a> <br><br>
+    <a href="?do=export"><b>Export</b> <span>:  Export Netscape html bookmarks (which can be imported in Firefox, Chrome, Opera, delicious...)</span></a><br><br>
+<a class="smallbutton" onclick="alert('Drag this link to your bookmarks toolbar, or right-click it and choose Bookmark This Link...');return false;" href="javascript:javascript:(function(){var%20url%20=%20location.href;var%20title%20=%20document.title%20||%20url;window.open('{$pageabsaddr}?post='%20+%20encodeURIComponent(url)+'&amp;title='%20+%20encodeURIComponent(title)+'&amp;source=bookmarklet','_blank','menubar=no,height=390,width=600,toolbar=no,scrollbars=no,status=no');})();"><b>Shaare link</b></a> <a href="#" style="clear:none;"><span>&#x21D0; Drag this link to your bookmarks toolbar (or right-click it and choose Bookmark This Link....). Then click "Shaare link" button in any page you want to share.</span></a><br><br>
+    <div class="clear"></div>
+    </div>
 HTML;
         $data = array('pageheader'=>$toolbar,'body'=>'','onload'=>''); 
         templatePage($data);
@@ -1161,9 +1162,9 @@ HTML;
         {
             $toolbar= <<<HTML
 <div id="toolsdiv">
-    <a href="?do=export&what=all"><b>Export all</b></a> - Export all links<br><br>
-    <a href="?do=export&what=public"><b>Export public</b></a> - Export public links only<br><br>
-    <a href="?do=export&what=private"><b>Export private</b></a> - Export private links only<br><br>
+    <a href="?do=export&what=all"><b>Export all</b> <span>: Export all links</span></a><br><br>
+    <a href="?do=export&what=public"><b>Export public</b> <span>: Export public links only</a><br><br>
+    <a href="?do=export&what=private"><b>Export private</b> <span>: Export private links only</a><br><br style="clear:both;">
 </div>
 HTML;
             $data = array('pageheader'=>$toolbar,'body'=>'','onload'=>''); 
@@ -1175,11 +1176,13 @@ HTML;
        
         header('Content-Type: text/html; charset=utf-8');
         header('Content-disposition: attachment; filename=bookmarks_'.$exportWhat.'_'.strval(date('Ymd_His')).'.html');
+        $currentdate=date('Y/m/d H:i:s');
         echo <<<HTML
 <!DOCTYPE NETSCAPE-Bookmark-file-1>
 <!-- This is an automatically generated file.
      It will be read and overwritten.
      DO NOT EDIT! -->
+<!-- Shaarli {$exportWhat} bookmarks export on {$currentdate} --> 
 <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
 <TITLE>Bookmarks</TITLE>
 <H1>Bookmarks</H1>
@@ -1196,8 +1199,7 @@ HTML;
                 if ($link['description']!='') echo '<DD>'.htmlspecialchars($link['description'])."\n";
             }
         }
-        echo '<!-- Shaarli '.$exportWhat.' bookmarks export on '.date('Y/m/d H:i:s')."-->\n";
-        exit;
+                exit;
     }            
 
     // -------- User is uploading a file for import
@@ -1272,7 +1274,6 @@ function importFile()
     {
         // This is a standard Netscape-style bookmark file.
         // This format is supported by all browsers (except IE, of course), also delicious, diigo and others.      
-        // I didn't want to use DOM... anyway, this is FAST (less than 1 second to import 7200 links (2.1 Mb html file)).
         foreach(explode('<DT>',$data) as $html) // explode is very fast
         {
             $link = array('linkdate'=>'','title'=>'','url'=>'','description'=>'','tags'=>'','private'=>0);  
@@ -1283,19 +1284,42 @@ function importFile()
                 preg_match('!<A .*?>(.*?)</A>!i',$d[0],$matches); $link['title'] = (isset($matches[1]) ? trim($matches[1]) : '');  // Get title
                 $link['title'] = html_entity_decode($link['title'],ENT_QUOTES,'UTF-8');
                 preg_match_all('! ([A-Z_]+)=\"(.*?)"!i',$html,$matches,PREG_SET_ORDER);  // Get all other attributes
+                $raw_add_date=0;
                 foreach($matches as $m)
                 {
                     $attr=$m[1]; $value=$m[2];
                     if ($attr=='HREF') $link['url']=html_entity_decode($value,ENT_QUOTES,'UTF-8');
-                    elseif ($attr=='ADD_DATE') $link['linkdate']=date('Ymd_His',intval($value));
+                    elseif ($attr=='ADD_DATE') $raw_add_date=intval($value);
                     elseif ($attr=='PRIVATE') $link['private']=($value=='0'?0:1);
                     elseif ($attr=='TAGS') $link['tags']=html_entity_decode(str_replace(',',' ',$value),ENT_QUOTES,'UTF-8');
                 }     
-                if ($link['linkdate']!='' && $link['url']!='' && ($overwrite || empty($LINKSDB[$link['linkdate']])))
+                if ($link['url']!='')
                 {
                     if ($private==1) $link['private']=1;
-                    $LINKSDB[$link['linkdate']] = $link;
-                    $import_count++;
+                    $dblink = $LINKSDB->getLinkFromUrl($link['url']); // See if the link is already in database.
+                    if ($dblink==false)
+                    {  // Link not in database, let's import it...
+                       if (empty($raw_add_date)) $raw_add_date=time(); // In case of shitty bookmark file with no ADD_DATE
+                       
+                       // Make sure date/time is not already used by another link.
+                       // (Some bookmark files have several different links with the same ADD_DATE)
+                       // We increment date by 1 second until we find a date which is not used in db.
+                       // (so that links that have the same date/time are more or less kept grouped by date, but do not conflict.)
+                       while (!empty($LINKSDB[date('Ymd_His',$raw_add_date)])) { $raw_add_date++; }// Yes, I know it's ugly.
+                       $link['linkdate']=date('Ymd_His',$raw_add_date);
+                       $LINKSDB[$link['linkdate']] = $link;
+                       $import_count++;
+                    }
+                    else // link already present in database.
+                    {
+                        if ($overwrite)
+                        {   // If overwrite is required, we import link data, except date/time.
+                            $link['linkdate']=$dblink['linkdate'];
+                            $LINKSDB[$link['linkdate']] = $link;
+                            $import_count++;
+                        }
+                    }
+
                 }
             }     
         }
@@ -1417,9 +1441,9 @@ function templateLinkList()
         $classprivate = ($link['private']==0 ? $classLi : 'class="private"');
         if (isLoggedIn())
         {
-            $actions=' <form method="GET" class="buttoneditform"><input type="hidden" name="edit_link" value="'.$link['linkdate'].'"><input type="submit" value="Edit" class="smallbutton"></form>';
+            $actions=' <form method="GET" class="buttoneditform"><input type="hidden" name="edit_link" value="'.$link['linkdate'].'"><input type="image" alt="Edit" src="images/edit_icon.png" title="Edit" class="button_edit"></form>';
             $actions.=' <form method="POST" class="buttoneditform"><input type="hidden" name="lf_linkdate" value="'.$link['linkdate'].'">';
-            $actions.='<input type="hidden" name="token" value="'.$token.'"><input type="submit" value="Delete" name="delete_link" class="smallbutton" onClick="return confirmDeleteLink();"></form>';
+            $actions.='<input type="hidden" name="token" value="'.$token.'"><input type="hidden" name="delete_link"><input type="image" alt="Delete" src="images/delete_icon.png" title="Delete" class="button_delete" onClick="return confirmDeleteLink();"></form>';
         }
         $tags='';
         if ($link['tags']!='')
@@ -1520,16 +1544,16 @@ function thumbnail($url,$href=false)
         || $domain=='ted.com' || endsWith($domain,'.ted.com')
     )
     {
-    	if ($domain=='vimeo.com')
-    	{   // Make sure this vimeo url points to a video (/xxx... where xxx is numeric)
-    		$path = parse_url($url,PHP_URL_PATH); 
-    		if (!preg_match('!/\d+.+?!',$path)) return ''; // This is not a single video URL.
-    	}
-    	if ($domain=='ted.com' || endsWith($domain,'.ted.com'))
-    	{   // Make sure this TED url points to a video (/talks/...)
-    		$path = parse_url($url,PHP_URL_PATH);
-    		if ("/talks/" !== substr($path,0,7)) return ''; // This is not a single video URL.
-    	}
+        if ($domain=='vimeo.com')
+        {   // Make sure this vimeo url points to a video (/xxx... where xxx is numeric)
+            $path = parse_url($url,PHP_URL_PATH); 
+            if (!preg_match('!/\d+.+?!',$path)) return ''; // This is not a single video URL.
+        }
+        if ($domain=='ted.com' || endsWith($domain,'.ted.com'))
+        {   // Make sure this TED url points to a video (/talks/...)
+            $path = parse_url($url,PHP_URL_PATH);
+            if ("/talks/" !== substr($path,0,7)) return ''; // This is not a single video URL.
+        }
         $sign = hash_hmac('sha256', $url, $GLOBALS['salt']); // We use the salt to sign data (it's random, secret, and specific to each installation)
         return '<a href="'.htmlspecialchars($href).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a>';
     }
@@ -1563,15 +1587,25 @@ function templatePage($data)
     $newversion=checkUpdate();
     if ($newversion!='') $newversion='<div id="newversion"><span style="text-decoration:blink;">&#x25CF;</span> Shaarli '.htmlspecialchars($newversion).' is <a href="http://sebsauvage.net/wiki/doku.php?id=php:shaarli#download">available</a>.</div>';
     $linkcount = count($LINKSDB);
+
+    $feedurl=htmlspecialchars(serverUrl().$_SERVER['SCRIPT_NAME']); 
+    $searchcrits=''; // Search criteria
+    if (!empty($_GET['searchtags'])) $searchcrits.='&searchtags='.$_GET['searchtags'];
+    elseif (!empty($_GET['searchterm'])) $searchcrits.='&searchterm='.$_GET['searchterm'];
+    $filtered_feed= ($searchcrits=='' ? '' : 'Filtered ');
+
     $open='';
     if ($GLOBALS['config']['OPEN_SHAARLI'])
     {
-        $menu=' <a href="?do=tools">Tools</a> &nbsp;<a href="?do=addlink"><b>Add link</b></a>';
+        $menu='<a href="?do=tools">Tools</a><a href="?do=addlink"><b>Add link</b></a>';
         $open='Open ';
     }
     else
-        $menu=(isLoggedIn() ? ' <a href="?do=logout">Logout</a> &nbsp;<a href="?do=tools">Tools</a> &nbsp;<a href="?do=addlink"><b>Add link</b></a>' : ' <a href="?do=login">Login</a>');          
-    
+        $menu=(isLoggedIn() ? '<a href="?do=logout">Logout</a><a href="?do=tools">Tools</a><a href="?do=addlink"><b>Add link</b></a>' : ' <a href="?do=login">Login</a>');          
+    $menu='<a href="?">Home</a>'.$menu.'<a href="'.$feedurl.'?do=rss'.$searchcrits.'">RSS Feed</a><a href="'.$feedurl.'?do=atom'.$searchcrits.'" style="padding-left:10px;">ATOM Feed</a><a href="?do=tagcloud">Tag cloud</a><a href="?do=picwall'.$searchcrits.'">Picture wall</a>';
+    # If we are in the bookmarklet popup, do not display menu.
+    if (!empty($_GET['source']) && $_GET['source']=='bookmarklet') $menu='';
+
     foreach(array('pageheader','body','onload') as $k) // make sure all required fields exist (put an empty string if not).
     {
         if (!array_key_exists($k,$data)) $data[$k]='';
@@ -1592,15 +1626,12 @@ $(document).ready(function()
 </script>
 JS;
     }
-    $feedurl=htmlspecialchars(serverUrl().$_SERVER['SCRIPT_NAME']); 
-    $searchcrits=''; // Search criteria
-    if (!empty($_GET['searchtags'])) $searchcrits.='&searchtags='.$_GET['searchtags'];
-    elseif (!empty($_GET['searchterm'])) $searchcrits.='&searchterm='.$_GET['searchterm'];
-    $filtered_feed= ($searchcrits=='' ? '' : 'Filtered ');
+
     $version=shaarli_version;
 
     $title = htmlspecialchars( $GLOBALS['title'] );
     $pagetitle = htmlspecialchars( empty($GLOBALS['pagetitle']) ? $title : $GLOBALS['pagetitle'] );
+
     echo <<<HTML
 <html>
 <head>
@@ -1609,19 +1640,19 @@ JS;
 <link rel="alternate" type="application/atom+xml" href="{$feedurl}?do=atom{$searchcrits}" title="{$filtered_feed}ATOM Feed" />
 <link href="./images/favicon.ico" rel="shortcut icon" type="image/x-icon" />
 <link type="text/css" rel="stylesheet" href="shaarli.css?version={$version}" />
+<link type="text/css" rel="stylesheet" href="user.css?version={$version}" />
 {$jsincludes}
 </head>
 <body {$data['onload']}>{$newversion}
-<div id="pageheader"><div id="logo" title="Share your links !"></div><div style="float:right; font-style:italic; color:#bbb; text-align:right; padding:0 5 0 0;">Shaare your links...<br>{$linkcount} links</div>
-    <span id="shaarli_title"><a href="?">{$title}</a></span> - <a href="?">Home</a>&nbsp;{$menu}&nbsp;<a href="{$feedurl}?do=rss{$searchcrits}">RSS Feed</a> <a href="{$feedurl}?do=atom{$searchcrits}" style="padding-left:10px;">ATOM Feed</a>
-&nbsp;&nbsp; <a href="?do=tagcloud">Tag cloud</a>&nbsp;&nbsp; <a href="?do=picwall{$searchcrits}">Picture wall</a>
+<div id="pageheader"><div id="logo" title="Share your links !" onclick="document.location='?';"></div><div style="float:right; font-style:italic; color:#bbb; text-align:right; padding:0 5 0 0;">Shaare your links...<br>{$linkcount} links</div>
+    <span id="shaarli_title"><a href="?">{$title}</a></span>{$menu}<div class="clear"></div>
 {$data['pageheader']}
 </div>
 {$data['body']}
 
 HTML;
     $exectime = round(microtime(true)-$STARTTIME,4);
-    echo '<div id="footer"><b><a href="http://sebsauvage.net/wiki/doku.php?id=php:shaarli">Shaarli '.shaarli_version.'</a></b> - The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net. Theme by idleman.fr.<br>Who gives a shit that this page was generated in '.$exectime.' seconds&nbsp;?</div>';
+    echo '<div id="footer"><b><a href="http://sebsauvage.net/wiki/doku.php?id=php:shaarli">Shaarli '.shaarli_version.'</a></b> - The personal, minimalist, super-fast, no-database delicious clone. By <a href="http://sebsauvage.net" target="_blank">sebsauvage.net</a>. Theme by <a href="http://blog.idleman.fr" target="_blank">idleman.fr</a>.<br>Who gives a shit that this page was generated in '.$exectime.' seconds&nbsp;?</div>';
     if (isLoggedIn()) echo '<script language="JavaScript">function confirmDeleteLink() { var agree=confirm("Are you sure you want to delete this link ?"); if (agree) return true ; else return false ; }</script>';
     echo $jsincludes_bottom.'</body></html>';
 }
