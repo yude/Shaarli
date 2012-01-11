@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.32 beta - Shaare your links...
+// Shaarli 0.0.33 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -58,7 +58,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.32 beta');
+define('shaarli_version','0.0.33 beta');
 if (!is_dir($GLOBALS['config']['DATADIR'])) { mkdir($GLOBALS['config']['DATADIR'],0705); chmod($GLOBALS['config']['DATADIR'],0705); }
 if (!is_file($GLOBALS['config']['DATADIR'].'/.htaccess')) { file_put_contents($GLOBALS['config']['DATADIR'].'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.
 if ($GLOBALS['config']['ENABLE_LOCALCACHE'])
@@ -115,6 +115,12 @@ function logm($message)
 {
     $t = strval(date('Y/m/d_H:i:s')).' - '.$_SERVER["REMOTE_ADDR"].' - '.strval($message)."\n";
     file_put_contents($GLOBALS['config']['DATADIR'].'/log.txt',$t,FILE_APPEND);
+}
+
+// Same as nl2br(), but escapes < and >
+function nl2br_escaped($html)
+{
+    return str_replace('>','&gt;',str_replace('<','&lt;',nl2br($html)));
 }
 
 /* Returns the small hash of a string
@@ -515,8 +521,8 @@ class pageBuilder
         $this->tpl->assign('linkcount',count($LINKSDB));
         $this->tpl->assign('feedurl',htmlspecialchars(indexUrl()));
         $searchcrits=''; // Search criteria
-        if (!empty($_GET['searchtags'])) $searchcrits.='&searchtags='.$_GET['searchtags'];
-        elseif (!empty($_GET['searchterm'])) $searchcrits.='&searchterm='.$_GET['searchterm'];
+        if (!empty($_GET['searchtags'])) $searchcrits.='&searchtags='.urlencode($_GET['searchtags']);
+        elseif (!empty($_GET['searchterm'])) $searchcrits.='&searchterm='.urlencode($_GET['searchterm']);
         $this->tpl->assign('searchcrits',$searchcrits);
         $this->tpl->assign('source',indexUrl());
         $this->tpl->assign('version',shaarli_version);
@@ -791,7 +797,7 @@ function showATOM()
         if (startsWith($absurl,'?')) $absurl=$pageaddr.$absurl;  // make permalink URL absolute
         $entries.='<entry><title>'.htmlspecialchars($link['title']).'</title><link href="'.$absurl.'" /><id>'.$guid.'</id>';
         if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) $entries.='<updated>'.htmlspecialchars($iso8601date).'</updated>';
-        $entries.='<summary>'.nl2br(keepMultipleSpaces(text2clickable(htmlspecialchars($link['description']))))."</summary>\n";
+        $entries.='<content type="html">'.htmlspecialchars(nl2br(keepMultipleSpaces(text2clickable(htmlspecialchars($link['description'])))))."</content>\n";
         if ($link['tags']!='') // Adding tags to each ATOM entry (as mentioned in ATOM specification)
         {
             foreach(explode(' ',$link['tags']) as $tag)
@@ -803,14 +809,14 @@ function showATOM()
     $feed='<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">';
     $feed.='<title>'.htmlspecialchars($GLOBALS['title']).'</title>';
     if (!$GLOBALS['config']['HIDE_TIMESTAMPS'] || isLoggedIn()) $feed.='<updated>'.htmlspecialchars($latestDate).'</updated>';
-    $feed.='<link rel="self" href="'.htmlspecialchars($pageaddr).'" />';
+    $feed.='<link rel="self" href="'.htmlspecialchars(serverUrl().$_SERVER["REQUEST_URI"]).'" />';
     if (!empty($GLOBALS['config']['PUBSUBHUB_URL']))
     {
         $feed.='<!-- PubSubHubbub Discovery -->';
         $feed.='<link rel="hub" href="'.htmlspecialchars($GLOBALS['config']['PUBSUBHUB_URL']).'" />';
         $feed.='<!-- End Of PubSubHubbub Discovery -->';
     }
-    $feed.='<author><uri>'.htmlspecialchars($pageaddr).'</uri></author>';
+    $feed.='<author><name>'.htmlspecialchars($pageaddr).'</name><uri>'.htmlspecialchars($pageaddr).'</uri></author>';
     $feed.='<id>'.htmlspecialchars($pageaddr).'</id>'."\n\n"; // Yes, I know I should use a real IRI (RFC3987), but the site URL will do.
     $feed.=$entries;
     $feed.='</feed>';
