@@ -1484,12 +1484,14 @@ function thumbnail($url,$href=false)
     if ($domain=='flickr.com' || endsWith($domain,'.flickr.com')
         || $domain=='vimeo.com'
         || $domain=='ted.com' || endsWith($domain,'.ted.com')
+        || $domain=='xkcd.com' || endsWith($domain,'.xkcd.com')
     )
     {
-        if ($domain=='vimeo.com')
-        {   // Make sure this vimeo url points to a video (/xxx... where xxx is numeric)
+        if ($domain=='vimeo.com' || $domain=='xkcd.com' || endsWith($domain,'.xkcd.com'))
+        {   // Make sure the url is of the form /xxx... where xxx is numeric
+            // For Vimeo's videos and xkcd's comics
             $path = parse_url($url,PHP_URL_PATH);
-            if (!preg_match('!/\d+.+?!',$path)) return ''; // This is not a single video URL.
+            if (!preg_match('!/\d+.+?!',$path)) return ''; // This is not a single video/comic URL.
         }
         if ($domain=='ted.com' || endsWith($domain,'.ted.com'))
         {   // Make sure this TED url points to a video (/talks/...)
@@ -1778,6 +1780,35 @@ function genThumbnail()
         {
             // Extract the link to the thumbnail
             preg_match('!link rel="image_src" href="(http://images.ted.com/images/ted/.+_\d+x\d+\.jpg)[^s]!',$data,$matches);
+            if (!empty($matches[1]))
+            {   // Let's download the image.
+                $imageurl=$matches[1];
+                list($httpstatus,$headers,$data) = getHTTP($imageurl,20); // No control on image size, so wait long enough.
+                if (strpos($httpstatus,'200 OK')!==false)
+                {
+                    $filepath=$GLOBALS['config']['CACHEDIR'].'/'.$thumbname;
+                    file_put_contents($filepath,$data); // Save image to cache.
+                    if (resizeImage($filepath))
+                    {
+                        header('Content-Type: image/jpeg');
+                        echo file_get_contents($filepath);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    elseif ($domain=='xkcd.com' || endsWith($domain,'.xkcd.com'))
+    {
+        // There is no thumbnail available for xkcd comics, so download the whole image and resize it.
+        // http://xkcd.com/327/
+        // <img src="http://imgs.xkcd.com/comics/exploits_of_a_mom.png" title="<BLABLA>" alt="<BLABLA>" />
+        list($httpstatus,$headers,$data) = getHTTP($url,5);
+        if (strpos($httpstatus,'200 OK')!==false)
+        {
+            // Extract the link to the thumbnail
+            preg_match('!<img src="(http://imgs.xkcd.com/comics/.*)" title="[^s]!',$data,$matches);
             if (!empty($matches[1]))
             {   // Let's download the image.
                 $imageurl=$matches[1];
