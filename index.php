@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.35 beta - Shaare your links...
+// Shaarli 0.0.36 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -58,7 +58,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.35 beta');
+define('shaarli_version','0.0.36 beta');
 if (!is_dir($GLOBALS['config']['DATADIR'])) { mkdir($GLOBALS['config']['DATADIR'],0705); chmod($GLOBALS['config']['DATADIR'],0705); }
 if (!is_file($GLOBALS['config']['DATADIR'].'/.htaccess')) { file_put_contents($GLOBALS['config']['DATADIR'].'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.
 if ($GLOBALS['config']['ENABLE_LOCALCACHE'])
@@ -988,9 +988,11 @@ function renderPage()
         foreach($linksToDisplay as $key=>$link)
         {
             // Roughly estimate length of entry (by counting characters)
-            $length=strlen($link['title'])+strlen($link['description']);
-            if ($link['thumbnail']) $length +=100; // 1 thumbnails roughly take as much space as 100 words;
-            
+            // Title: 30 chars = 1 line. 1 line is 30 pixels height.
+            // Description: 836 characters gives roughly 342 pixel height.
+            // This is not perfect, but it's usually ok.
+            $length=strlen($link['title'])+(342*strlen($link['description']))/836;
+            if ($link['thumbnail']) $length +=100; // 1 thumbnails roughly takes 100 pixels height.
             // Then put in column which is the less filled:
             $smallest=min($fill); // find smallest value in array.
             $index=array_search($smallest,$fill); // find index of this smallest value.
