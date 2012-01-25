@@ -9,7 +9,6 @@ html{color:#000;background:#FFF;}body,div,dl,dt,dd,ul,ol,li,h1,h2,h3,h4,h5,h6,pr
 
 body { font-family: "Trebuchet MS",Verdana,Arial,Helvetica,sans-serif; font-size:10pt; background-color: #ffffff; }
 input, textarea {
-
 	background-color: #dedede;
 	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#dedede), to(#ffffff));
 	background: -webkit-linear-gradient(#dedede, #ffffff);
@@ -30,6 +29,7 @@ h1 { font-size:20pt; font-weight:bold; font-style:italic; margin-bottom:20px; }
 
 /* Buttons */
 .bigbutton {
+    background-color: #c0c0c0;
 	background: -moz-linear-gradient(#c0c0c0, #ffffff) repeat scroll 0 0 transparent;
 	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#c0c0c0), to(#ffffff));
 	background: -webkit-linear-gradient(#c0c0c0, #ffffff);
@@ -48,6 +48,7 @@ h1 { font-size:20pt; font-weight:bold; font-style:italic; margin-bottom:20px; }
 
 	}
 .smallbutton {
+    background-color: #c0c0c0;
 	background: -moz-linear-gradient(#c0c0c0, #ffffff) repeat scroll 0 0 transparent;
 	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#c0c0c0), to(#ffffff));
 	background: -webkit-linear-gradient(#c0c0c0, #ffffff);
@@ -84,14 +85,13 @@ cursor:pointer;
 
 #pageheader
 {
-
+    background-color: #333333;
 	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#333333), to(#111111));
 	background: -webkit-linear-gradient(#333333, #111111);
 	background: -moz-linear-gradient(#333333, #111111);
 	background: -ms-linear-gradient(#333333, #111111);
 	background: -o-linear-gradient(#333333, #111111);
 	background: linear-gradient(#333333, #111111);
-
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 	width:auto;
 	padding:0 10px 5px 10px;
@@ -100,6 +100,7 @@ cursor:pointer;
 
 #pageheader a
 {
+    background-color: #333333;
 	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#333333), to(#000000));
 	background: -webkit-linear-gradient(#333333, #000000);
 	background: -moz-linear-gradient(#333333, #000000);
@@ -130,7 +131,6 @@ cursor:pointer;
 	background: -o-linear-gradient(#dedede, #ffffff);
 	background: linear-gradient(#dedede, #ffffff);
 	display:inline;
-
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 	padding:5px;
 	border: none;
@@ -157,6 +157,7 @@ cursor:pointer;
 }
 
 .tagfilter input.bigbutton,.searchform input.bigbutton,.addform input.bigbutton{
+    background-color: #dedede;
    	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#dedede), to(#ffffff));
 	background: -webkit-linear-gradient(#dedede, #ffffff);
 	background: -moz-linear-gradient(#dedede, #ffffff);
@@ -177,18 +178,19 @@ cursor:pointer;
 #pageheader a:visited { color:#98C943; text-decoration:none;}
 #pageheader a:hover { color:#FFFFC9; text-decoration:none;}
 #pageheader a:active { color:#bbb; text-decoration:none;}
-#searchcriteria { padding: 4 0 5 5; font-weight:bold;}
+#searchcriteria { padding: 4px 0px 5px 5px; font-weight:bold;}
 .paging { padding:5px;background-color:#777; color:#ccc; text-align:center;  clear:both;}
 .paging a:link { color:#ccc; text-decoration:none;}
 .paging a:visited { color:#ccc;  }
 .paging a:hover {  color:#FFFFC9;  }
 .paging a:active { color:#fff;  }
-#headerform { color:#ffffff; padding:5 5 5 5; clear: both;}
-#toolsdiv { color:#ffffff; padding:5 5 5 5; clear:left; }
-#uploaddiv { color:#ffffff; padding:5 5 5 5; clear:left; }
-#editlinkform { height:100%;color:#ffffff; padding:5 5 5 15px; width:80%; clear:left; }
+#headerform { color:#ffffff; padding:5px 5px 5px 5px; clear: both;}
+#toolsdiv { color:#ffffff; padding:5px 5px 5px 5px; clear:left; }
+#uploaddiv { color:#ffffff; padding:5px 5px 5px 5px; clear:left; }
+#editlinkform { height:100%;color:#ffffff; padding:5px 5px 5px 15px; width:80%; clear:left; }
 #linklist li {
-	padding:4 10 15 20; border-top: 1px solid #bbb; clear:both;
+	padding:4px 10px 15px 20px; border-top: 1px solid #bbb; clear:both;
+    background-color: #F2F2F2;
 	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#F2F2F2), to(#ffffff));
 	background: -webkit-linear-gradient(#F2F2F2, #ffffff);
 	background: -moz-linear-gradient(#F2F2F2, #ffffff);
@@ -217,14 +219,13 @@ cursor:pointer;
 .linktag {
 
 font-size:9pt;
+    background-color: #F2F2F2;
 	background: -webkit-gradient(linear, 0 0, 0 bottom, from(#F2F2F2), to(#ffffff));
 	background: -webkit-linear-gradient(#F2F2F2, #ffffff);
 	background: -moz-linear-gradient(#F2F2F2, #ffffff);
 	background: -ms-linear-gradient(#F2F2F2, #ffffff);
 	background: -o-linear-gradient(#F2F2F2, #ffffff);
 	background: linear-gradient(#F2F2F2, #ffffff);
-
-
     box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
 	padding:3px 3px 3px 20px;
 	height:20px;
@@ -247,11 +248,11 @@ font-size:9pt;
 #newversion { background-color: #FFFFA0; color:#000; position:absolute; top:0;right:0; padding:2 7 2 7;  font-size:9pt;}
 #cloudtag  { padding-left:10%; padding-right:10%; }
 #cloudtag a { color:black; text-decoration:none; }
-#installform td  { font-size: 10pt; padding:10 5 10 5; clear:left; }
-#changepasswordform { color:#ccc; padding:10 5 10 5; clear:left; }
-#changetag { color:#ccc; padding:10 5 10 5; clear:left; }
-#configform td  { color:#ccc; font-size: 10pt; padding:10 5 10 5;  }
-#configform  { color:#ccc; padding:10 5 10 5; clear:left; }
+#installform td  { font-size: 10pt; padding:10px 5px 10px 5px; clear:left; }
+#changepasswordform { color:#ccc; padding:10px 5px 10px 5px; clear:left; }
+#changetag { color:#ccc; padding:10px 5px 10px 5px; clear:left; }
+#configform td  { color:#ccc; font-size: 10pt; padding:10px 5px 10px 5px;  }
+#configform  { color:#ccc; padding:10px 5px 10px 5px; clear:left; }
 .thumbnail { float:right;  margin-left: 10px; }
 /* If you want thumbnails on the left:
 .thumbnail { float:left;  margin-right: 10px;   }
@@ -291,8 +292,87 @@ text-shadow:2px 2px 1px #000000;
 	background: #ffffff;
 }
 
-/* Common css screwdriver */
+div.qrcode {
+width:220px;
+height:220px;
+background-color: #ffffff;
+border: 1px solid black;
+position: absolute;
+top:-100px;
+left:-100px;
+text-align:center;
+font-size: 8pt;
+z-index:50;
+-webkit-box-shadow:2px 2px 20px 2px #333333;
+-moz-box-shadow:2px 2px 20px 2px #333333;
+-o-box-shadow:2px 2px 20px 2px #333333;
+-ms-box-shadow:2px 2px 20px 2px #333333;
+box-shadow:2px 2px 20px 2px #333333;
+}
 
+div.daily
+{
+    font-family: Georgia, 'DejaVu Serif', Norasi, serif; 
+    background-color: #E6D6BE;
+    /* Background paper texture by BashCorpo:
+       http://www.bashcorpo.dk/textures.php
+       http://bashcorpo.deviantart.com/art/Grungy-paper-texture-v-5-22966998  */
+    background-image: url("../images/Paper_texture_v5_by_bashcorpo_w1000.jpg");
+    -webkit-background-size: cover;
+    -moz-background-size: cover;
+    -o-background-size: cover;
+    background-size: cover;
+    position:relative;
+    border-bottom: 2px solid black;
+}
+div.dailyAbout
+{ 
+    float:left;
+    border: 1px solid black;
+    font-size: 8pt;
+    position:absolute;
+    left:10px;
+    top: 15px;
+    padding: 5px 5px 5px 5px;
+    text-align:center; 
+}
+div.dailyAbout  a { color: #890500; }
+div.dailyTitle
+ { 
+     font-weight: bold;
+     font-size: 44pt;
+     text-align:center; 
+     padding:10px 20px 0px 20px;
+}
+div.dailyDate
+ { 
+     font-size: 12pt;
+     font-weight:bold; 
+     text-align:center; 
+     padding:0px 20px 30px 20px;
+}
+
+/* Individual entries in "Daily": */
+div.dailyEntry
+{
+    margin: 5px 10px 2px 5px;
+    font-size: 11pt;
+    border-top: 1px solid #555;
+}
+div.dailyEntry  a { text-decoration:none; color: #890500; }
+div.dailyEntryTags { font-size:7.75pt;  }
+div.dailyEntryTitle { font-size:18pt; font-weight:bold;}
+div.dailyEntryThumbnail 
+{ 
+    width:100%; 
+    text-align:center; 
+    background-color:rgb(128,128,128); 
+    background:url(../images/50pc_transparent.png);
+    padding:4px 0px 2px 0px;
+}
+div.dailyEntryDescription { margin-top: 10px;  text-align:justify; }
+
+/* Common css screwdriver */
 .clear{
 	clear:both;
 }
@@ -309,7 +389,5 @@ a {color:#000!important;text-decoration:none!important;}
 .linkurl { color:#000; }
 .linkdescription { font-size:10pt;}
 .linktag { border: 1px solid black; font-style:italic;  font-size:8pt;}
-
-
 
 }

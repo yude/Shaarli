@@ -1,5 +1,5 @@
 <?php
-// Shaarli 0.0.33 beta - Shaare your links...
+// Shaarli 0.0.34 beta - Shaare your links...
 // The personal, minimalist, super-fast, no-database delicious clone. By sebsauvage.net
 // http://sebsauvage.net/wiki/doku.php?id=php:shaarli
 // Licence: http://www.opensource.org/licenses/zlib-license.php
@@ -58,7 +58,7 @@ header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
-define('shaarli_version','0.0.33 beta');
+define('shaarli_version','0.0.34 beta');
 if (!is_dir($GLOBALS['config']['DATADIR'])) { mkdir($GLOBALS['config']['DATADIR'],0705); chmod($GLOBALS['config']['DATADIR'],0705); }
 if (!is_file($GLOBALS['config']['DATADIR'].'/.htaccess')) { file_put_contents($GLOBALS['config']['DATADIR'].'/.htaccess',"Allow from none\nDeny from all\n"); } // Protect data files.
 if ($GLOBALS['config']['ENABLE_LOCALCACHE'])
@@ -141,11 +141,12 @@ function smallHash($text)
     return $t;
 }
 
+// In a string, converts urls to clickable links.
 // Function inspired from http://www.php.net/manual/en/function.preg-replace.php#85722
 function text2clickable($url)
 {
     $redir = empty($GLOBALS['redirector']) ? '' : $GLOBALS['redirector'];
-    return preg_replace('!((?:https?|ftp)://\S+[[:alnum:]]/?)!si','<a href="'.$redir.'$1" rel="nofollow">$1</a>',$url);
+    return preg_replace('!(((?:https?|ftp|file)://|apt:)\S+[[:alnum:]]/?)!si','<a href="'.$redir.'$1" rel="nofollow">$1</a>',$url);
 }
 
 // This function inserts &nbsp; where relevant so that multiple spaces are properly displayed in HTML
@@ -336,13 +337,15 @@ if (isset($_POST['login']))
 // You can append $_SERVER['SCRIPT_NAME'] to get the current script URL.
 function serverUrl()
 {
-        $serverport = ($_SERVER["SERVER_PORT"]=='80' || (!empty($_SERVER['HTTPS']) && $_SERVER["SERVER_PORT"]=='443') ? '' : ':'.$_SERVER["SERVER_PORT"]);
-        return 'http'.(!empty($_SERVER['HTTPS'])?'s':'').'://'.$_SERVER["SERVER_NAME"].$serverport;
+        $https = (!empty($_SERVER['HTTPS']) && (strtolower($_SERVER['HTTPS'])=='on')) || $_SERVER["SERVER_PORT"]=='443'; // HTTPS detection.
+        $serverport = ($_SERVER["SERVER_PORT"]=='80' || ($https && $_SERVER["SERVER_PORT"]=='443') ? '' : ':'.$_SERVER["SERVER_PORT"]);
+        return 'http'.($https?'s':'').'://'.$_SERVER["SERVER_NAME"].$serverport;
 }
 
+// Returns the absolute URL of current script.
 function indexUrl()
 {
-        return serverUrl() . ($_SERVER["SCRIPT_NAME"] == '/index.php' ? '' : $_SERVER["SCRIPT_NAME"]);
+        return serverUrl() . ($_SERVER["SCRIPT_NAME"] == '/index.php' ? '/' : $_SERVER["SCRIPT_NAME"]);
 }
 
 // Convert post_max_size/upload_max_filesize (eg.'16M') parameters to bytes.
@@ -526,6 +529,7 @@ class pageBuilder
         $this->tpl->assign('searchcrits',$searchcrits);
         $this->tpl->assign('source',indexUrl());
         $this->tpl->assign('version',shaarli_version);
+        $this->tpl->assign('scripturl',indexUrl());
         $this->tpl->assign('pagetitle','Shaarli');
         if (!empty($GLOBALS['title'])) $this->tpl->assign('pagetitle',$GLOBALS['title']);
         if (!empty($GLOBALS['pagetitle'])) $this->tpl->assign('pagetitle',$GLOBALS['pagetitle']);
@@ -557,6 +561,14 @@ class pageBuilder
       echo $mylinks['20110826_161819']['title'];
       foreach($mylinks as $link)
          echo $link['title'].' at url '.$link['url'].' ; description:'.$link['description'];
+   
+   Available keys:
+       title : Title of the link
+       url : URL of the link. Can be absolute or relative. Relative URLs are permalinks (eg.'?m-ukcw')
+       description : description of the entry
+       private : Is this link private ? 0=no, other value=yes
+       linkdate : date of the creation of this entry, in the form YYYYMMDD_HHMMSS (eg.'20110914_192317')
+       tags : tags attached to this entry (separated by spaces)                   
 
    We implement 3 interfaces:
      - ArrayAccess so that this object behaves like an associative array.
@@ -694,6 +706,19 @@ class linkdb implements Iterator, Countable, ArrayAccess
         return $filtered;
     }
 
+    // Filter by day. Day must be in the form 'YYYYMMDD' (eg. '20120125')
+    // Sort order is: older articles first.
+    // eg. print_r($mydb->filterDay('20120125'));
+    public function filterDay($day)
+    {
+        $filtered=array();
+        foreach($this->links as $l)
+        {
+            if (startsWith($l['linkdate'],$day)) $filtered[$l['linkdate']] = $l;
+        }
+        ksort($filtered);
+        return $filtered;
+    }
     // Filter by smallHash.
     // Only 1 article is returned.
     public function filterSmallHash($smallHash)
@@ -934,7 +959,55 @@ function renderPage()
         header('Location: '.(empty($_SERVER['HTTP_REFERER'])?'?':$_SERVER['HTTP_REFERER']));
         exit;
     }
+    
+    // --------- Daily (all links form a specific day) ----------------------
+    if (isset($_SERVER["QUERY_STRING"]) && startswith($_SERVER["QUERY_STRING"],'do=daily'))
+    { 
+        $day=Date('Ymd',strtotime('-1 day')); // Yesterday, in format YYYYMMDD.
+        if (isset($_GET['day'])) $day=$_GET['day'];
 
+        $previousday = Date('Ymd',strtotime('-1 day',strtotime($day))); 
+        $nextday = Date('Ymd',strtotime('+1 day',strtotime($day))); 
+        
+        $linksToDisplay=$LINKSDB->filterDay($day);
+        // We pre-format some fields for proper output.
+        foreach($linksToDisplay as $key=>$link)
+        {
+            $linksToDisplay[$key]['taglist']=explode(' ',$link['tags']);
+            $linksToDisplay[$key]['formatedDescription']=nl2br(keepMultipleSpaces(text2clickable(htmlspecialchars($link['description']))));
+            $linksToDisplay[$key]['thumbnail'] = thumbnail($link['url']);            
+        }
+        
+        /* We need to spread the articles on 3 columns.
+           I did not want to use a javascript lib like http://masonry.desandro.com/
+           so I manually spread entries with a simple method: I roughly evaluate the 
+           height of a div according to title and description length.
+        */
+        $columns=array(array(),array(),array()); // Entries to display, for each column.
+        $fill=array(0,0,0);  // Rough estimate of columns fill.
+        foreach($linksToDisplay as $key=>$link)
+        {
+            // Roughly estimate length of entry (by counting characters)
+            $length=strlen($link['title'])+strlen($link['description']);
+            if ($link['thumbnail']) $length +=100; // 1 thumbnails roughly take as much space as 100 words;
+            
+            // Then put in column which is the less filled:
+            $smallest=min($fill); // find smallest value in array.
+            $index=array_search($smallest,$fill); // find index of this smallest value.
+            array_push($columns[$index],$link); // Put entry in this column.
+            $fill[$index]+=$length;
+        }
+        $PAGE = new pageBuilder;
+	    $PAGE->assign('linksToDisplay',$linksToDisplay);
+        $PAGE->assign('col1',$columns[0]);
+        $PAGE->assign('col2',$columns[1]);
+        $PAGE->assign('col3',$columns[2]);
+        $PAGE->assign('day',utf8_encode(strftime('%A %d, %B %Y',linkdate2timestamp($day.'_000000'))));
+        $PAGE->assign('previousday',$previousday);
+        $PAGE->assign('nextday',$nextday);    
+        $PAGE->renderPage('daily');
+        exit;
+    }
 
     // -------- Handle other actions allowed for non-logged in users:
     if (!isLoggedIn())
@@ -1424,6 +1497,7 @@ function buildLinkList($PAGE)
 // Understands various services (youtube.com...)
 // Input: $url = url for which the thumbnail must be found.
 //        $href = if provided, this URL will be followed instead of $url
+// Returns '' if no thumbnail available.
 function thumbnail($url,$href=false)
 {
     if (!$GLOBALS['config']['ENABLE_THUMBNAILS']) return '';
@@ -1437,32 +1511,38 @@ function thumbnail($url,$href=false)
     if ($domain=='youtube.com' || $domain=='www.youtube.com')
     {
         parse_str(parse_url($url,PHP_URL_QUERY), $params); // Extract video ID and get thumbnail
-        if (!empty($params['v'])) return '<a href="'.htmlspecialchars($href).'"><img src="http://img.youtube.com/vi/'.htmlspecialchars($params['v']).'/default.jpg" width="120" height="90"></a>';
+        if (!empty($params['v'])) return '<a href="'.htmlspecialchars($href).'"><img src="http://img.youtube.com/vi/'.htmlspecialchars($params['v']).'/default.jpg" width="120" height="90" alt="YouTube thumbnail"></a>';
     }
     if ($domain=='youtu.be') // Youtube short links
     {
         $path = parse_url($url,PHP_URL_PATH);
-        return '<a href="'.htmlspecialchars($href).'"><img src="http://img.youtube.com/vi'.htmlspecialchars($path).'/default.jpg" width="120" height="90"></a>';
+        return '<a href="'.htmlspecialchars($href).'"><img src="http://img.youtube.com/vi'.htmlspecialchars($path).'/default.jpg" width="120" height="90"  alt="YouTube thumbnail"></a>';
     }
+    if ($domain=='pix.toile-libre.org') // pix.toile-libre.org image hosting
+    {
+        parse_str(parse_url($url,PHP_URL_QUERY), $params); // Extract image filename.
+        if (!empty($params) && !empty($params['img'])) return '<a href="'.htmlspecialchars($href).'"><img src="http://pix.toile-libre.org/upload/thumb/'.urlencode($params['img']).'" style:"max-width:120px; max-height:150px" alt="pix.toile-libre.org thumbnail"></a>';
+    }    
+    
     if ($domain=='imgur.com')
     {
         $path = parse_url($url,PHP_URL_PATH);
         if (startsWith($path,'/a/')) return ''; // Thumbnails for albums are not available.
-        if (startsWith($path,'/r/')) return '<a href="'.htmlspecialchars($href).'"><img src="http://i.imgur.com/'.htmlspecialchars(basename($path)).'s.jpg" width="90" height="90"></a>';
-        if (startsWith($path,'/gallery/')) return '<a href="'.htmlspecialchars($href).'"><img src="http://i.imgur.com'.htmlspecialchars(substr($path,8)).'s.jpg" width="90" height="90"></a>';
-        if (substr_count($path,'/')==1) return '<a href="'.htmlspecialchars($href).'"><img src="http://i.imgur.com/'.htmlspecialchars(substr($path,1)).'s.jpg" width="90" height="90"></a>';
+        if (startsWith($path,'/r/')) return '<a href="'.htmlspecialchars($href).'"><img src="http://i.imgur.com/'.htmlspecialchars(basename($path)).'s.jpg" width="90" height="90" alt="imgur.com thumbnail"></a>';
+        if (startsWith($path,'/gallery/')) return '<a href="'.htmlspecialchars($href).'"><img src="http://i.imgur.com'.htmlspecialchars(substr($path,8)).'s.jpg" width="90" height="90" alt="imgur.com thumbnail"></a>';
+        if (substr_count($path,'/')==1) return '<a href="'.htmlspecialchars($href).'"><img src="http://i.imgur.com/'.htmlspecialchars(substr($path,1)).'s.jpg" width="90" height="90" alt="imgur.com thumbnail"></a>';
     }
     if ($domain=='i.imgur.com')
     {
         $pi = pathinfo(parse_url($url,PHP_URL_PATH));
-        if (!empty($pi['filename'])) return '<a href="'.htmlspecialchars($href).'"><img src="http://i.imgur.com/'.htmlspecialchars($pi['filename']).'s.jpg" width="90" height="90"></a>';
+        if (!empty($pi['filename'])) return '<a href="'.htmlspecialchars($href).'"><img src="http://i.imgur.com/'.htmlspecialchars($pi['filename']).'s.jpg" width="90" height="90" alt="imgur.com thumbnail"></a>';
     }
     if ($domain=='dailymotion.com' || $domain=='www.dailymotion.com')
     {
         if (strpos($url,'dailymotion.com/video/')!==false)
         {
             $thumburl=str_replace('dailymotion.com/video/','dailymotion.com/thumbnail/video/',$url);
-            return '<a href="'.htmlspecialchars($href).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a>';
+            return '<a href="'.htmlspecialchars($href).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;" alt="DailyMotion thumbnail"></a>';
         }
     }
     if (endsWith($domain,'.imageshack.us'))
@@ -1471,7 +1551,7 @@ function thumbnail($url,$href=false)
         if ($ext=='jpg' || $ext=='jpeg' || $ext=='png' || $ext=='gif')
         {
             $thumburl = substr($url,0,strlen($url)-strlen($ext)).'th.'.$ext;
-            return '<a href="'.htmlspecialchars($href).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;"></a>';
+            return '<a href="'.htmlspecialchars($href).'"><img src="'.htmlspecialchars($thumburl).'" width="120" style="height:auto;" alt="imageshack.us thumbnail"></a>';
         }
     }
 
@@ -1487,11 +1567,15 @@ function thumbnail($url,$href=false)
         || $domain=='xkcd.com' || endsWith($domain,'.xkcd.com')
     )
     {
-        if ($domain=='vimeo.com' || $domain=='xkcd.com' || endsWith($domain,'.xkcd.com'))
-        {   // Make sure the url is of the form /xxx... where xxx is numeric
-            // For Vimeo's videos and xkcd's comics
+        if ($domain=='vimeo.com')
+        {   // Make sure this vimeo url points to a video (/xxx... where xxx is numeric)
             $path = parse_url($url,PHP_URL_PATH);
-            if (!preg_match('!/\d+.+?!',$path)) return ''; // This is not a single video/comic URL.
+            if (!preg_match('!/\d+.+?!',$path)) return ''; // This is not a single video URL.
+        }
+        if ($domain=='xkcd.com' || endsWith($domain,'.xkcd.com'))
+        {   // Make sure this url points to a single comic (/xxx... where xxx is numeric)
+            $path = parse_url($url,PHP_URL_PATH);
+            if (!preg_match('!/\d+.+?!',$path)) return '';
         }
         if ($domain=='ted.com' || endsWith($domain,'.ted.com'))
         {   // Make sure this TED url points to a video (/talks/...)
@@ -1499,7 +1583,7 @@ function thumbnail($url,$href=false)
             if ("/talks/" !== substr($path,0,7)) return ''; // This is not a single video URL.
         }
         $sign = hash_hmac('sha256', $url, $GLOBALS['salt']); // We use the salt to sign data (it's random, secret, and specific to each installation)
-        return '<a href="'.htmlspecialchars($href).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;"></a>';
+        return '<a href="'.htmlspecialchars($href).'"><img src="?do=genthumbnail&hmac='.htmlspecialchars($sign).'&url='.urlencode($url).'" width="120" style="height:auto;" alt="thumbnail"></a>';
     }
 
     // For all other, we try to make a thumbnail of links ending with .jpg/jpeg/png/gif
@@ -1798,7 +1882,7 @@ function genThumbnail()
             }
         }
     }
-
+    
     elseif ($domain=='xkcd.com' || endsWith($domain,'.xkcd.com'))
     {
         // There is no thumbnail available for xkcd comics, so download the whole image and resize it.
@@ -1826,7 +1910,7 @@ function genThumbnail()
                 }
             }
         }
-    }
+    }    
 
     else
     {
