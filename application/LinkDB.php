@@ -66,21 +66,39 @@ class LinkDB implements Iterator, Countable, ArrayAccess
     private $_redirector;
 
     /**
+     * Set this to `true` to urlencode link behind redirector link, `false` to leave it untouched.
+     *
+     * Example:
+     *   anonym.to needs clean URL while dereferer.org needs urlencoded URL.
+     *
+     * @var boolean $redirectorEncode parameter: true or false
+     */
+    private $redirectorEncode;
+
+    /**
      * Creates a new LinkDB
      *
      * Checks if the datastore exists; else, attempts to create a dummy one.
      *
-     * @param string  $datastore       datastore file path.
-     * @param boolean $isLoggedIn      is the user logged in?
-     * @param boolean $hidePublicLinks if true all links are private.
-     * @param string  $redirector      link redirector set in user settings.
+     * @param string  $datastore        datastore file path.
+     * @param boolean $isLoggedIn       is the user logged in?
+     * @param boolean $hidePublicLinks  if true all links are private.
+     * @param string  $redirector       link redirector set in user settings.
+     * @param boolean $redirectorEncode Enable urlencode on redirected urls (default: true).
      */
-    function __construct($datastore, $isLoggedIn, $hidePublicLinks, $redirector = '')
+    function __construct(
+        $datastore,
+        $isLoggedIn,
+        $hidePublicLinks,
+        $redirector = '',
+        $redirectorEncode = true
+    )
     {
         $this->_datastore = $datastore;
         $this->_loggedIn = $isLoggedIn;
         $this->_hidePublicLinks = $hidePublicLinks;
         $this->_redirector = $redirector;
+        $this->redirectorEncode = $redirectorEncode === true;
         $this->_checkDB();
         $this->_readDB();
     }
@@ -278,7 +296,12 @@ You use the community supported version of the original Shaarli project, by Seba
 
             // Do not use the redirector for internal links (Shaarli note URL starting with a '?').
             if (!empty($this->_redirector) && !startsWith($link['url'], '?')) {
-                $link['real_url'] = $this->_redirector . urlencode($link['url']);
+                $link['real_url'] = $this->_redirector;
+                if ($this->redirectorEncode) {
+                    $link['real_url'] .= urlencode(unescape($link['url']));
+                } else {
+                    $link['real_url'] .= $link['url'];
+                }
             }
             else {
                 $link['real_url'] = $link['url'];
@@ -341,17 +364,71 @@ You use the community supported version of the original Shaarli project, by Seba
     }
 
     /**
-     * Filter links.
+     * Returns the shaare corresponding to a smallHash.
      *
-     * @param string $type          Type of filter.
-     * @param mixed  $request       Search request, string or array.
+     * @param string $request QUERY_STRING server parameter.
+     *
+     * @return array $filtered array containing permalink data.
+     *
+     * @throws LinkNotFoundException if the smallhash is malformed or doesn't match any link.
+     */
+    public function filterHash($request)
+    {
+        $request = substr($request, 0, 6);
+        $linkFilter = new LinkFilter($this->_links);
+        return $linkFilter->filter(LinkFilter::$FILTER_HASH, $request);
+    }
+
+    /**
+     * Returns the list of articles for a given day.
+     *
+     * @param string $request day to filter. Format: YYYYMMDD.
+     *
+     * @return array list of shaare found.
+     */
+    public function filterDay($request) {
+        $linkFilter = new LinkFilter($this->_links);
+        return $linkFilter->filter(LinkFilter::$FILTER_DAY, $request);
+    }
+
+    /**
+     * Filter links according to search parameters.
+     *
+     * @param array  $filterRequest Search request content. Supported keys:
+     *                                - searchtags: list of tags
+     *                                - searchterm: term search
      * @param bool   $casesensitive Optional: Perform case sensitive filter
      * @param bool   $privateonly   Optional: Returns private links only if true.
      *
-     * @return array filtered links
+     * @return array filtered links, all links if no suitable filter was provided.
      */
-    public function filter($type = '', $request = '', $casesensitive = false, $privateonly = false)
+    public function filterSearch($filterRequest = array(), $casesensitive = false, $privateonly = false)
     {
+        // Filter link database according to parameters.
+        $searchtags = !empty($filterRequest['searchtags']) ? escape($filterRequest['searchtags']) : '';
+        $searchterm = !empty($filterRequest['searchterm']) ? escape($filterRequest['searchterm']) : '';
+
+        // Search tags + fullsearch.
+        if (empty($type) && ! empty($searchtags) && ! empty($searchterm)) {
+            $type = LinkFilter::$FILTER_TAG | LinkFilter::$FILTER_TEXT;
+            $request = array($searchtags, $searchterm);
+        }
+        // Search by tags.
+        elseif (! empty($searchtags)) {
+            $type = LinkFilter::$FILTER_TAG;
+            $request = $searchtags;
+        }
+        // Fulltext search.
+        elseif (! empty($searchterm)) {
+            $type = LinkFilter::$FILTER_TEXT;
+            $request = $searchterm;
+        }
+        // Otherwise, display without filtering.
+        else {
+            $type = '';
+            $request = '';
+        }
+
         $linkFilter = new LinkFilter($this->_links);
         return $linkFilter->filter($type, $request, $casesensitive, $privateonly);
     }

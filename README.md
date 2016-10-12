@@ -1,6 +1,6 @@
 ![Shaarli logo](doc/images/doc-logo.png)
 
-The personal, minimalist, super-fast, no-database delicious clone.
+The personal, minimalist, super-fast, database free, bookmarking service.
 
 _Do you want to share the links you discover?_
 _Shaarli is a minimalist delicious clone that you can install on your own server._
@@ -43,6 +43,7 @@ Login: `demo`; Password: `demo`
     - daily RSS feed
 - permalinks for easy reference
 - links can be public or private
+- extensible through [plugins](https://github.com/shaarli/Shaarli/wiki/Plugins#plugin-usage)
 
 ### Tag, view and search your links!
 - add a custom title and description to archived links

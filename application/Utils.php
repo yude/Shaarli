@@ -41,8 +41,14 @@ function smallHash($text)
 
 /**
  * Tells if a string start with a substring
+ *
+ * @param string $haystack Given string.
+ * @param string $needle   String to search at the beginning of $haystack.
+ * @param bool   $case     Case sensitive.
+ *
+ * @return bool True if $haystack starts with $needle.
  */
-function startsWith($haystack, $needle, $case=true)
+function startsWith($haystack, $needle, $case = true)
 {
     if ($case) {
         return (strcmp(substr($haystack, 0, strlen($needle)), $needle) === 0);
@@ -52,8 +58,14 @@ function startsWith($haystack, $needle, $case=true)
 
 /**
  * Tells if a string ends with a substring
+ *
+ * @param string $haystack Given string.
+ * @param string $needle   String to search at the end of $haystack.
+ * @param bool   $case     Case sensitive.
+ *
+ * @return bool True if $haystack ends with $needle.
  */
-function endsWith($haystack, $needle, $case=true)
+function endsWith($haystack, $needle, $case = true)
 {
     if ($case) {
         return (strcmp(substr($haystack, strlen($haystack) - strlen($needle)), $needle) === 0);
@@ -63,14 +75,22 @@ function endsWith($haystack, $needle, $case=true)
 
 /**
  * Htmlspecialchars wrapper
+ * Support multidimensional array of strings.
  *
- * @param string $str the string to escape.
+ * @param mixed $input Data to escape: a single string or an array of strings.
  *
  * @return string escaped.
  */
-function escape($str)
+function escape($input)
 {
-    return htmlspecialchars($str, ENT_COMPAT, 'UTF-8', false);
+    if (is_array($input)) {
+        $out = array();
+        foreach($input as $key => $value) {
+            $out[$key] = escape($value);
+        }
+        return $out;
+    }
+    return htmlspecialchars($input, ENT_COMPAT, 'UTF-8', false);
 }
 
 /**
@@ -226,7 +246,7 @@ function space2nbsp($text)
  *
  * @return string formatted description.
  */
-function format_description($description, $redirector) {
+function format_description($description, $redirector = false) {
     return nl2br(space2nbsp(text2clickable($description, $redirector)));
 }
 

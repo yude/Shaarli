@@ -15,6 +15,8 @@ class LinkUtilsTest extends PHPUnit_Framework_TestCase
         $title = 'Read me please.';
         $html = '<html><meta>stuff</meta><title>'. $title .'</title></html>';
         $this->assertEquals($title, html_extract_title($html));
+        $html = '<html><title>'. $title .'</title>blabla<title>another</title></html>';
+        $this->assertEquals($title, html_extract_title($html));
     }
 
     /**
@@ -81,5 +83,14 @@ class LinkUtilsTest extends PHPUnit_Framework_TestCase
         $this->assertFalse(html_extract_charset($html));
         $html = '<html><meta>stuff</meta><meta charset=""/></html>';
         $this->assertFalse(html_extract_charset($html));
+    }
+
+    /**
+     * Test count_private.
+     */
+    public function testCountPrivateLinks()
+    {
+        $refDB = new ReferenceLinkDB();
+        $this->assertEquals($refDB->countPrivateLinks(), count_private($refDB->getLinks()));
     }
 }

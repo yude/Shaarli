@@ -15,6 +15,10 @@ class Router
 
     public static $PAGE_DAILY = 'daily';
 
+    public static $PAGE_FEED_ATOM = 'atom';
+
+    public static $PAGE_FEED_RSS = 'rss';
+
     public static $PAGE_TOOLS = 'tools';
 
     public static $PAGE_CHANGEPASSWORD = 'changepasswd';
@@ -49,7 +53,7 @@ class Router
      * @param array  $get      $_SERVER['GET'].
      * @param bool   $loggedIn true if authenticated user.
      *
-     * @return self::page found.
+     * @return string page found.
      */
     public static function findPage($query, $get, $loggedIn)
     {
@@ -59,19 +63,19 @@ class Router
             return self::$PAGE_LINKLIST;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_LOGIN) && $loggedIn === false) {
+        if (startsWith($query, 'do='. self::$PAGE_LOGIN) && $loggedIn === false) {
             return self::$PAGE_LOGIN;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_PICWALL)) {
+        if (startsWith($query, 'do='. self::$PAGE_PICWALL)) {
             return self::$PAGE_PICWALL;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_TAGCLOUD)) {
+        if (startsWith($query, 'do='. self::$PAGE_TAGCLOUD)) {
             return self::$PAGE_TAGCLOUD;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_OPENSEARCH)) {
+        if (startsWith($query, 'do='. self::$PAGE_OPENSEARCH)) {
             return self::$PAGE_OPENSEARCH;
         }
 
@@ -79,28 +83,36 @@ class Router
             return self::$PAGE_DAILY;
         }
 
+        if (startsWith($query, 'do='. self::$PAGE_FEED_ATOM)) {
+            return self::$PAGE_FEED_ATOM;
+        }
+
+        if (startsWith($query, 'do='. self::$PAGE_FEED_RSS)) {
+            return self::$PAGE_FEED_RSS;
+        }
+
         // At this point, only loggedin pages.
         if (!$loggedIn) {
             return self::$PAGE_LINKLIST;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_TOOLS)) {
+        if (startsWith($query, 'do='. self::$PAGE_TOOLS)) {
             return self::$PAGE_TOOLS;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_CHANGEPASSWORD)) {
+        if (startsWith($query, 'do='. self::$PAGE_CHANGEPASSWORD)) {
             return self::$PAGE_CHANGEPASSWORD;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_CONFIGURE)) {
+        if (startsWith($query, 'do='. self::$PAGE_CONFIGURE)) {
             return self::$PAGE_CONFIGURE;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_CHANGETAG)) {
+        if (startsWith($query, 'do='. self::$PAGE_CHANGETAG)) {
             return self::$PAGE_CHANGETAG;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_ADDLINK)) {
+        if (startsWith($query, 'do='. self::$PAGE_ADDLINK)) {
             return self::$PAGE_ADDLINK;
         }
 
@@ -108,19 +120,19 @@ class Router
             return self::$PAGE_EDITLINK;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_EXPORT)) {
+        if (startsWith($query, 'do='. self::$PAGE_EXPORT)) {
             return self::$PAGE_EXPORT;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_IMPORT)) {
+        if (startsWith($query, 'do='. self::$PAGE_IMPORT)) {
             return self::$PAGE_IMPORT;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_PLUGINSADMIN)) {
+        if (startsWith($query, 'do='. self::$PAGE_PLUGINSADMIN)) {
             return self::$PAGE_PLUGINSADMIN;
         }
 
-        if (startswith($query, 'do='. self::$PAGE_SAVE_PLUGINSADMIN)) {
+        if (startsWith($query, 'do='. self::$PAGE_SAVE_PLUGINSADMIN)) {
             return self::$PAGE_SAVE_PLUGINSADMIN;
         }
 

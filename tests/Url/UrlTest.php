@@ -128,6 +128,13 @@ class UrlTest extends PHPUnit_Framework_TestCase
             self::$baseUrl.'?my=stuff&is=kept#again',
             $url->cleanup()
         );
+
+        // test firefox reader url
+        $url = new Url(
+            'about://reader?url=' . urlencode(self::$baseUrl .'?my=stuff&is=kept')
+        );
+        $this->assertEquals(self::$baseUrl.'?my=stuff&is=kept', $url->cleanup());
+
     }
 
     /**
@@ -173,5 +180,20 @@ class UrlTest extends PHPUnit_Framework_TestCase
     {
         $url = new Url('ftp://save.tld/mysave');
         $this->assertFalse($url->isHttp());
+    }
+
+    /**
+     * Test IndToAscii.
+     */
+    function testIndToAscii()
+    {
+        $ind = 'http://www.académie-française.fr/';
+        $expected = 'http://www.xn--acadmie-franaise-npb1a.fr/';
+        $url = new Url($ind);
+        $this->assertEquals($expected, $url->idnToAscii());
+
+        $notInd = 'http://www.academie-francaise.fr/';
+        $url = new Url($notInd);
+        $this->assertEquals($notInd, $url->idnToAscii());
     }
 }
