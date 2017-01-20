@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+## [v0.8.3](https://github.com/shaarli/Shaarli/releases/tag/v0.8.3) - 2017-01-20
+
+### Fixed
+
+- PHP 7.1 compatibility: add ConfigManager parameter to anti-bruteforce function call in login template.
+
 ## [v0.8.2](https://github.com/shaarli/Shaarli/releases/tag/v0.8.2) - 2016-12-15
 
 ### Fixed
