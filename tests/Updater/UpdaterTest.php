@@ -396,8 +396,8 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
         copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
         $this->conf = new ConfigManager($sandboxConf);
 
-        $this->conf->set('general.enabled_plugins', ['markdown']);
-        $updater = new Updater([], [], $this->conf, true);
+        $this->conf->set('general.enabled_plugins', array('markdown'));
+        $updater = new Updater(array(), array(), $this->conf, true);
         $this->assertTrue($updater->updateMethodEscapeMarkdown());
         $this->assertFalse($this->conf->get('security.markdown_escape'));
 
@@ -416,8 +416,8 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
         copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
         $this->conf = new ConfigManager($sandboxConf);
 
-        $this->conf->set('general.enabled_plugins', []);
-        $updater = new Updater([], [], $this->conf, true);
+        $this->conf->set('general.enabled_plugins', array());
+        $updater = new Updater(array(), array(), $this->conf, true);
         $this->assertTrue($updater->updateMethodEscapeMarkdown());
         $this->assertTrue($this->conf->get('security.markdown_escape'));
 
@@ -435,7 +435,7 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
         copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
         $this->conf = new ConfigManager($sandboxConf);
         $this->conf->set('security.markdown_escape', true);
-        $updater = new Updater([], [], $this->conf, true);
+        $updater = new Updater(array(), array(), $this->conf, true);
         $this->assertTrue($updater->updateMethodEscapeMarkdown());
         $this->assertTrue($this->conf->get('security.markdown_escape'));
     }
@@ -446,7 +446,7 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
     public function testEscapeMarkdownSettingNothingToDoDisabled()
     {
         $this->conf->set('security.markdown_escape', false);
-        $updater = new Updater([], [], $this->conf, true);
+        $updater = new Updater(array(), array(), $this->conf, true);
         $this->assertTrue($updater->updateMethodEscapeMarkdown());
         $this->assertFalse($this->conf->get('security.markdown_escape'));
     }
