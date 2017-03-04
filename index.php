@@ -1,6 +1,6 @@
 <?php
 /**
- * Shaarli v0.8.3 - Shaare your links...
+ * Shaarli v0.8.4 - Shaare your links...
  *
  * The personal, minimalist, super-fast, database free, bookmarking service.
  *

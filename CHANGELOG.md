@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+## [v0.8.4](https://github.com/shaarli/Shaarli/releases/tag/v0.8.4) - 2017-03-04
+### Security
+- Markdown plugin: escape HTML entities by default
+
+
 ## [v0.8.3](https://github.com/shaarli/Shaarli/releases/tag/v0.8.3) - 2017-01-20
 
 ### Fixed
