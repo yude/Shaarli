@@ -149,4 +149,22 @@ class PluginMarkdownTest extends PHPUnit_Framework_TestCase
         $data = hook_markdown_render_daily($data);
         $this->assertEquals($str, $data['cols'][0][0]['formatedDescription']);
     }
+
+    /**
+     * Make sure that the HTML tags are escaped.
+     */
+    public function testMarkdownWithHtmlEscape()
+    {
+        $md = '**strong** <strong>strong</strong>';
+        $html = '<div class="markdown"><p><strong>strong</strong> &lt;strong&gt;strong&lt;/strong&gt;</p></div>';
+        $data = array(
+            'links' => array(
+                0 => array(
+                    'description' => $md,
+                ),
+            ),
+        );
+        $data = hook_markdown_render_linklist($data);
+        $this->assertEquals($html, $data['links'][0]['description']);
+    }
 }

@@ -218,7 +218,7 @@ function process_markdown($description)
     $processedDescription = reverse_space2nbsp($processedDescription);
     $processedDescription = unescape($processedDescription);
     $processedDescription = $parsedown
-        ->setMarkupEscaped(false)
+        ->setMarkupEscaped(true)
         ->setBreaksEnabled(true)
         ->text($processedDescription);
     $processedDescription = sanitize_html($processedDescription);
