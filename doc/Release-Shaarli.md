@@ -2,7 +2,7 @@
 See  [Git - Maintaining a project - Tagging your [](.html)
 releases](http://git-scm.com/book/en/v2/Distributed-Git-Maintaining-a-Project#Tagging-Your-Releases).
 
-### Prerequisites
+## Prerequisites
 This guide assumes that you have:
 - a GPG key matching your GitHub authentication credentials
     - i.e., the email address identified by the GPG key is the same as the one in your `~/.gitconfig` 
@@ -10,9 +10,40 @@ This guide assumes that you have:
 - a local clone of your Shaarli fork, with the following remotes:
     - `origin` pointing to your GitHub fork
     - `upstream` pointing to the main Shaarli repository
-- maintainer permissions on the main Shaarli repository (to push the signed tag)
-- [Pandoc](http://pandoc.org/) needs to be installed.[](.html)
+- maintainer permissions on the main Shaarli repository, to:
+    - push the signed tag
+    - create a new release
+- [Composer](https://getcomposer.org/) and [Pandoc](http://pandoc.org/) need to be installed[](.html)
 
+## GitHub release draft and `CHANGELOG.md`
+See http://keepachangelog.com/en/0.3.0/ for changelog formatting.
+
+### GitHub release draft
+GitHub allows drafting the release note for the upcoming release, from the [Releases](https://github.com/shaarli/Shaarli/releases) page. This way, the release note can be drafted while contributions are merged to `master`.[](.html)
+
+### `CHANGELOG.md`
+This file should contain the same information as the release note draft for the upcoming version.
+
+Update it to:
+- add new entries (additions, fixes, etc.)
+- mark the current version as released by setting its date and link
+- add a new section for the future unreleased version
+
+```bash
+$ cd /path/to/shaarli
+
+$ nano CHANGELOG.md
+
+[...][](.html)
+## vA.B.C - UNRELEASED
+TBA
+
+## [vX.Y.Z](https://github.com/shaarli/Shaarli/releases/tag/vX.Y.Z) - YYYY-MM-DD[](.html)
+[...][](.html)
+```
+
+
+## Increment the version code, create and push a signed tag
 ### Bump Shaarli's version
 ```bash
 $ cd /path/to/shaarli
@@ -70,3 +101,30 @@ $ git verify-tag f7762cf803f03f5caf4b8078359a63783d0090c1
 gpg: Signature made Thu 30 Jul 2015 11:46:34 CEST using RSA key ID 4100DF6F
 gpg: Good signature from "VirtualTam <virtualtam@flibidi.net>" [ultimate][](.html)
 ```
+
+## Publish the GitHub release
+### Create a GitHub release from a Git tag
+From the previously drafted release:
+- edit the release notes (if needed)
+- specify the appropriate Git tag
+- publish the release
+- profit!
+
+### Generate and upload all-in-one release archives
+Users with a shared hosting may have:
+- no SSH access
+- no possibility to install PHP packages or server extensions
+- no possibility to run scripts
+
+To ease Shaarli installations, it is possible to generate and upload additional release archives,
+that will contain Shaarli code plus all required third-party libraries:
+
+```bash
+$ make release_archive
+```
+
+This will create the following archives:
+- `shaarli-vX.Y.Z-full.tar`
+- `shaarli-vX.Y.Z-full.zip`
+
+The archives need to be manually uploaded on the previously created GitHub release.

@@ -1,5 +1,5 @@
-# Shaarli, the personal, minimalist, super-fast, no-database delicious clone.
-# Makefile for PHP code analysis & testing
+# The personal, minimalist, super-fast, database free, bookmarking service.
+# Makefile for PHP code analysis & testing, documentation and release generation
 
 # Prerequisites:
 # - install Composer, either:
@@ -126,6 +126,39 @@ test:
 	@echo "-------"
 	@mkdir -p sandbox
 	@$(BIN)/phpunit tests
+
+##
+# Custom release archive generation
+#
+# For each tagged revision, GitHub provides tar and zip archives that correspond
+# to the output of git-archive
+#
+# These targets produce similar archives, featuring 3rd-party dependencies
+# to ease deployment on shared hosting.
+##
+ARCHIVE_VERSION := shaarli-$$(git describe)-full
+ARCHIVE_PREFIX=Shaarli/
+
+release_archive: release_tar release_zip
+
+### download 3rd-party PHP libraries
+composer_dependencies: clean
+	composer update --no-dev
+	find vendor/ -name ".git" -type d -exec rm -rf {} +
+
+### generate a release tarball and include 3rd-party dependencies
+release_tar: composer_dependencies
+	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).tar HEAD
+	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^vendor|$(ARCHIVE_PREFIX)vendor|" vendor/
+	gzip $(ARCHIVE_VERSION).tar
+
+### generate a release zip and include 3rd-party dependencies
+release_zip: composer_dependencies
+	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).zip -9 HEAD
+	mkdir $(ARCHIVE_PREFIX)
+	rsync -a vendor/ $(ARCHIVE_PREFIX)vendor/
+	zip -r $(ARCHIVE_VERSION).zip $(ARCHIVE_PREFIX)vendor/
+	rm -rf $(ARCHIVE_PREFIX)
 
 ##
 # Targets for repository and documentation maintenance

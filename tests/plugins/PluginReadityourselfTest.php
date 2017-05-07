@@ -21,11 +21,33 @@ class PluginReadityourselfTest extends PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test Readityourself init without errors.
+     */
+    function testReadityourselfInitNoError()
+    {
+        $conf = new ConfigManager('');
+        $conf->set('plugins.READITYOUSELF_URL', 'value');
+        $errors = readityourself_init($conf);
+        $this->assertEmpty($errors);
+    }
+
+    /**
+     * Test Readityourself init with errors.
+     */
+    function testReadityourselfInitError()
+    {
+        $conf = new ConfigManager('');
+        $errors = readityourself_init($conf);
+        $this->assertNotEmpty($errors);
+    }
+
+    /**
      * Test render_linklist hook.
      */
     function testReadityourselfLinklist()
     {
-        $GLOBALS['plugins']['READITYOUSELF_URL'] = 'value';
+        $conf = new ConfigManager('');
+        $conf->set('plugins.READITYOUSELF_URL', 'value');
         $str = 'http://randomstr.com/test';
         $data = array(
             'title' => $str,
@@ -36,7 +58,7 @@ class PluginReadityourselfTest extends PHPUnit_Framework_TestCase
             )
         );
 
-        $data = hook_readityourself_render_linklist($data);
+        $data = hook_readityourself_render_linklist($data, $conf);
         $link = $data['links'][0];
         // data shouldn't be altered
         $this->assertEquals($str, $data['title']);
@@ -52,7 +74,8 @@ class PluginReadityourselfTest extends PHPUnit_Framework_TestCase
      */
     function testReadityourselfLinklistWithoutConfig()
     {
-        unset($GLOBALS['plugins']['READITYOUSELF_URL']);
+        $conf = new ConfigManager('');
+        $conf->set('plugins.READITYOUSELF_URL', null);
         $str = 'http://randomstr.com/test';
         $data = array(
             'title' => $str,
@@ -63,7 +86,7 @@ class PluginReadityourselfTest extends PHPUnit_Framework_TestCase
             )
         );
 
-        $data = hook_readityourself_render_linklist($data);
+        $data = hook_readityourself_render_linklist($data, $conf);
         $link = $data['links'][0];
         // data shouldn't be altered
         $this->assertEquals($str, $data['title']);

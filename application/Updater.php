@@ -13,14 +13,14 @@ class Updater
     protected $doneUpdates;
 
     /**
-     * @var array Shaarli's configuration array.
-     */
-    protected $config;
-
-    /**
      * @var LinkDB instance.
      */
     protected $linkDB;
+
+    /**
+     * @var ConfigManager $conf Configuration Manager instance.
+     */
+    protected $conf;
 
     /**
      * @var bool True if the user is logged in, false otherwise.
@@ -35,16 +35,16 @@ class Updater
     /**
      * Object constructor.
      *
-     * @param array   $doneUpdates Updates which are already done.
-     * @param array   $config      Shaarli's configuration array.
-     * @param LinkDB  $linkDB      LinkDB instance.
-     * @param boolean $isLoggedIn  True if the user is logged in.
+     * @param array         $doneUpdates Updates which are already done.
+     * @param LinkDB        $linkDB      LinkDB instance.
+     * @param ConfigManager $conf        Configuration Manager instance.
+     * @param boolean       $isLoggedIn  True if the user is logged in.
      */
-    public function __construct($doneUpdates, $config, $linkDB, $isLoggedIn)
+    public function __construct($doneUpdates, $linkDB, $conf, $isLoggedIn)
     {
         $this->doneUpdates = $doneUpdates;
-        $this->config = $config;
         $this->linkDB = $linkDB;
+        $this->conf = $conf;
         $this->isLoggedIn = $isLoggedIn;
 
         // Retrieve all update methods.
@@ -114,19 +114,19 @@ class Updater
      */
     public function updateMethodMergeDeprecatedConfigFile()
     {
-        $config_file = $this->config['config']['CONFIG_FILE'];
-
-        if (is_file($this->config['config']['DATADIR'].'/options.php')) {
-            include $this->config['config']['DATADIR'].'/options.php';
+        if (is_file($this->conf->get('resource.data_dir') . '/options.php')) {
+            include $this->conf->get('resource.data_dir') . '/options.php';
 
             // Load GLOBALS into config
+            $allowedKeys = array_merge(ConfigPhp::$ROOT_KEYS);
+            $allowedKeys[] = 'config';
             foreach ($GLOBALS as $key => $value) {
-                $this->config[$key] = $value;
+                if (in_array($key, $allowedKeys)) {
+                    $this->conf->set($key, $value);
+                }
             }
-            $this->config['config']['CONFIG_FILE'] = $config_file;
-            writeConfig($this->config, $this->isLoggedIn);
-
-            unlink($this->config['config']['DATADIR'].'/options.php');
+            $this->conf->write($this->isLoggedIn);
+            unlink($this->conf->get('resource.data_dir').'/options.php');
         }
 
         return true;
@@ -138,12 +138,144 @@ class Updater
     public function updateMethodRenameDashTags()
     {
         $linklist = $this->linkDB->filterSearch();
-        foreach ($linklist as $link) {
+        foreach ($linklist as $key => $link) {
             $link['tags'] = preg_replace('/(^| )\-/', '$1', $link['tags']);
             $link['tags'] = implode(' ', array_unique(LinkFilter::tagsStrToArray($link['tags'], true)));
-            $this->linkDB[$link['linkdate']] = $link;
+            $this->linkDB[$key] = $link;
         }
-        $this->linkDB->savedb($this->config['config']['PAGECACHE']);
+        $this->linkDB->save($this->conf->get('resource.page_cache'));
+        return true;
+    }
+
+    /**
+     * Move old configuration in PHP to the new config system in JSON format.
+     *
+     * Will rename 'config.php' into 'config.save.php' and create 'config.json.php'.
+     * It will also convert legacy setting keys to the new ones.
+     */
+    public function updateMethodConfigToJson()
+    {
+        // JSON config already exists, nothing to do.
+        if ($this->conf->getConfigIO() instanceof ConfigJson) {
+            return true;
+        }
+
+        $configPhp = new ConfigPhp();
+        $configJson = new ConfigJson();
+        $oldConfig = $configPhp->read($this->conf->getConfigFile() . '.php');
+        rename($this->conf->getConfigFileExt(), $this->conf->getConfigFile() . '.save.php');
+        $this->conf->setConfigIO($configJson);
+        $this->conf->reload();
+
+        $legacyMap = array_flip(ConfigPhp::$LEGACY_KEYS_MAPPING);
+        foreach (ConfigPhp::$ROOT_KEYS as $key) {
+            $this->conf->set($legacyMap[$key], $oldConfig[$key]);
+        }
+
+        // Set sub config keys (config and plugins)
+        $subConfig = array('config', 'plugins');
+        foreach ($subConfig as $sub) {
+            foreach ($oldConfig[$sub] as $key => $value) {
+                if (isset($legacyMap[$sub .'.'. $key])) {
+                    $configKey = $legacyMap[$sub .'.'. $key];
+                } else {
+                    $configKey = $sub .'.'. $key;
+                }
+                $this->conf->set($configKey, $value);
+            }
+        }
+
+        try{
+            $this->conf->write($this->isLoggedIn);
+            return true;
+        } catch (IOException $e) {
+            error_log($e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Escape settings which have been manually escaped in every request in previous versions:
+     *   - general.title
+     *   - general.header_link
+     *   - redirector.url
+     *
+     * @return bool true if the update is successful, false otherwise.
+     */
+    public function updateMethodEscapeUnescapedConfig()
+    {
+        try {
+            $this->conf->set('general.title', escape($this->conf->get('general.title')));
+            $this->conf->set('general.header_link', escape($this->conf->get('general.header_link')));
+            $this->conf->set('redirector.url', escape($this->conf->get('redirector.url')));
+            $this->conf->write($this->isLoggedIn);
+        } catch (Exception $e) {
+            error_log($e->getMessage());
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Update the database to use the new ID system, which replaces linkdate primary keys.
+     * Also, creation and update dates are now DateTime objects (done by LinkDB).
+     *
+     * Since this update is very sensitve (changing the whole database), the datastore will be
+     * automatically backed up into the file datastore.<datetime>.php.
+     *
+     * LinkDB also adds the field 'shorturl' with the precedent format (linkdate smallhash),
+     * which will be saved by this method.
+     *
+     * @return bool true if the update is successful, false otherwise.
+     */
+    public function updateMethodDatastoreIds()
+    {
+        // up to date database
+        if (isset($this->linkDB[0])) {
+            return true;
+        }
+
+        $save = $this->conf->get('resource.data_dir') .'/datastore.'. date('YmdHis') .'.php';
+        copy($this->conf->get('resource.datastore'), $save);
+
+        $links = array();
+        foreach ($this->linkDB as $offset => $value) {
+            $links[] = $value;
+            unset($this->linkDB[$offset]);
+        }
+        $links = array_reverse($links);
+        $cpt = 0;
+        foreach ($links as $l) {
+            unset($l['linkdate']);
+            $l['id'] = $cpt;
+            $this->linkDB[$cpt++] = $l;
+        }
+
+        $this->linkDB->save($this->conf->get('resource.page_cache'));
+        $this->linkDB->reorder();
+
+        return true;
+    }
+
+    /**
+     * * `markdown_escape` is a new setting, set to true as default.
+     *
+     * If the markdown plugin was already enabled, escaping is disabled to avoid
+     * breaking existing entries.
+     */
+    public function updateMethodEscapeMarkdown()
+    {
+        if ($this->conf->exists('security.markdown_escape')) {
+            return true;
+        }
+
+        if (in_array('markdown', $this->conf->get('general.enabled_plugins'))) {
+            $this->conf->set('security.markdown_escape', false);
+        } else {
+            $this->conf->set('security.markdown_escape', true);
+        }
+        $this->conf->write($this->isLoggedIn);
+
         return true;
     }
 }
@@ -202,7 +334,6 @@ class UpdaterException extends Exception
         return $out;
     }
 }
-
 
 /**
  * Read the updates file, and return already done updates.

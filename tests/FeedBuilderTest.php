@@ -76,7 +76,7 @@ class FeedBuilderTest extends PHPUnit_Framework_TestCase
         // Test headers (RSS)
         $this->assertEquals(self::$RSS_LANGUAGE, $data['language']);
         $this->assertEmpty($data['pubsubhub_url']);
-        $this->assertEquals('Tue, 10 Mar 2015 11:46:51 +0100', $data['last_update']);
+        $this->assertRegExp('/Wed, 03 Aug 2016 09:30:33 \+\d{4}/', $data['last_update']);
         $this->assertEquals(true, $data['show_dates']);
         $this->assertEquals('http://host.tld/index.php?do=feed', $data['self_link']);
         $this->assertEquals('http://host.tld/', $data['index_url']);
@@ -84,23 +84,30 @@ class FeedBuilderTest extends PHPUnit_Framework_TestCase
         $this->assertEquals(ReferenceLinkDB::$NB_LINKS_TOTAL, count($data['links']));
 
         // Test first link (note link)
-        $link = array_shift($data['links']);
-        $this->assertEquals('20150310_114651', $link['linkdate']);
+        $link = reset($data['links']);
+        $this->assertEquals(41, $link['id']);
+        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20150310_114651'), $link['created']);
         $this->assertEquals('http://host.tld/?WDWyig', $link['guid']);
         $this->assertEquals('http://host.tld/?WDWyig', $link['url']);
-        $this->assertEquals('Tue, 10 Mar 2015 11:46:51 +0100', $link['iso_date']);
+        $this->assertRegExp('/Tue, 10 Mar 2015 11:46:51 \+\d{4}/', $link['pub_iso_date']);
+        $pub = DateTime::createFromFormat(DateTime::RSS, $link['pub_iso_date']);
+        $up  = DateTime::createFromFormat(DateTime::ATOM, $link['up_iso_date']);
+        $this->assertEquals($pub, $up);
         $this->assertContains('Stallman has a beard', $link['description']);
         $this->assertContains('Permalink', $link['description']);
         $this->assertContains('http://host.tld/?WDWyig', $link['description']);
         $this->assertEquals(1, count($link['taglist']));
-        $this->assertEquals('stuff', $link['taglist'][0]);
+        $this->assertEquals('sTuff', $link['taglist'][0]);
 
         // Test URL with external link.
-        $this->assertEquals('https://static.fsf.org/nosvn/faif-2.0.pdf', $data['links']['20150310_114633']['url']);
+        $this->assertEquals('https://static.fsf.org/nosvn/faif-2.0.pdf', $data['links'][8]['url']);
 
         // Test multitags.
-        $this->assertEquals(5, count($data['links']['20141125_084734']['taglist']));
-        $this->assertEquals('css', $data['links']['20141125_084734']['taglist'][0]);
+        $this->assertEquals(5, count($data['links'][6]['taglist']));
+        $this->assertEquals('css', $data['links'][6]['taglist'][0]);
+
+        // Test update date
+        $this->assertRegExp('/2016-08-03T09:30:33\+\d{2}:\d{2}/', $data['links'][8]['up_iso_date']);
     }
 
     /**
@@ -112,8 +119,10 @@ class FeedBuilderTest extends PHPUnit_Framework_TestCase
         $feedBuilder->setLocale(self::$LOCALE);
         $data = $feedBuilder->buildData();
         $this->assertEquals(ReferenceLinkDB::$NB_LINKS_TOTAL, count($data['links']));
-        $link = array_shift($data['links']);
-        $this->assertEquals('2015-03-10T11:46:51+01:00', $link['iso_date']);
+        $this->assertRegExp('/2016-08-03T09:30:33\+\d{2}:\d{2}/', $data['last_update']);
+        $link = reset($data['links']);
+        $this->assertRegExp('/2015-03-10T11:46:51\+\d{2}:\d{2}/', $link['pub_iso_date']);
+        $this->assertRegExp('/2016-08-03T09:30:33\+\d{2}:\d{2}/', $data['links'][8]['up_iso_date']);
     }
 
     /**
@@ -130,7 +139,8 @@ class FeedBuilderTest extends PHPUnit_Framework_TestCase
         $data = $feedBuilder->buildData();
         $this->assertEquals(1, count($data['links']));
         $link = array_shift($data['links']);
-        $this->assertEquals('20150310_114651', $link['linkdate']);
+        $this->assertEquals(41, $link['id']);
+        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20150310_114651'), $link['created']);
     }
 
     /**
@@ -146,7 +156,8 @@ class FeedBuilderTest extends PHPUnit_Framework_TestCase
         $data = $feedBuilder->buildData();
         $this->assertEquals(1, count($data['links']));
         $link = array_shift($data['links']);
-        $this->assertEquals('20150310_114651', $link['linkdate']);
+        $this->assertEquals(41, $link['id']);
+        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20150310_114651'), $link['created']);
     }
 
     /**
@@ -162,15 +173,17 @@ class FeedBuilderTest extends PHPUnit_Framework_TestCase
         $this->assertTrue($data['usepermalinks']);
         // First link is a permalink
         $link = array_shift($data['links']);
-        $this->assertEquals('20150310_114651', $link['linkdate']);
+        $this->assertEquals(41, $link['id']);
+        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20150310_114651'), $link['created']);
         $this->assertEquals('http://host.tld/?WDWyig', $link['guid']);
         $this->assertEquals('http://host.tld/?WDWyig', $link['url']);
         $this->assertContains('Direct link', $link['description']);
         $this->assertContains('http://host.tld/?WDWyig', $link['description']);
         // Second link is a direct link
         $link = array_shift($data['links']);
-        $this->assertEquals('20150310_114633', $link['linkdate']);
-        $this->assertEquals('http://host.tld/?kLHmZg', $link['guid']);
+        $this->assertEquals(8, $link['id']);
+        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20150310_114633'), $link['created']);
+        $this->assertEquals('http://host.tld/?RttfEw', $link['guid']);
         $this->assertEquals('https://static.fsf.org/nosvn/faif-2.0.pdf', $link['url']);
         $this->assertContains('Direct link', $link['description']);
         $this->assertContains('https://static.fsf.org/nosvn/faif-2.0.pdf', $link['description']);
@@ -208,5 +221,39 @@ class FeedBuilderTest extends PHPUnit_Framework_TestCase
         $data = $feedBuilder->buildData();
         $this->assertEquals(ReferenceLinkDB::$NB_LINKS_TOTAL, count($data['links']));
         $this->assertEquals('http://pubsubhub.io', $data['pubsubhub_url']);
+    }
+
+    /**
+     * Test buildData when Shaarli is served from a subdirectory
+     */
+    public function testBuildDataServerSubdir()
+    {
+        $serverInfo = array(
+            'HTTPS' => 'Off',
+            'SERVER_NAME' => 'host.tld',
+            'SERVER_PORT' => '8080',
+            'SCRIPT_NAME' => '/~user/shaarli/index.php',
+            'REQUEST_URI' => '/~user/shaarli/index.php?do=feed',
+        );
+        $feedBuilder = new FeedBuilder(
+            self::$linkDB,
+            FeedBuilder::$FEED_ATOM,
+            $serverInfo,
+            null,
+            false
+        );
+        $feedBuilder->setLocale(self::$LOCALE);
+        $data = $feedBuilder->buildData();
+
+        $this->assertEquals(
+            'http://host.tld:8080/~user/shaarli/index.php?do=feed',
+            $data['self_link']
+        );
+
+        // Test first link (note link)
+        $link = array_shift($data['links']);
+        $this->assertEquals('http://host.tld:8080/~user/shaarli/?WDWyig', $link['guid']);
+        $this->assertEquals('http://host.tld:8080/~user/shaarli/?WDWyig', $link['url']);
+        $this->assertContains('http://host.tld:8080/~user/shaarli/?addtag=hashtag', $link['description']);
     }
 }

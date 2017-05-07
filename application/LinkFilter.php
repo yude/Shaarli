@@ -28,12 +28,17 @@ class LinkFilter
     public static $FILTER_DAY    = 'FILTER_DAY';
 
     /**
-     * @var array all available links.
+     * @var string Allowed characters for hashtags (regex syntax).
+     */
+    public static $HASHTAG_CHARS = '\p{Pc}\p{N}\p{L}\p{Mn}';
+
+    /**
+     * @var LinkDB all available links.
      */
     private $links;
 
     /**
-     * @param array $links initialization.
+     * @param LinkDB $links initialization.
      */
     public function __construct($links)
     {
@@ -89,18 +94,16 @@ class LinkFilter
     private function noFilter($privateonly = false)
     {
         if (! $privateonly) {
-            krsort($this->links);
             return $this->links;
         }
 
         $out = array();
-        foreach ($this->links as $value) {
+        foreach ($this->links as $key => $value) {
             if ($value['private']) {
-                $out[$value['linkdate']] = $value;
+                $out[$key] = $value;
             }
         }
 
-        krsort($out);
         return $out;
     }
 
@@ -116,10 +119,10 @@ class LinkFilter
     private function filterSmallHash($smallHash)
     {
         $filtered = array();
-        foreach ($this->links as $l) {
-            if ($smallHash == smallHash($l['linkdate'])) {
+        foreach ($this->links as $key => $l) {
+            if ($smallHash == $l['shorturl']) {
                 // Yes, this is ugly and slow
-                $filtered[$l['linkdate']] = $l;
+                $filtered[$key] = $l;
                 return $filtered;
             }
         }
@@ -183,7 +186,7 @@ class LinkFilter
         $keys = array('title', 'description', 'url', 'tags');
 
         // Iterate over every stored link.
-        foreach ($this->links as $link) {
+        foreach ($this->links as $id => $link) {
 
             // ignore non private links when 'privatonly' is on.
             if (! $link['private'] && $privateonly === true) {
@@ -217,11 +220,10 @@ class LinkFilter
             }
 
             if ($found) {
-                $filtered[$link['linkdate']] = $link;
+                $filtered[$id] = $link;
             }
         }
 
-        krsort($filtered);
         return $filtered;
     }
 
@@ -251,7 +253,7 @@ class LinkFilter
             return $filtered;
         }
 
-        foreach ($this->links as $link) {
+        foreach ($this->links as $key => $link) {
             // ignore non private links when 'privatonly' is on.
             if (! $link['private'] && $privateonly === true) {
                 continue;
@@ -263,18 +265,19 @@ class LinkFilter
             for ($i = 0 ; $i < count($searchtags) && $found; $i++) {
                 // Exclusive search, quit if tag found.
                 // Or, tag not found in the link, quit.
-                if (($searchtags[$i][0] == '-' && in_array(substr($searchtags[$i], 1), $linktags))
-                    || ($searchtags[$i][0] != '-') && ! in_array($searchtags[$i], $linktags)
+                if (($searchtags[$i][0] == '-'
+                        && $this->searchTagAndHashTag(substr($searchtags[$i], 1), $linktags, $link['description']))
+                    || ($searchtags[$i][0] != '-')
+                        && ! $this->searchTagAndHashTag($searchtags[$i], $linktags, $link['description'])
                 ) {
                     $found = false;
                 }
             }
 
             if ($found) {
-                $filtered[$link['linkdate']] = $link;
+                $filtered[$key] = $link;
             }
         }
-        krsort($filtered);
         return $filtered;
     }
 
@@ -297,13 +300,36 @@ class LinkFilter
         }
 
         $filtered = array();
-        foreach ($this->links as $l) {
-            if (startsWith($l['linkdate'], $day)) {
-                $filtered[$l['linkdate']] = $l;
+        foreach ($this->links as $key => $l) {
+            if ($l['created']->format('Ymd') == $day) {
+                $filtered[$key] = $l;
             }
         }
-        ksort($filtered);
-        return $filtered;
+
+        // sort by date ASC
+        return array_reverse($filtered, true);
+    }
+
+    /**
+     * Check if a tag is found in the taglist, or as an hashtag in the link description.
+     *
+     * @param string $tag         Tag to search.
+     * @param array  $taglist     List of tags for the current link.
+     * @param string $description Link description.
+     *
+     * @return bool True if found, false otherwise.
+     */
+    protected function searchTagAndHashTag($tag, $taglist, $description)
+    {
+        if (in_array($tag, $taglist)) {
+            return true;
+        }
+
+        if (preg_match('/(^| )#'. $tag .'([^'. self::$HASHTAG_CHARS .']|$)/mui', $description) > 0) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

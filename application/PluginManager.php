@@ -4,17 +4,9 @@
  * Class PluginManager
  *
  * Use to manage, load and execute plugins.
- *
- * Using Singleton design pattern.
  */
 class PluginManager
 {
-    /**
-     * PluginManager singleton instance.
-     * @var PluginManager $instance
-     */
-    private static $instance;
-
     /**
      * List of authorized plugins from configuration file.
      * @var array $authorizedPlugins
@@ -26,6 +18,16 @@ class PluginManager
      * @var array $loadedPlugins
      */
     private $loadedPlugins = array();
+
+    /**
+     * @var ConfigManager Configuration Manager instance.
+     */
+    protected $conf;
+
+    /**
+     * @var array List of plugin errors.
+     */
+    protected $errors;
 
     /**
      * Plugins subdirectory.
@@ -40,33 +42,14 @@ class PluginManager
     public static $META_EXT = 'meta';
 
     /**
-     * Private constructor: new instances not allowed.
-     */
-    private function __construct()
-    {
-    }
-
-    /**
-     * Cloning isn't allowed either.
+     * Constructor.
      *
-     * @return void
+     * @param ConfigManager $conf Configuration Manager instance.
      */
-    private function __clone()
+    public function __construct(&$conf)
     {
-    }
-
-    /**
-     * Return existing instance of PluginManager, or create it.
-     *
-     * @return PluginManager instance.
-     */
-    public static function getInstance()
-    {
-        if (!(self::$instance instanceof self)) {
-            self::$instance = new self();
-        }
-
-        return self::$instance;
+        $this->conf = $conf;
+        $this->errors = array();
     }
 
     /**
@@ -102,9 +85,9 @@ class PluginManager
     /**
      * Execute all plugins registered hook.
      *
-     * @param string $hook   name of the hook to trigger.
-     * @param array  $data   list of data to manipulate passed by reference.
-     * @param array  $params additional parameters such as page target.
+     * @param string        $hook   name of the hook to trigger.
+     * @param array         $data   list of data to manipulate passed by reference.
+     * @param array         $params additional parameters such as page target.
      *
      * @return void
      */
@@ -122,13 +105,14 @@ class PluginManager
             $hookFunction = $this->buildHookName($hook, $plugin);
 
             if (function_exists($hookFunction)) {
-                $data = call_user_func($hookFunction, $data);
+                $data = call_user_func($hookFunction, $data, $this->conf);
             }
         }
     }
 
     /**
      * Load a single plugin from its files.
+     * Call the init function if it exists, and collect errors.
      * Add them in $loadedPlugins if successful.
      *
      * @param string $dir        plugin's directory.
@@ -148,7 +132,16 @@ class PluginManager
             throw new PluginFileNotFoundException($pluginName);
         }
 
+        $conf = $this->conf;
         include_once $pluginFilePath;
+
+        $initFunction = $pluginName . '_init';
+        if (function_exists($initFunction)) {
+            $errors = call_user_func($initFunction, $this->conf);
+            if (!empty($errors)) {
+                $this->errors = array_merge($this->errors, $errors);
+            }
+        }
 
         $this->loadedPlugins[] = $pluginName;
     }
@@ -207,11 +200,25 @@ class PluginManager
                     continue;
                 }
 
-                $metaData[$plugin]['parameters'][$param] = '';
+                $metaData[$plugin]['parameters'][$param]['value'] = '';
+                // Optional parameter description in parameter.PARAM_NAME=
+                if (isset($metaData[$plugin]['parameter.'. $param])) {
+                    $metaData[$plugin]['parameters'][$param]['desc'] = $metaData[$plugin]['parameter.'. $param];
+                }
             }
         }
 
         return $metaData;
+    }
+
+    /**
+     * Return the list of encountered errors.
+     *
+     * @return array List of errors (empty array if none exists).
+     */
+    public function getErrors()
+    {
+        return $this->errors;
     }
 }
 

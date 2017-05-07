@@ -21,11 +21,33 @@ class PluginWallabagTest extends PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test wallabag init without errors.
+     */
+    function testWallabagInitNoError()
+    {
+        $conf = new ConfigManager('');
+        $conf->set('plugins.WALLABAG_URL', 'value');
+        $errors = wallabag_init($conf);
+        $this->assertEmpty($errors);
+    }
+
+    /**
+     * Test wallabag init with errors.
+     */
+    function testWallabagInitError()
+    {
+        $conf = new ConfigManager('');
+        $errors = wallabag_init($conf);
+        $this->assertNotEmpty($errors);
+    }
+
+    /**
      * Test render_linklist hook.
      */
     function testWallabagLinklist()
     {
-        $GLOBALS['plugins']['WALLABAG_URL'] = 'value';
+        $conf = new ConfigManager('');
+        $conf->set('plugins.WALLABAG_URL', 'value');
         $str = 'http://randomstr.com/test';
         $data = array(
             'title' => $str,
@@ -36,7 +58,7 @@ class PluginWallabagTest extends PHPUnit_Framework_TestCase
             )
         );
 
-        $data = hook_wallabag_render_linklist($data);
+        $data = hook_wallabag_render_linklist($data, $conf);
         $link = $data['links'][0];
         // data shouldn't be altered
         $this->assertEquals($str, $data['title']);
@@ -45,7 +67,6 @@ class PluginWallabagTest extends PHPUnit_Framework_TestCase
         // plugin data
         $this->assertEquals(1, count($link['link_plugin']));
         $this->assertNotFalse(strpos($link['link_plugin'][0], urlencode($str)));
-        $this->assertNotFalse(strpos($link['link_plugin'][0], $GLOBALS['plugins']['WALLABAG_URL']));
+        $this->assertNotFalse(strpos($link['link_plugin'][0], $conf->get('plugins.WALLABAG_URL')));
     }
 }
-

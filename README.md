@@ -16,6 +16,7 @@ _It is designed to be personal (single-user), fast and handy._
 
 ## Quickstart
 - [Wiki/documentation](https://github.com/shaarli/Shaarli/wiki)
+- [Change log](CHANGELOG.md)
 - [Bugs/Feature requests/Discussion](https://github.com/shaarli/Shaarli/issues/)
 
 ### Demo
@@ -25,7 +26,8 @@ It runs the latest development version of Shaarli and is updated/reset daily.
 Login: `demo`; Password: `demo`
 
 ### Installation & upgrade
-- [Download](https://github.com/shaarli/Shaarli/wiki/Download)
+- [Download and installation](https://github.com/shaarli/Shaarli/wiki/Download-and-Installation)
+- [Upgrade and migration](https://github.com/shaarli/Shaarli/wiki/Upgrade-and-migration)
 - [Server requirements](https://github.com/shaarli/Shaarli/wiki/Server-requirements)
 - [Server configuration](https://github.com/shaarli/Shaarli/wiki/Server-configuration)
 - [Shaarli configuration](https://github.com/shaarli/Shaarli/wiki/Shaarli-configuration)
