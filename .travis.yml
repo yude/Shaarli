@@ -1,5 +1,11 @@
 sudo: false
 language: php
+addons:
+  apt:
+    packages:
+      - locales
+      - language-pack-de
+      - language-pack-fr
 cache:
   directories:
     - $HOME/.composer/cache
@@ -8,12 +14,10 @@ php:
   - 7.0
   - 5.6
   - 5.5
-  - 5.4
-  - 5.3
 install:
   - composer self-update
   - composer install --prefer-dist
 script:
   - make clean
   - make check_permissions
-  - make test
+  - make all_tests

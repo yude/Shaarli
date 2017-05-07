@@ -1,5 +1,7 @@
 <?php
 
+use Shaarli\Config\ConfigManager;
+
 /**
  * This class is in charge of building the final page.
  * (This is basically a wrapper around RainTPL which pre-fills some fields.)
@@ -20,15 +22,22 @@ class PageBuilder
     protected $conf;
 
     /**
+     * @var LinkDB $linkDB instance.
+     */
+    protected $linkDB;
+
+    /**
      * PageBuilder constructor.
      * $tpl is initialized at false for lazy loading.
      *
-     * @param ConfigManager $conf Configuration Manager instance (reference).
+     * @param ConfigManager $conf   Configuration Manager instance (reference).
+     * @param LinkDB        $linkDB instance.
      */
-    function __construct(&$conf)
+    public function __construct(&$conf, $linkDB = null)
     {
         $this->tpl = false;
         $this->conf = $conf;
+        $this->linkDB = $linkDB;
     }
 
     /**
@@ -75,9 +84,13 @@ class PageBuilder
         }
         $this->tpl->assign('shaarlititle', $this->conf->get('general.title', 'Shaarli'));
         $this->tpl->assign('openshaarli', $this->conf->get('security.open_shaarli', false));
-        $this->tpl->assign('showatom', $this->conf->get('feed.show_atom', false));
+        $this->tpl->assign('showatom', $this->conf->get('feed.show_atom', true));
+        $this->tpl->assign('feed_type', $this->conf->get('feed.show_atom', true) !== false ? 'atom' : 'rss');
         $this->tpl->assign('hide_timestamps', $this->conf->get('privacy.hide_timestamps', false));
         $this->tpl->assign('token', getToken($this->conf));
+        if ($this->linkDB !== null) {
+            $this->tpl->assign('tags', $this->linkDB->allTags());
+        }
         // To be removed with a proper theme configuration.
         $this->tpl->assign('conf', $this->conf);
     }

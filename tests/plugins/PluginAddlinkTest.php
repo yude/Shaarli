@@ -16,7 +16,7 @@ class PluginAddlinkTest extends PHPUnit_Framework_TestCase
     /**
      * Reset plugin path.
      */
-    function setUp()
+    public function setUp()
     {
         PluginManager::$PLUGINS_PATH = 'plugins';
     }
@@ -24,7 +24,7 @@ class PluginAddlinkTest extends PHPUnit_Framework_TestCase
     /**
      * Test render_header hook while logged in.
      */
-    function testAddlinkHeaderLoggedIn()
+    public function testAddlinkHeaderLoggedIn()
     {
         $str = 'stuff';
         $data = array($str => $str);
@@ -46,7 +46,7 @@ class PluginAddlinkTest extends PHPUnit_Framework_TestCase
     /**
      * Test render_header hook while logged out.
      */
-    function testAddlinkHeaderLoggedOut()
+    public function testAddlinkHeaderLoggedOut()
     {
         $str = 'stuff';
         $data = array($str => $str);
@@ -56,45 +56,5 @@ class PluginAddlinkTest extends PHPUnit_Framework_TestCase
         $data = hook_addlink_toolbar_render_header($data);
         $this->assertEquals($str, $data[$str]);
         $this->assertArrayNotHasKey('fields_toolbar', $data);
-    }
-
-    /**
-     * Test render_includes hook while logged in.
-     */
-    function testAddlinkIncludesLoggedIn()
-    {
-        $str = 'stuff';
-        $data = array($str => $str);
-        $data['_PAGE_'] = Router::$PAGE_LINKLIST;
-        $data['_LOGGEDIN_'] = true;
-
-        $data = hook_addlink_toolbar_render_includes($data);
-        $this->assertEquals($str, $data[$str]);
-        $this->assertEquals(1, count($data['css_files']));
-
-        $str = 'stuff';
-        $data = array($str => $str);
-        $data['_PAGE_'] = $str;
-        $data['_LOGGEDIN_'] = true;
-
-        $data = hook_addlink_toolbar_render_includes($data);
-        $this->assertEquals($str, $data[$str]);
-        $this->assertArrayNotHasKey('css_files', $data);
-    }
-
-    /**
-     * Test render_includes hook.
-     * Should not affect css files while logged out.
-     */
-    function testAddlinkIncludesLoggedOut()
-    {
-        $str = 'stuff';
-        $data = array($str => $str);
-        $data['_PAGE_'] = Router::$PAGE_LINKLIST;
-        $data['_LOGGEDIN_'] = false;
-
-        $data = hook_addlink_toolbar_render_includes($data);
-        $this->assertEquals($str, $data[$str]);
-        $this->assertArrayNotHasKey('css_files', $data);
     }
 }

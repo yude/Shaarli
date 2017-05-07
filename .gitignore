@@ -13,11 +13,10 @@ pagecache
 *.rtpl.php
 
 # 3rd-party dependencies
-composer.lock
 vendor/
 
 # Release archives
-*.tar
+*.tar.gz
 *.zip
 
 # Development and test resources
@@ -28,3 +27,8 @@ phpmd.html
 
 # User plugin configuration
 plugins/*/config.php
+
+# 3rd party themes
+tpl/*
+!tpl/default
+!tpl/vintage

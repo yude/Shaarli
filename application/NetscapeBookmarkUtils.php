@@ -1,7 +1,13 @@
 <?php
 
+use Psr\Log\LogLevel;
+use Shaarli\Config\ConfigManager;
+use Shaarli\NetscapeBookmarkParser\NetscapeBookmarkParser;
+use Katzgrau\KLogger\Logger;
+
 /**
  * Utilities to import and export bookmarks using the Netscape format
+ * TODO: Not static, use a container.
  */
 class NetscapeBookmarkUtils
 {
@@ -85,14 +91,15 @@ class NetscapeBookmarkUtils
     /**
      * Imports Web bookmarks from an uploaded Netscape bookmark dump
      *
-     * @param array  $post      Server $_POST parameters
-     * @param array  $files     Server $_FILES parameters
-     * @param LinkDB $linkDb    Loaded LinkDB instance
-     * @param string $pagecache Page cache
+     * @param array         $post      Server $_POST parameters
+     * @param array         $files     Server $_FILES parameters
+     * @param LinkDB        $linkDb    Loaded LinkDB instance
+     * @param ConfigManager $conf      instance
+     * @param History       $history   History instance
      *
      * @return string Summary of the bookmark import status
      */
-    public static function import($post, $files, $linkDb, $pagecache)
+    public static function import($post, $files, $linkDb, $conf, $history)
     {
         $filename = $files['filetoupload']['name'];
         $filesize = $files['filetoupload']['size'];
@@ -119,10 +126,20 @@ class NetscapeBookmarkUtils
         $defaultPrivacy = 0;
 
         $parser = new NetscapeBookmarkParser(
-            true,                       // nested tag support
-            $defaultTags,               // additional user-specified tags
-            strval(1 - $defaultPrivacy) // defaultPub = 1 - defaultPrivacy
+            true,                           // nested tag support
+            $defaultTags,                   // additional user-specified tags
+            strval(1 - $defaultPrivacy),    // defaultPub = 1 - defaultPrivacy
+            $conf->get('resource.data_dir') // log path, will be overridden
         );
+        $logger = new Logger(
+            $conf->get('resource.data_dir'),
+            ! $conf->get('dev.debug') ? LogLevel::INFO : LogLevel::DEBUG,
+            [
+                'prefix' => 'import.',
+                'extension' => 'log',
+            ]
+        );
+        $parser->setLogger($logger);
         $bookmarks = $parser->parseString($data);
 
         $importCount = 0;
@@ -163,9 +180,11 @@ class NetscapeBookmarkUtils
                 $newLink['id'] = $existingLink['id'];
                 $newLink['created'] = $existingLink['created'];
                 $newLink['updated'] = new DateTime();
+                $newLink['shorturl'] = $existingLink['shorturl'];
                 $linkDb[$existingLink['id']] = $newLink;
                 $importCount++;
                 $overwriteCount++;
+                $history->updateLink($newLink);
                 continue;
             }
 
@@ -177,9 +196,10 @@ class NetscapeBookmarkUtils
             $newLink['shorturl'] = link_small_hash($newLink['created'], $newLink['id']);
             $linkDb[$newLink['id']] = $newLink;
             $importCount++;
+            $history->addLink($newLink);
         }
 
-        $linkDb->save($pagecache);
+        $linkDb->save($conf->get('resource.page_cache'));
         return self::importStatus(
             $filename,
             $filesize,

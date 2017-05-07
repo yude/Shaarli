@@ -124,8 +124,20 @@ test:
 	@echo "-------"
 	@echo "PHPUNIT"
 	@echo "-------"
-	@mkdir -p sandbox
-	@$(BIN)/phpunit tests
+	@mkdir -p sandbox coverage
+	@$(BIN)/phpunit --coverage-php coverage/main.cov --testsuite unit-tests
+
+locale_test_%:
+	@UT_LOCALE=$*.utf8 \
+		$(BIN)/phpunit \
+		--coverage-php coverage/$(firstword $(subst _, ,$*)).cov \
+		--bootstrap tests/languages/bootstrap.php \
+		--testsuite language-$(firstword $(subst _, ,$*))
+
+all_tests: test locale_test_de_DE locale_test_en_US locale_test_fr_FR
+	@$(BIN)/phpcov merge --html coverage coverage
+	@# --text doesn't work with phpunit 4.* (v5 requires PHP 5.6)
+	@#$(BIN)/phpcov merge --text coverage/txt coverage
 
 ##
 # Custom release archive generation
@@ -168,6 +180,12 @@ release_zip: composer_dependencies
 clean:
 	@git clean -df
 	@rm -rf sandbox
+
+### generate the AUTHORS file from Git commit information
+authors:
+	@cp .github/mailmap .mailmap
+	@git shortlog -sne > AUTHORS
+	@rm .mailmap
 
 ### generate Doxygen documentation
 doxygen: clean
@@ -214,4 +232,4 @@ htmlpages:
 			-o doc/$$base.html $$file; \
 	done;
 
-htmldoc: doc htmlsidebar htmlpages
+htmldoc: authors doc htmlsidebar htmlpages

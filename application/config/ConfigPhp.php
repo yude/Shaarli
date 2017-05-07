@@ -1,4 +1,5 @@
 <?php
+namespace Shaarli\Config;
 
 /**
  * Class ConfigPhp (ConfigIO implementation)
@@ -41,6 +42,7 @@ class ConfigPhp implements ConfigIO
         'resource.log' => 'config.LOG_FILE',
         'resource.update_check' => 'config.UPDATECHECK_FILENAME',
         'resource.raintpl_tpl' => 'config.RAINTPL_TPL',
+        'resource.theme' => 'config.theme',
         'resource.raintpl_tmp' => 'config.RAINTPL_TMP',
         'resource.thumbnails_cache' => 'config.CACHEDIR',
         'resource.page_cache' => 'config.PAGECACHE',
@@ -71,7 +73,7 @@ class ConfigPhp implements ConfigIO
     /**
      * @inheritdoc
      */
-    function read($filepath)
+    public function read($filepath)
     {
         if (! file_exists($filepath) || ! is_readable($filepath)) {
             return array();
@@ -91,7 +93,7 @@ class ConfigPhp implements ConfigIO
     /**
      * @inheritdoc
      */
-    function write($filepath, $conf)
+    public function write($filepath, $conf)
     {
         $configStr = '<?php '. PHP_EOL;
         foreach (self::$ROOT_KEYS as $key) {
@@ -99,7 +101,7 @@ class ConfigPhp implements ConfigIO
                 $configStr .= '$GLOBALS[\'' . $key . '\'] = ' . var_export($conf[$key], true) . ';' . PHP_EOL;
             }
         }
-        
+
         // Store all $conf['config']
         foreach ($conf['config'] as $key => $value) {
             $configStr .= '$GLOBALS[\'config\'][\''. $key .'\'] = '.var_export($conf['config'][$key], true).';'. PHP_EOL;
@@ -114,7 +116,7 @@ class ConfigPhp implements ConfigIO
         if (!file_put_contents($filepath, $configStr)
             || strcmp(file_get_contents($filepath), $configStr) != 0
         ) {
-            throw new IOException(
+            throw new \IOException(
                 $filepath,
                 'Shaarli could not create the config file.
                 Please make sure Shaarli has the right to write in the folder is it installed in.'
@@ -125,7 +127,7 @@ class ConfigPhp implements ConfigIO
     /**
      * @inheritdoc
      */
-    function getExtension()
+    public function getExtension()
     {
         return '.php';
     }

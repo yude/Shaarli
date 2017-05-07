@@ -1,4 +1,5 @@
 <?php
+use Shaarli\Config\ConfigManager;
 
 require_once 'plugins/isso/isso.php';
 
@@ -12,7 +13,7 @@ class PluginIssoTest extends PHPUnit_Framework_TestCase
     /**
      * Reset plugin path
      */
-    function setUp()
+    public function setUp()
     {
         PluginManager::$PLUGINS_PATH = 'plugins';
     }
@@ -20,7 +21,7 @@ class PluginIssoTest extends PHPUnit_Framework_TestCase
     /**
      * Test Isso init without errors.
      */
-    function testWallabagInitNoError()
+    public function testWallabagInitNoError()
     {
         $conf = new ConfigManager('');
         $conf->set('plugins.ISSO_SERVER', 'value');
@@ -31,7 +32,7 @@ class PluginIssoTest extends PHPUnit_Framework_TestCase
     /**
      * Test Isso init with errors.
      */
-    function testWallabagInitError()
+    public function testWallabagInitError()
     {
         $conf = new ConfigManager('');
         $errors = isso_init($conf);
@@ -41,7 +42,7 @@ class PluginIssoTest extends PHPUnit_Framework_TestCase
     /**
      * Test render_linklist hook with valid settings to display the comment form.
      */
-    function testIssoDisplayed()
+    public function testIssoDisplayed()
     {
         $conf = new ConfigManager('');
         $conf->set('plugins.ISSO_SERVER', 'value');
@@ -81,7 +82,7 @@ class PluginIssoTest extends PHPUnit_Framework_TestCase
     /**
      * Test isso plugin when multiple links are displayed (shouldn't be displayed).
      */
-    function testIssoMultipleLinks()
+    public function testIssoMultipleLinks()
     {
         $conf = new ConfigManager('');
         $conf->set('plugins.ISSO_SERVER', 'value');
@@ -113,7 +114,7 @@ class PluginIssoTest extends PHPUnit_Framework_TestCase
     /**
      * Test isso plugin when using search (shouldn't be displayed).
      */
-    function testIssoNotDisplayedWhenSearch()
+    public function testIssoNotDisplayedWhenSearch()
     {
         $conf = new ConfigManager('');
         $conf->set('plugins.ISSO_SERVER', 'value');
@@ -141,7 +142,7 @@ class PluginIssoTest extends PHPUnit_Framework_TestCase
     /**
      * Test isso plugin without server configuration (shouldn't be displayed).
      */
-    function testIssoWithoutConf()
+    public function testIssoWithoutConf()
     {
         $data = 'abc';
         $conf = new ConfigManager('');

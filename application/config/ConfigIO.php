@@ -1,4 +1,5 @@
 <?php
+namespace Shaarli\Config;
 
 /**
  * Interface ConfigIO
@@ -14,7 +15,7 @@ interface ConfigIO
      *
      * @return array All configuration in an array.
      */
-    function read($filepath);
+    public function read($filepath);
 
     /**
      * Write configuration.
@@ -22,12 +23,12 @@ interface ConfigIO
      * @param string $filepath Config file absolute path.
      * @param array  $conf   All configuration in an array.
      */
-    function write($filepath, $conf);
+    public function write($filepath, $conf);
 
     /**
      * Get config file extension according to config type.
      *
      * @return string Config file extension.
      */
-    function getExtension();
+    public function getExtension();
 }

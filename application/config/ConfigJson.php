@@ -1,4 +1,5 @@
 <?php
+namespace Shaarli\Config;
 
 /**
  * Class ConfigJson (ConfigIO implementation)
@@ -10,7 +11,7 @@ class ConfigJson implements ConfigIO
     /**
      * @inheritdoc
      */
-    function read($filepath)
+    public function read($filepath)
     {
         if (! is_readable($filepath)) {
             return array();
@@ -20,8 +21,14 @@ class ConfigJson implements ConfigIO
         $data = str_replace(self::getPhpSuffix(), '', $data);
         $data = json_decode($data, true);
         if ($data === null) {
-            $error = json_last_error();
-            throw new Exception('An error occurred while parsing JSON file: error code #'. $error);
+            $errorCode = json_last_error();
+            $error  = 'An error occurred while parsing JSON configuration file ('. $filepath .'): error code #';
+            $error .= $errorCode. '<br>➜ <code>' . json_last_error_msg() .'</code>';
+            if ($errorCode === JSON_ERROR_SYNTAX) {
+                $error .= '<br>Please check your JSON syntax (without PHP comment tags) using a JSON lint tool such as ';
+                $error .= '<a href="http://jsonlint.com/">jsonlint.com</a>.';
+            }
+            throw new \Exception($error);
         }
         return $data;
     }
@@ -29,13 +36,13 @@ class ConfigJson implements ConfigIO
     /**
      * @inheritdoc
      */
-    function write($filepath, $conf)
+    public function write($filepath, $conf)
     {
         // JSON_PRETTY_PRINT is available from PHP 5.4.
         $print = defined('JSON_PRETTY_PRINT') ? JSON_PRETTY_PRINT : 0;
         $data = self::getPhpHeaders() . json_encode($conf, $print) . self::getPhpSuffix();
         if (!file_put_contents($filepath, $data)) {
-            throw new IOException(
+            throw new \IOException(
                 $filepath,
                 'Shaarli could not create the config file.
                 Please make sure Shaarli has the right to write in the folder is it installed in.'
@@ -46,7 +53,7 @@ class ConfigJson implements ConfigIO
     /**
      * @inheritdoc
      */
-    function getExtension()
+    public function getExtension()
     {
         return '.json.php';
     }

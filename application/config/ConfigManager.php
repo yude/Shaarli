@@ -1,9 +1,8 @@
 <?php
+namespace Shaarli\Config;
 
-// FIXME! Namespaces...
-require_once 'ConfigIO.php';
-require_once 'ConfigJson.php';
-require_once 'ConfigPhp.php';
+use Shaarli\Config\Exception\MissingFieldConfigException;
+use Shaarli\Config\Exception\UnauthorizedConfigException;
 
 /**
  * Class ConfigManager
@@ -19,6 +18,8 @@ class ConfigManager
      * @var string Flag telling a setting is not found.
      */
     protected static $NOT_FOUND = 'NOT_FOUND';
+
+    public static $DEFAULT_PLUGINS = array('qrcode');
 
     /**
      * @var string Config folder.
@@ -80,7 +81,11 @@ class ConfigManager
      */
     protected function load()
     {
-        $this->loadedConfig = $this->configIO->read($this->getConfigFileExt());
+        try {
+            $this->loadedConfig = $this->configIO->read($this->getConfigFileExt());
+        } catch (\Exception $e) {
+            die($e->getMessage());
+        }
         $this->setDefaultValues();
     }
 
@@ -122,12 +127,12 @@ class ConfigManager
      * @param bool   $write      Write the new setting in the config file, default false.
      * @param bool   $isLoggedIn User login state, default false.
      *
-     * @throws Exception Invalid
+     * @throws \Exception Invalid
      */
     public function set($setting, $value, $write = false, $isLoggedIn = false)
     {
         if (empty($setting) || ! is_string($setting)) {
-            throw new Exception('Invalid setting key parameter. String expected, got: '. gettype($setting));
+            throw new \Exception('Invalid setting key parameter. String expected, got: '. gettype($setting));
         }
 
         // During the ConfigIO transition, map legacy settings to the new ones.
@@ -175,7 +180,7 @@ class ConfigManager
      *
      * @throws MissingFieldConfigException: a mandatory field has not been provided in $conf.
      * @throws UnauthorizedConfigException: user is not authorize to change configuration.
-     * @throws IOException: an error occurred while writing the new config file.
+     * @throws \IOException: an error occurred while writing the new config file.
      */
     public function write($isLoggedIn)
     {
@@ -296,7 +301,9 @@ class ConfigManager
         $this->setEmpty('resource.updates', 'data/updates.txt');
         $this->setEmpty('resource.log', 'data/log.txt');
         $this->setEmpty('resource.update_check', 'data/lastupdatecheck.txt');
+        $this->setEmpty('resource.history', 'data/history.php');
         $this->setEmpty('resource.raintpl_tpl', 'tpl/');
+        $this->setEmpty('resource.theme', 'default');
         $this->setEmpty('resource.raintpl_tmp', 'tmp/');
         $this->setEmpty('resource.thumbnails_cache', 'cache');
         $this->setEmpty('resource.page_cache', 'pagecache');
@@ -308,14 +315,14 @@ class ConfigManager
 
         $this->setEmpty('general.header_link', '?');
         $this->setEmpty('general.links_per_page', 20);
-        $this->setEmpty('general.enabled_plugins', array('qrcode'));
+        $this->setEmpty('general.enabled_plugins', self::$DEFAULT_PLUGINS);
 
         $this->setEmpty('updates.check_updates', false);
         $this->setEmpty('updates.check_updates_branch', 'stable');
         $this->setEmpty('updates.check_updates_interval', 86400);
 
         $this->setEmpty('feed.rss_permalinks', true);
-        $this->setEmpty('feed.show_atom', false);
+        $this->setEmpty('feed.show_atom', true);
 
         $this->setEmpty('privacy.default_private_links', false);
         $this->setEmpty('privacy.hide_public_links', false);
@@ -357,38 +364,5 @@ class ConfigManager
     public function setConfigIO($configIO)
     {
         $this->configIO = $configIO;
-    }
-}
-
-/**
- * Exception used if a mandatory field is missing in given configuration.
- */
-class MissingFieldConfigException extends Exception
-{
-    public $field;
-
-    /**
-     * Construct exception.
-     *
-     * @param string $field field name missing.
-     */
-    public function __construct($field)
-    {
-        $this->field = $field;
-        $this->message = 'Configuration value is required for '. $this->field;
-    }
-}
-
-/**
- * Exception used if an unauthorized attempt to edit configuration has been made.
- */
-class UnauthorizedConfigException extends Exception
-{
-    /**
-     * Construct exception.
-     */
-    public function __construct()
-    {
-        $this->message = 'You are not authorized to alter config.';
     }
 }

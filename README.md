@@ -6,13 +6,18 @@ _Do you want to share the links you discover?_
 _Shaarli is a minimalist delicious clone that you can install on your own server._
 _It is designed to be personal (single-user), fast and handy._
 
-[![](https://img.shields.io/travis/shaarli/Shaarli.svg?label=master)](https://travis-ci.org/shaarli/Shaarli)
+[![](https://img.shields.io/badge/stable-v0.7.1-blue.svg)](https://github.com/shaarli/Shaarli/releases/tag/v0.7.1)
 [![](https://img.shields.io/travis/shaarli/Shaarli/stable.svg?label=stable)](https://travis-ci.org/shaarli/Shaarli)
-[![](https://img.shields.io/github/release/shaarli/shaarli.svg)](https://github.com/shaarli/Shaarli/releases/latest/)
-[![Docker repository](https://img.shields.io/docker/pulls/shaarli/shaarli.svg)](https://hub.docker.com/r/shaarli/shaarli/)
+&bull;
+[![](https://img.shields.io/badge/latest-v0.8.4-blue.svg)](https://github.com/shaarli/Shaarli/releases/tag/v0.8.4)
+[![](https://img.shields.io/travis/shaarli/Shaarli/latest.svg?label=latest)](https://travis-ci.org/shaarli/Shaarli)
+&bull;
+[![](https://img.shields.io/badge/master-v0.9.x-blue.svg)](https://github.com/shaarli/Shaarli)
+[![](https://img.shields.io/travis/shaarli/Shaarli.svg?label=master)](https://travis-ci.org/shaarli/Shaarli)
 
 [![Join the chat at https://gitter.im/shaarli/Shaarli](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/shaarli/Shaarli)
 [![Bountysource](https://www.bountysource.com/badge/team?team_id=19583&style=bounties_received)](https://www.bountysource.com/teams/shaarli/issues)
+[![Docker repository](https://img.shields.io/docker/pulls/shaarli/shaarli.svg)](https://hub.docker.com/r/shaarli/shaarli/)
 
 ## Quickstart
 - [Wiki/documentation](https://github.com/shaarli/Shaarli/wiki)
@@ -20,7 +25,7 @@ _It is designed to be personal (single-user), fast and handy._
 - [Bugs/Feature requests/Discussion](https://github.com/shaarli/Shaarli/issues/)
 
 ### Demo
-You can use this [public demo instance of Shaarli](http://shaarlidemo.tuxfamily.org/Shaarli).
+You can use this [public demo instance of Shaarli](https://demo.shaarli.org).
 It runs the latest development version of Shaarli and is updated/reset daily.
 
 Login: `demo`; Password: `demo`
@@ -79,6 +84,12 @@ dailymotion, flickr, imageshack, imgur, vimeo, xkcd, youtube...
 - [PubSubHubbub](https://code.google.com/p/pubsubhubbub/) protocol support
 - URL cleanup: automatic removal of `?utm_source=...`, `fb=...`
 - discreet pop-up notification when a new release is available
+
+### REST API
+
+Easily extensible by any client using the REST API exposed by Shaarli.
+
+See the [API documentation](http://shaarli.github.io/api-documentation/).
 
 ### Other usages
 Though Shaarli is primarily a bookmarking application, it can serve other purposes

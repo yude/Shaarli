@@ -216,18 +216,222 @@ function is_session_id_valid($sessionId)
 function autoLocale($headerLocale)
 {
     // Default if browser does not send HTTP_ACCEPT_LANGUAGE
-    $attempts = array('en_US');
-    if (isset($headerLocale)) {
-        // (It's a bit crude, but it works very well. Preferred language is always presented first.)
-        if (preg_match('/([a-z]{2})-?([a-z]{2})?/i', $headerLocale, $matches)) {
-            $loc = $matches[1] . (!empty($matches[2]) ? '_' . strtoupper($matches[2]) : '');
-            $attempts = array(
-                $loc.'.UTF-8', $loc, str_replace('_', '-', $loc).'.UTF-8', str_replace('_', '-', $loc),
-                $loc . '_' . strtoupper($loc).'.UTF-8', $loc . '_' . strtoupper($loc),
-                $loc . '_' . $loc.'.UTF-8', $loc . '_' . $loc, $loc . '-' . strtoupper($loc).'.UTF-8',
-                $loc . '-' . strtoupper($loc), $loc . '-' . $loc.'.UTF-8', $loc . '-' . $loc
-            );
+    $locales = array('en_US', 'en_US.utf8', 'en_US.UTF-8');
+    if (! empty($headerLocale)) {
+        if (preg_match_all('/([a-z]{2,3})[-_]?([a-z]{2})?,?/i', $headerLocale, $matches, PREG_SET_ORDER)) {
+            $attempts = [];
+            foreach ($matches as $match) {
+                $first = [strtolower($match[1]), strtoupper($match[1])];
+                $separators = ['_', '-'];
+                $encodings = ['utf8', 'UTF-8'];
+                if (!empty($match[2])) {
+                    $second = [strtoupper($match[2]), strtolower($match[2])];
+                    $items = [$first, $separators, $second, ['.'], $encodings];
+                } else {
+                    $items = [$first, $separators, $first, ['.'], $encodings];
+                }
+                $attempts = array_merge($attempts, iterator_to_array(cartesian_product_generator($items)));
+            }
+
+            if (! empty($attempts)) {
+                $locales = array_merge(array_map('implode', $attempts), $locales);
+            }
         }
     }
-    setlocale(LC_ALL, $attempts);
+
+    setlocale(LC_ALL, $locales);
+}
+
+/**
+ * Build a Generator object representing the cartesian product from given $items.
+ *
+ * Example:
+ *   [['a'], ['b', 'c']]
+ * will generate:
+ *   [
+ *      ['a', 'b'],
+ *      ['a', 'c'],
+ *   ]
+ *
+ * @param array $items array of array of string
+ *
+ * @return Generator representing the cartesian product of given array.
+ *
+ * @see https://en.wikipedia.org/wiki/Cartesian_product
+ */
+function cartesian_product_generator($items)
+{
+    if (empty($items)) {
+        yield [];
+    }
+    $subArray = array_pop($items);
+    if (empty($subArray)) {
+        return;
+    }
+    foreach (cartesian_product_generator($items) as $item) {
+        foreach ($subArray as $value) {
+            yield $item + [count($item) => $value];
+        }
+    }
+}
+
+/**
+ * Generates a default API secret.
+ *
+ * Note that the random-ish methods used in this function are predictable,
+ * which makes them NOT suitable for crypto.
+ * BUT the random string is salted with the salt and hashed with the username.
+ * It makes the generated API secret secured enough for Shaarli.
+ *
+ * PHP 7 provides random_int(), designed for cryptography.
+ * More info: http://stackoverflow.com/questions/4356289/php-random-string-generator
+
+ * @param string $username Shaarli login username
+ * @param string $salt     Shaarli password hash salt
+ *
+ * @return string|bool Generated API secret, 12 char length.
+ *                     Or false if invalid parameters are provided (which will make the API unusable).
+ */
+function generate_api_secret($username, $salt)
+{
+    if (empty($username) || empty($salt)) {
+        return false;
+    }
+
+    return str_shuffle(substr(hash_hmac('sha512', uniqid($salt), $username), 10, 12));
+}
+
+/**
+ * Trim string, replace sequences of whitespaces by a single space.
+ * PHP equivalent to `normalize-space` XSLT function.
+ *
+ * @param string $string Input string.
+ *
+ * @return mixed Normalized string.
+ */
+function normalize_spaces($string)
+{
+    return preg_replace('/\s{2,}/', ' ', trim($string));
+}
+
+/**
+ * Format the date according to the locale.
+ *
+ * Requires php-intl to display international datetimes,
+ * otherwise default format '%c' will be returned.
+ *
+ * @param DateTime $date to format.
+ * @param bool     $time Displays time if true.
+ * @param bool     $intl Use international format if true.
+ *
+ * @return bool|string Formatted date, or false if the input is invalid.
+ */
+function format_date($date, $time = true, $intl = true)
+{
+    if (! $date instanceof DateTime) {
+        return false;
+    }
+
+    if (! $intl || ! class_exists('IntlDateFormatter')) {
+        $format = $time ? '%c' : '%x';
+        return strftime($format, $date->getTimestamp());
+    }
+
+    $formatter = new IntlDateFormatter(
+        setlocale(LC_TIME, 0),
+        IntlDateFormatter::LONG,
+        $time ? IntlDateFormatter::LONG : IntlDateFormatter::NONE
+    );
+
+    return $formatter->format($date);
+}
+
+/**
+ * Check if the input is an integer, no matter its real type.
+ *
+ * PHP is a bit messy regarding this:
+ *   - is_int returns false if the input is a string
+ *   - ctype_digit returns false if the input is an integer or negative
+ *
+ * @param mixed $input value
+ *
+ * @return bool true if the input is an integer, false otherwise
+ */
+function is_integer_mixed($input)
+{
+    if (is_array($input) || is_bool($input) || is_object($input)) {
+        return false;
+    }
+    $input = strval($input);
+    return ctype_digit($input) || (startsWith($input, '-') && ctype_digit(substr($input, 1)));
+}
+
+/**
+ * Convert post_max_size/upload_max_filesize (e.g. '16M') parameters to bytes.
+ *
+ * @param string $val Size expressed in string.
+ *
+ * @return int Size expressed in bytes.
+ */
+function return_bytes($val)
+{
+    if (is_integer_mixed($val) || $val === '0' || empty($val)) {
+        return $val;
+    }
+    $val = trim($val);
+    $last = strtolower($val[strlen($val)-1]);
+    $val = intval(substr($val, 0, -1));
+    switch($last) {
+        case 'g': $val *= 1024;
+        case 'm': $val *= 1024;
+        case 'k': $val *= 1024;
+    }
+    return $val;
+}
+
+/**
+ * Return a human readable size from bytes.
+ *
+ * @param int $bytes value
+ *
+ * @return string Human readable size
+ */
+function human_bytes($bytes)
+{
+    if ($bytes === '') {
+        return t('Setting not set');
+    }
+    if (! is_integer_mixed($bytes)) {
+        return $bytes;
+    }
+    $bytes = intval($bytes);
+    if ($bytes === 0) {
+        return t('Unlimited');
+    }
+
+    $units = [t('B'), t('kiB'), t('MiB'), t('GiB')];
+    for ($i = 0; $i < count($units) && $bytes >= 1024; ++$i) {
+        $bytes /= 1024;
+    }
+
+    return round($bytes) . $units[$i];
+}
+
+/**
+ * Try to determine max file size for uploads (POST).
+ * Returns an integer (in bytes) or formatted depending on $format.
+ *
+ * @param mixed $limitPost   post_max_size PHP setting
+ * @param mixed $limitUpload upload_max_filesize PHP setting
+ * @param bool  $format      Format max upload size to human readable size
+ *
+ * @return int|string max upload file size
+ */
+function get_max_upload_size($limitPost, $limitUpload, $format = true)
+{
+    $size1 = return_bytes($limitPost);
+    $size2 = return_bytes($limitUpload);
+    // Return the smaller of two:
+    $maxsize = min($size1, $size2);
+    return $format ? human_bytes($maxsize) : $maxsize;
 }

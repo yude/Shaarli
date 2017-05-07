@@ -1,4 +1,7 @@
 <?php
+use Shaarli\Config\ConfigJson;
+use Shaarli\Config\ConfigPhp;
+use Shaarli\Config\ConfigManager;
 
 /**
  * Class Updater.
@@ -69,7 +72,7 @@ class Updater
             return $updatesRan;
         }
 
-        if ($this->methods == null) {
+        if ($this->methods === null) {
             throw new UpdaterException('Couldn\'t retrieve Updater class methods.');
         }
 
@@ -129,21 +132,6 @@ class Updater
             unlink($this->conf->get('resource.data_dir').'/options.php');
         }
 
-        return true;
-    }
-
-    /**
-     * Rename tags starting with a '-' to work with tag exclusion search.
-     */
-    public function updateMethodRenameDashTags()
-    {
-        $linklist = $this->linkDB->filterSearch();
-        foreach ($linklist as $key => $link) {
-            $link['tags'] = preg_replace('/(^| )\-/', '$1', $link['tags']);
-            $link['tags'] = implode(' ', array_unique(LinkFilter::tagsStrToArray($link['tags'], true)));
-            $this->linkDB[$key] = $link;
-        }
-        $this->linkDB->save($this->conf->get('resource.page_cache'));
         return true;
     }
 
@@ -258,6 +246,104 @@ class Updater
     }
 
     /**
+     * Rename tags starting with a '-' to work with tag exclusion search.
+     */
+    public function updateMethodRenameDashTags()
+    {
+        $linklist = $this->linkDB->filterSearch();
+        foreach ($linklist as $key => $link) {
+            $link['tags'] = preg_replace('/(^| )\-/', '$1', $link['tags']);
+            $link['tags'] = implode(' ', array_unique(LinkFilter::tagsStrToArray($link['tags'], true)));
+            $this->linkDB[$key] = $link;
+        }
+        $this->linkDB->save($this->conf->get('resource.page_cache'));
+        return true;
+    }
+
+    /**
+     * Initialize API settings:
+     *   - api.enabled: true
+     *   - api.secret: generated secret
+     */
+    public function updateMethodApiSettings()
+    {
+        if ($this->conf->exists('api.secret')) {
+            return true;
+        }
+
+        $this->conf->set('api.enabled', true);
+        $this->conf->set(
+            'api.secret',
+            generate_api_secret(
+                $this->conf->get('credentials.login'),
+                $this->conf->get('credentials.salt')
+            )
+        );
+        $this->conf->write($this->isLoggedIn);
+        return true;
+    }
+
+    /**
+     * New setting: theme name. If the default theme is used, nothing to do.
+     *
+     * If the user uses a custom theme, raintpl_tpl dir is updated to the parent directory,
+     * and the current theme is set as default in the theme setting.
+     *
+     * @return bool true if the update is successful, false otherwise.
+     */
+    public function updateMethodDefaultTheme()
+    {
+        // raintpl_tpl isn't the root template directory anymore.
+        // We run the update only if this folder still contains the template files.
+        $tplDir = $this->conf->get('resource.raintpl_tpl');
+        $tplFile = $tplDir . '/linklist.html';
+        if (! file_exists($tplFile)) {
+            return true;
+        }
+
+        $parent = dirname($tplDir);
+        $this->conf->set('resource.raintpl_tpl', $parent);
+        $this->conf->set('resource.theme', trim(str_replace($parent, '', $tplDir), '/'));
+        $this->conf->write($this->isLoggedIn);
+
+        // Dependency injection gore
+        RainTPL::$tpl_dir = $tplDir;
+
+        return true;
+    }
+
+    /**
+     * Move the file to inc/user.css to data/user.css.
+     *
+     * Note: Due to hardcoded paths, it's not unit testable. But one line of code should be fine.
+     *
+     * @return bool true if the update is successful, false otherwise.
+     */
+    public function updateMethodMoveUserCss()
+    {
+        if (! is_file('inc/user.css')) {
+            return true;
+        }
+
+        return rename('inc/user.css', 'data/user.css');
+    }
+
+    /**
+     * While the new default theme is in an unstable state
+     * continue to use the vintage theme
+     */
+    public function updateMethodDefaultThemeVintage()
+    {
+        if ($this->conf->get('resource.theme') !== 'default') {
+            return true;
+        }
+        $this->conf->set('resource.theme', 'vintage');
+        $this->conf->write($this->isLoggedIn);
+
+        return true;
+    }
+
+    /**
      * * `markdown_escape` is a new setting, set to true as default.
      *
      * If the markdown plugin was already enabled, escaping is disabled to avoid
@@ -276,6 +362,93 @@ class Updater
         }
         $this->conf->write($this->isLoggedIn);
 
+        return true;
+    }
+
+    /**
+     * Add 'http://' to Piwik URL the setting is set.
+     *
+     * @return bool true if the update is successful, false otherwise.
+     */
+    public function updateMethodPiwikUrl()
+    {
+        if (! $this->conf->exists('plugins.PIWIK_URL') || startsWith($this->conf->get('plugins.PIWIK_URL'), 'http')) {
+            return true;
+        }
+
+        $this->conf->set('plugins.PIWIK_URL', 'http://'. $this->conf->get('plugins.PIWIK_URL'));
+        $this->conf->write($this->isLoggedIn);
+
+        return true;
+    }
+
+    /**
+     * Use ATOM feed as default.
+     */
+    public function updateMethodAtomDefault()
+    {
+        if (!$this->conf->exists('feed.show_atom') || $this->conf->get('feed.show_atom') === true) {
+            return true;
+        }
+
+        $this->conf->set('feed.show_atom', true);
+        $this->conf->write($this->isLoggedIn);
+
+        return true;
+    }
+
+    /**
+     * Update updates.check_updates_branch setting.
+     *
+     * If the current major version digit matches the latest branch
+     * major version digit, we set the branch to `latest`,
+     * otherwise we'll check updates on the `stable` branch.
+     *
+     * No update required for the dev version.
+     *
+     * Note: due to hardcoded URL and lack of dependency injection, this is not unit testable.
+     *
+     * FIXME! This needs to be removed when we switch to first digit major version
+     *        instead of the second one since the versionning process will change.
+     */
+    public function updateMethodCheckUpdateRemoteBranch()
+    {
+        if (shaarli_version === 'dev' || $this->conf->get('updates.check_updates_branch') === 'latest') {
+            return true;
+        }
+
+        // Get latest branch major version digit
+        $latestVersion = ApplicationUtils::getLatestGitVersionCode(
+            'https://raw.githubusercontent.com/shaarli/Shaarli/latest/shaarli_version.php',
+            5
+        );
+        if (preg_match('/(\d+)\.\d+$/', $latestVersion, $matches) === false) {
+            return false;
+        }
+        $latestMajor = $matches[1];
+
+        // Get current major version digit
+        preg_match('/(\d+)\.\d+$/', shaarli_version, $matches);
+        $currentMajor = $matches[1];
+
+        if ($currentMajor === $latestMajor) {
+            $branch = 'latest';
+        } else {
+            $branch = 'stable';
+        }
+        $this->conf->set('updates.check_updates_branch', $branch);
+        $this->conf->write($this->isLoggedIn);
+        return true;
+    }
+
+    /**
+     * Reset history store file due to date format change.
+     */
+    public function updateMethodResetHistoryFile()
+    {
+        if (is_file($this->conf->get('resource.history'))) {
+            unlink($this->conf->get('resource.history'));
+        }
         return true;
     }
 }

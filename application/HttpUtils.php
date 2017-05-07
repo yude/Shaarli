@@ -122,7 +122,7 @@ function get_http_response($url, $timeout = 30, $maxBytes = 4194304)
     $content = substr($response, $headSize);
     $headers = array();
     foreach (preg_split('~[\r\n]+~', $rawHeadersLastRedir) as $line) {
-        if (empty($line) or ctype_space($line)) {
+        if (empty($line) || ctype_space($line)) {
             continue;
         }
         $splitLine = explode(': ', $line, 2);
@@ -297,9 +297,17 @@ function server_url($server)
             // Keep forwarded port
             if (strpos($server['HTTP_X_FORWARDED_PORT'], ',') !== false) {
                 $ports = explode(',', $server['HTTP_X_FORWARDED_PORT']);
-                $port = ':' . trim($ports[0]);
+                $port = trim($ports[0]);
             } else {
-                $port = ':' . $server['HTTP_X_FORWARDED_PORT'];
+                $port = $server['HTTP_X_FORWARDED_PORT'];
+            }
+
+            if (($scheme == 'http' && $port != '80')
+                || ($scheme == 'https' && $port != '443')
+            ) {
+                $port = ':' . $port;
+            } else {
+                $port = '';
             }
         }
 
