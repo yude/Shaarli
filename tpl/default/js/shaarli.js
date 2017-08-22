@@ -216,14 +216,14 @@ window.onload = function () {
     /**
      * Autofocus text fields
      */
-    // ES6 syntax
-    let autofocusElements = document.querySelectorAll('.autofocus');
-    for (let autofocusElement of autofocusElements) {
-        if (autofocusElement.value == '') {
+    var autofocusElements = document.querySelectorAll('.autofocus');
+    var breakLoop = false;
+    [].forEach.call(autofocusElements, function(autofocusElement) {
+        if (autofocusElement.value == '' && ! breakLoop) {
             autofocusElement.focus();
-            break;
+            breakLoop = true;
         }
-    }
+    });
 
     /**
      * Handle sub menus/forms
@@ -357,16 +357,256 @@ window.onload = function () {
     var continent = document.getElementById('continent');
     var city = document.getElementById('city');
     if (continent != null && city != null) {
-        continent.addEventListener('change', function(event) {
+        continent.addEventListener('change', function (event) {
             hideTimezoneCities(city, continent.options[continent.selectedIndex].value, true);
         });
         hideTimezoneCities(city, continent.options[continent.selectedIndex].value, false);
     }
+
+    /**
+     * Bulk actions
+     */
+    var linkCheckboxes = document.querySelectorAll('.delete-checkbox');
+    var bar = document.getElementById('actions');
+    [].forEach.call(linkCheckboxes, function(checkbox) {
+        checkbox.style.display = 'block';
+        checkbox.addEventListener('click', function(event) {
+            var count = 0;
+            var linkCheckedCheckboxes = document.querySelectorAll('.delete-checkbox:checked');
+            [].forEach.call(linkCheckedCheckboxes, function(checkbox) {
+                count++;
+            });
+            if (count == 0 && bar.classList.contains('open')) {
+                bar.classList.toggle('open');
+            } else if (count > 0 && ! bar.classList.contains('open')) {
+                bar.classList.toggle('open');
+            }
+        });
+    });
+
+    var deleteButton = document.getElementById('actions-delete');
+    var token = document.querySelector('input[type="hidden"][name="token"]');
+    if (deleteButton != null && token != null) {
+        deleteButton.addEventListener('click', function(event) {
+            event.preventDefault();
+
+            var links = [];
+            var linkCheckedCheckboxes = document.querySelectorAll('.delete-checkbox:checked');
+            [].forEach.call(linkCheckedCheckboxes, function(checkbox) {
+                links.push({
+                    'id': checkbox.value,
+                    'title': document.querySelector('.linklist-item[data-id="'+ checkbox.value +'"] .linklist-link').innerHTML
+                });
+            });
+
+            var message = 'Are you sure you want to delete '+ links.length +' links?\n';
+            message += 'This action is IRREVERSIBLE!\n\nTitles:\n';
+            var ids = '';
+            links.forEach(function(item) {
+                message += '  - '+ item['title'] +'\n';
+                ids += item['id'] +'+';
+            });
+
+            if (window.confirm(message)) {
+                window.location = '?delete_link&lf_linkdate='+ ids +'&token='+ token.value;
+            }
+        });
+    }
+
+    /**
+     * Tag list operations
+     *
+     * TODO: support error code in the backend for AJAX requests
+     */
+    var tagList = document.querySelector('input[name="taglist"]');
+    var existingTags = tagList ? tagList.value.split(' ') : [];
+    var awesomepletes = [];
+
+    // Display/Hide rename form
+    var renameTagButtons = document.querySelectorAll('.rename-tag');
+    [].forEach.call(renameTagButtons, function(rename) {
+        rename.addEventListener('click', function(event) {
+            event.preventDefault();
+            var block = findParent(event.target, 'div', {'class': 'tag-list-item'});
+            var form = block.querySelector('.rename-tag-form');
+            if (form.style.display == 'none' || form.style.display == '') {
+                form.style.display = 'block';
+            } else {
+                form.style.display = 'none';
+            }
+            block.querySelector('input').focus();
+        });
+    });
+
+    // Rename a tag with an AJAX request
+    var renameTagSubmits = document.querySelectorAll('.validate-rename-tag');
+    [].forEach.call(renameTagSubmits, function(rename) {
+        rename.addEventListener('click', function(event) {
+            event.preventDefault();
+            var block = findParent(event.target, 'div', {'class': 'tag-list-item'});
+            var input = block.querySelector('.rename-tag-input');
+            var totag = input.value.replace('/"/g', '\\"');
+            if (totag.trim() == '') {
+                return;
+            }
+            var fromtag = block.getAttribute('data-tag');
+            var token = document.getElementById('token').value;
+
+            xhr = new XMLHttpRequest();
+            xhr.open('POST', '?do=changetag');
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.onload = function() {
+                if (xhr.status !== 200) {
+                    alert('An error occurred. Return code: '+ xhr.status);
+                    location.reload();
+                } else {
+                    block.setAttribute('data-tag', totag);
+                    input.setAttribute('name', totag);
+                    input.setAttribute('value', totag);
+                    findParent(input, 'div', {'class': 'rename-tag-form'}).style.display = 'none';
+                    block.querySelector('a.tag-link').innerHTML = htmlEntities(totag);
+                    block.querySelector('a.tag-link').setAttribute('href', '?searchtags='+ encodeURIComponent(totag));
+                    block.querySelector('a.rename-tag').setAttribute('href', '?do=changetag&fromtag='+ encodeURIComponent(totag));
+
+                    // Refresh awesomplete values
+                    for (var key in existingTags) {
+                        if (existingTags[key] == fromtag) {
+                            existingTags[key] = totag;
+                        }
+                    }
+                    awesomepletes = updateAwesompleteList('.rename-tag-input', existingTags, awesomepletes);
+                }
+            };
+            xhr.send('renametag=1&fromtag='+ encodeURIComponent(fromtag) +'&totag='+ encodeURIComponent(totag) +'&token='+ token);
+            refreshToken();
+        });
+    });
+
+    // Validate input with enter key
+    var renameTagInputs = document.querySelectorAll('.rename-tag-input');
+    [].forEach.call(renameTagInputs, function(rename) {
+
+        rename.addEventListener('keypress', function(event) {
+            if (event.keyCode === 13) { // enter
+                findParent(event.target, 'div', {'class': 'tag-list-item'}).querySelector('.validate-rename-tag').click();
+            }
+        });
+    });
+
+    // Delete a tag with an AJAX query (alert popup confirmation)
+    var deleteTagButtons = document.querySelectorAll('.delete-tag');
+    [].forEach.call(deleteTagButtons, function(rename) {
+        rename.style.display = 'inline';
+        rename.addEventListener('click', function(event) {
+            event.preventDefault();
+            var block = findParent(event.target, 'div', {'class': 'tag-list-item'});
+            var tag = block.getAttribute('data-tag');
+            var token = document.getElementById('token').value;
+
+            if (confirm('Are you sure you want to delete the tag "'+ tag +'"?')) {
+                xhr = new XMLHttpRequest();
+                xhr.open('POST', '?do=changetag');
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.onload = function() {
+                    block.remove();
+                };
+                xhr.send(encodeURI('deletetag=1&fromtag='+ tag +'&token='+ token));
+                refreshToken();
+            }
+        });
+    });
+
+    updateAwesompleteList('.rename-tag-input', existingTags, awesomepletes);
 };
+
+/**
+ * Find a parent element according to its tag and its attributes
+ *
+ * @param element    Element where to start the search
+ * @param tagName    Expected parent tag name
+ * @param attributes Associative array of expected attributes (name=>value).
+ *
+ * @returns Found element or null.
+ */
+function findParent(element, tagName, attributes)
+{
+    while (element) {
+        if (element.tagName.toLowerCase() == tagName) {
+            var match = true;
+            for (var key in attributes) {
+                if (! element.hasAttribute(key)
+                    || (attributes[key] != '' && element.getAttribute(key).indexOf(attributes[key]) == -1)
+                ) {
+                    match = false;
+                    break;
+                }
+            }
+
+            if (match) {
+                return element;
+            }
+        }
+        element = element.parentElement;
+    }
+    return null;
+}
+
+/**
+ * Ajax request to refresh the CSRF token.
+ */
+function refreshToken()
+{
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '?do=token');
+    xhr.onload = function() {
+        var token = document.getElementById('token');
+        token.setAttribute('value', xhr.responseText);
+    };
+    xhr.send();
+}
+
+/**
+ * Update awesomplete list of tag for all elements matching the given selector
+ *
+ * @param selector  CSS selector
+ * @param tags      Array of tags
+ * @param instances List of existing awesomplete instances
+ */
+function updateAwesompleteList(selector, tags, instances)
+{
+    // First load: create Awesomplete instances
+    if (instances.length == 0) {
+        var elements = document.querySelectorAll(selector);
+        [].forEach.call(elements, function (element) {
+            instances.push(new Awesomplete(
+                element,
+                {'list': tags}
+            ));
+        });
+    } else {
+        // Update awesomplete tag list
+        for (var key in instances) {
+            instances[key].list = tags;
+        }
+    }
+    return instances;
+}
+
+/**
+ * html_entities in JS
+ *
+ * @see http://stackoverflow.com/questions/18749591/encode-html-entities-in-javascript
+ */
+function htmlEntities(str)
+{
+    return str.replace(/[\u00A0-\u9999<>\&]/gim, function(i) {
+        return '&#'+i.charCodeAt(0)+';';
+    });
+}
 
 function activateFirefoxSocial(node) {
     var loc = location.href;
-    var baseURL = loc.substring(0, loc.lastIndexOf("/"));
+    var baseURL = loc.substring(0, loc.lastIndexOf("/") + 1);
 
     // Keeping the data separated (ie. not in the DOM) so that it's maintainable and diffable.
     var data = {
@@ -379,7 +619,7 @@ function activateFirefoxSocial(node) {
         icon32URL: baseURL + "/images/favicon.ico",
         icon64URL: baseURL + "/images/favicon.ico",
 
-        shareURL: baseURL + "{noparse}?post=%{url}&title=%{title}&description=%{text}&source=firefoxsocialapi{/noparse}",
+        shareURL: baseURL + "?post=%{url}&title=%{title}&description=%{text}&source=firefoxsocialapi",
         homepageURL: baseURL
     };
     node.setAttribute("data-service", JSON.stringify(data));
@@ -395,9 +635,12 @@ function activateFirefoxSocial(node) {
  * @param currentContinent Current selected continent
  * @param reset            Set to true to reset the selected value
  */
-function hideTimezoneCities(cities, currentContinent, reset = false) {
+function hideTimezoneCities(cities, currentContinent) {
     var first = true;
-    [].forEach.call(cities, function(option) {
+    if (reset == null) {
+        reset = false;
+    }
+    [].forEach.call(cities, function (option) {
         if (option.getAttribute('data-continent') != currentContinent) {
             option.className = 'hidden';
         } else {

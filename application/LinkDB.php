@@ -417,49 +417,36 @@ You use the community supported version of the original Shaarli project, by Seba
      *                                - searchterm: term search
      * @param bool   $casesensitive Optional: Perform case sensitive filter
      * @param string $visibility    return only all/private/public links
+     * @param string $untaggedonly  return only untagged links
      *
      * @return array filtered links, all links if no suitable filter was provided.
      */
-    public function filterSearch($filterRequest = array(), $casesensitive = false, $visibility = 'all')
+    public function filterSearch($filterRequest = array(), $casesensitive = false, $visibility = 'all', $untaggedonly = false)
     {
         // Filter link database according to parameters.
-        $searchtags = !empty($filterRequest['searchtags']) ? escape($filterRequest['searchtags']) : '';
-        $searchterm = !empty($filterRequest['searchterm']) ? escape($filterRequest['searchterm']) : '';
+        $searchtags = isset($filterRequest['searchtags']) ? escape($filterRequest['searchtags']) : '';
+        $searchterm = isset($filterRequest['searchterm']) ? escape($filterRequest['searchterm']) : '';
 
-        // Search tags + fullsearch.
-        if (! empty($searchtags) && ! empty($searchterm)) {
-            $type = LinkFilter::$FILTER_TAG | LinkFilter::$FILTER_TEXT;
-            $request = array($searchtags, $searchterm);
-        }
-        // Search by tags.
-        elseif (! empty($searchtags)) {
-            $type = LinkFilter::$FILTER_TAG;
-            $request = $searchtags;
-        }
-        // Fulltext search.
-        elseif (! empty($searchterm)) {
-            $type = LinkFilter::$FILTER_TEXT;
-            $request = $searchterm;
-        }
-        // Otherwise, display without filtering.
-        else {
-            $type = '';
-            $request = '';
-        }
+        // Search tags + fullsearch - blank string parameter will return all links.
+        $type = LinkFilter::$FILTER_TAG | LinkFilter::$FILTER_TEXT; // == "vuotext"
+        $request = [$searchtags, $searchterm];
 
         $linkFilter = new LinkFilter($this);
-        return $linkFilter->filter($type, $request, $casesensitive, $visibility);
+        return $linkFilter->filter($type, $request, $casesensitive, $visibility, $untaggedonly);
     }
 
     /**
-     * Returns the list of all tags
-     * Output: associative array key=tags, value=0
+     * Returns the list tags appearing in the links with the given tags
+     * @param $filteringTags: tags selecting the links to consider
+     * @param $visibility: process only all/private/public links
+     * @return: a tag=>linksCount array
      */
-    public function allTags()
+    public function linksCountPerTag($filteringTags = [], $visibility = 'all')
     {
+        $links = empty($filteringTags) ? $this->links : $this->filterSearch(['searchtags' => $filteringTags], false, $visibility);
         $tags = array();
         $caseMapping = array();
-        foreach ($this->links as $link) {
+        foreach ($links as $link) {
             foreach (preg_split('/\s+/', $link['tags'], 0, PREG_SPLIT_NO_EMPTY) as $tag) {
                 if (empty($tag)) {
                     continue;
@@ -475,6 +462,39 @@ You use the community supported version of the original Shaarli project, by Seba
         // Sort tags by usage (most used tag first)
         arsort($tags);
         return $tags;
+    }
+
+    /**
+     * Rename or delete a tag across all links.
+     *
+     * @param string $from Tag to rename
+     * @param string $to   New tag. If none is provided, the from tag will be deleted
+     *
+     * @return array|bool List of altered links or false on error
+     */
+    public function renameTag($from, $to)
+    {
+        if (empty($from)) {
+            return false;
+        }
+        $delete = empty($to);
+        // True for case-sensitive tag search.
+        $linksToAlter = $this->filterSearch(['searchtags' => $from], true);
+        foreach($linksToAlter as $key => &$value)
+        {
+            $tags = preg_split('/\s+/', trim($value['tags']));
+            if (($pos = array_search($from, $tags)) !== false) {
+                if ($delete) {
+                    unset($tags[$pos]); // Remove tag.
+                } else {
+                    $tags[$pos] = trim($to);
+                }
+                $value['tags'] = trim(implode(' ', array_unique($tags)));
+                $this[$value['id']] = $value;
+            }
+        }
+
+        return $linksToAlter;
     }
 
     /**

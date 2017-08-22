@@ -297,7 +297,7 @@ class LinkDBTest extends PHPUnit_Framework_TestCase
                 'sTuff' => 2,
                 'ut' => 1,
             ),
-            self::$publicLinkDB->allTags()
+            self::$publicLinkDB->linksCountPerTag()
         );
 
         $this->assertEquals(
@@ -325,7 +325,34 @@ class LinkDBTest extends PHPUnit_Framework_TestCase
                 'tag4' => 1,
                 'ut' => 1,
             ),
-            self::$privateLinkDB->allTags()
+            self::$privateLinkDB->linksCountPerTag()
+        );
+        $this->assertEquals(
+            array(
+                'web' => 4,
+                'cartoon' => 2,
+                'gnu' => 1,
+                'dev' => 1,
+                'samba' => 1,
+                'media' => 1,
+                'html' => 1,
+                'w3c' => 1,
+                'css' => 1,
+                'Mercurial' => 1,
+                '.hidden' => 1,
+                'hashtag' => 1,
+            ),
+            self::$privateLinkDB->linksCountPerTag(['web'])
+        );
+        $this->assertEquals(
+            array(
+                'web' => 1,
+                'html' => 1,
+                'w3c' => 1,
+                'css' => 1,
+                'Mercurial' => 1,
+            ),
+            self::$privateLinkDB->linksCountPerTag(['web'], 'private')
         );
     }
 
@@ -448,7 +475,7 @@ class LinkDBTest extends PHPUnit_Framework_TestCase
     public function testReorderLinksDesc()
     {
         self::$privateLinkDB->reorder('ASC');
-        $linkIds = array(42, 4, 1, 0, 7, 6, 8, 41);
+        $linkIds = array(42, 4, 9, 1, 0, 7, 6, 8, 41);
         $cpt = 0;
         foreach (self::$privateLinkDB as $key => $value) {
             $this->assertEquals($linkIds[$cpt++], $key);
@@ -459,5 +486,60 @@ class LinkDBTest extends PHPUnit_Framework_TestCase
         foreach (self::$privateLinkDB as $key => $value) {
             $this->assertEquals($linkIds[$cpt++], $key);
         }
+    }
+
+    /**
+     * Test rename tag with a valid value present in multiple links
+     */
+    public function testRenameTagMultiple()
+    {
+        self::$refDB->write(self::$testDatastore);
+        $linkDB = new LinkDB(self::$testDatastore, true, false);
+
+        $res = $linkDB->renameTag('cartoon', 'Taz');
+        $this->assertEquals(3, count($res));
+        $this->assertContains(' Taz ', $linkDB[4]['tags']);
+        $this->assertContains(' Taz ', $linkDB[1]['tags']);
+        $this->assertContains(' Taz ', $linkDB[0]['tags']);
+    }
+
+    /**
+     * Test rename tag with a valid value
+     */
+    public function testRenameTagCaseSensitive()
+    {
+        self::$refDB->write(self::$testDatastore);
+        $linkDB = new LinkDB(self::$testDatastore, true, false, '');
+
+        $res = $linkDB->renameTag('sTuff', 'Taz');
+        $this->assertEquals(1, count($res));
+        $this->assertEquals('Taz', $linkDB[41]['tags']);
+    }
+
+    /**
+     * Test rename tag with invalid values
+     */
+    public function testRenameTagInvalid()
+    {
+        $linkDB = new LinkDB(self::$testDatastore, false, false);
+
+        $this->assertFalse($linkDB->renameTag('', 'test'));
+        $this->assertFalse($linkDB->renameTag('', ''));
+        // tag non existent
+        $this->assertEquals([], $linkDB->renameTag('test', ''));
+        $this->assertEquals([], $linkDB->renameTag('test', 'retest'));
+    }
+
+    /**
+     * Test delete tag with a valid value
+     */
+    public function testDeleteTag()
+    {
+        self::$refDB->write(self::$testDatastore);
+        $linkDB = new LinkDB(self::$testDatastore, true, false);
+
+        $res = $linkDB->renameTag('cartoon', null);
+        $this->assertEquals(3, count($res));
+        $this->assertNotContains('cartoon', $linkDB[4]['tags']);
     }
 }

@@ -64,6 +64,11 @@ class LinkFilterTest extends PHPUnit_Framework_TestCase
         );
 
         $this->assertEquals(
+            self::$refDB->countUntaggedLinks(),
+            count(self::$linkFilter->filter(LinkFilter::$FILTER_TAG, /*$request=*/'', /*$casesensitive=*/false, /*$visibility=*/'all', /*$untaggedonly=*/true))
+        );
+
+        $this->assertEquals(
             ReferenceLinkDB::$NB_LINKS_TOTAL,
             count(self::$linkFilter->filter(LinkFilter::$FILTER_TEXT, ''))
         );
@@ -146,7 +151,7 @@ class LinkFilterTest extends PHPUnit_Framework_TestCase
     public function testFilterDay()
     {
         $this->assertEquals(
-            3,
+            4,
             count(self::$linkFilter->filter(LinkFilter::$FILTER_DAY, '20121206'))
         );
     }
@@ -339,7 +344,7 @@ class LinkFilterTest extends PHPUnit_Framework_TestCase
         );
 
         $this->assertEquals(
-            7,
+            ReferenceLinkDB::$NB_LINKS_TOTAL - 1,
             count(self::$linkFilter->filter(LinkFilter::$FILTER_TEXT, '-revolution'))
         );
     }
@@ -399,7 +404,7 @@ class LinkFilterTest extends PHPUnit_Framework_TestCase
         );
 
         $this->assertEquals(
-            7,
+            ReferenceLinkDB::$NB_LINKS_TOTAL - 1,
             count(self::$linkFilter->filter(LinkFilter::$FILTER_TAG, '-free'))
         );
     }
@@ -423,6 +428,13 @@ class LinkFilterTest extends PHPUnit_Framework_TestCase
             count(self::$linkFilter->filter(
                 LinkFilter::$FILTER_TAG | LinkFilter::$FILTER_TEXT,
                 array('', $terms)
+            ))
+        );
+        $this->assertEquals(
+            1,
+            count(self::$linkFilter->filter(
+                LinkFilter::$FILTER_TAG | LinkFilter::$FILTER_TEXT,
+                array(false, 'PSR-2')
             ))
         );
         $this->assertEquals(

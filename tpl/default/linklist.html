@@ -15,32 +15,25 @@
   {/if}
 </div>
 
+<input type="hidden" name="token" value="{$token}">
+
 <div id="search-linklist">
 
-  <div class="pure-g">
-    <div class="pure-u-1 pure-u-lg-1-2">
-      <form method="GET" class="searchform" name="searchform">
-        <input type="text" tabindex="1" name="searchterm" placeholder="{'Search text'|t}"
-               {if="!empty($search_term)"}
-               value="{$search_term}"
-               {/if}
-        >
-        <button type="submit" class="search-button"><i class="fa fa-search"></i></button>
-      </form>
-    </div>
-    <div class="pure-u-1 pure-u-lg-1-2">
-      <form method="GET" class="tagfilter" name="tagfilter">
-        <input type="text" tabindex="2" name="searchtags" placeholder="{'Filter by tag'|t}"
-               {if="!empty($search_tags)"}
-               value="{$search_tags}"
-               {/if}
-        autocomplete="off" data-multiple data-autofirst data-minChars="1"
-        data-list="{loop="$tags"}{$key}, {/loop}"
-        >
-        <button type="submit" class="search-button"><i class="fa fa-search"></i></button>
-      </form>
-    </div>
-  </div>
+  <form method="GET" class="pure-form searchform" name="searchform">
+    <input type="text" tabindex="1" name="searchterm" class="searchterm" placeholder="{'Search text'|t}"
+           {if="!empty($search_term)"}
+           value="{$search_term}"
+           {/if}
+    >
+    <input type="text" tabindex="2" name="searchtags" class="searchtags" placeholder="{'Filter by tag'|t}"
+           {if="!empty($search_tags)"}
+           value="{$search_tags}"
+           {/if}
+    autocomplete="off" data-multiple data-autofirst data-minChars="1"
+    data-list="{loop="$tags"}{$key}, {/loop}"
+    >
+    <button type="submit" class="search-button"><i class="fa fa-search"></i></button>
+  </form>
 </div>
 
 {loop="$plugins_header.fields_toolbar"}
@@ -89,7 +82,7 @@
         <div id="searchcriteria">{'Nothing found.'|t}</div>
       </div>
     </div>
-  {elseif="!empty($search_term) or !empty($search_tags) or !empty($visibility)"}
+  {elseif="!empty($search_term) or $search_tags !== '' or !empty($visibility) or $untaggedonly"}
     <div class="pure-g pure-alert pure-alert-success search-result">
       <div class="pure-u-2-24"></div>
       <div class="pure-u-20-24">
@@ -112,6 +105,11 @@
             {$visibility|t}
           </span>
         {/if}
+        {if="$untaggedonly"}
+          <span class="label label-private">
+            {'without any tag'|t}
+          </span>
+        {/if}
       </div>
     </div>
   {/if}
@@ -121,7 +119,7 @@
     <div class="pure-u-lg-20-24 pure-u-22-24">
       {loop="links"}
         <div class="anchor" id="{$value.shorturl}"></div>
-        <div class="linklist-item{if="$value.class"} {$value.class}{/if}">
+        <div class="linklist-item linklist-item{if="$value.class"} {$value.class}{/if}" data-id="{$value.id}">
 
           <div class="linklist-item-title">
             {if="isLoggedIn()"}
@@ -129,6 +127,7 @@
                 {if="$value.private"}
                   <span class="label label-private">{'Private'|t}</span>
                 {/if}
+                <input type="checkbox" class="delete-checkbox" value="{$value.id}">
                 <!-- FIXME! JS translation -->
                 <a href="?edit_link={$value.id}" title="{'Edit'|t}"><i class="fa fa-pencil-square-o edit-link"></i></a>
                 <a href="#" title="{'Fold'|t}" class="fold-button"><i class="fa fa-chevron-up"></i></a>
