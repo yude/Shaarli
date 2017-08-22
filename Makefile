@@ -155,19 +155,22 @@ release_archive: release_tar release_zip
 
 ### download 3rd-party PHP libraries
 composer_dependencies: clean
-	composer update --no-dev
+	composer install --no-dev --prefer-dist
 	find vendor/ -name ".git" -type d -exec rm -rf {} +
 
 ### generate a release tarball and include 3rd-party dependencies
-release_tar: composer_dependencies
+release_tar: composer_dependencies doc_html
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).tar HEAD
 	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^vendor|$(ARCHIVE_PREFIX)vendor|" vendor/
+	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^doc/html|$(ARCHIVE_PREFIX)doc/html|" doc/html/
 	gzip $(ARCHIVE_VERSION).tar
 
 ### generate a release zip and include 3rd-party dependencies
-release_zip: composer_dependencies
+release_zip: composer_dependencies doc_html
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).zip -9 HEAD
-	mkdir $(ARCHIVE_PREFIX)
+	mkdir -p $(ARCHIVE_PREFIX)/{doc,vendor}
+	rsync -a doc/html/ $(ARCHIVE_PREFIX)doc/html/
+	zip -r $(ARCHIVE_VERSION).zip $(ARCHIVE_PREFIX)doc/
 	rsync -a vendor/ $(ARCHIVE_PREFIX)vendor/
 	zip -r $(ARCHIVE_VERSION).zip $(ARCHIVE_PREFIX)vendor/
 	rm -rf $(ARCHIVE_PREFIX)
@@ -192,44 +195,17 @@ doxygen: clean
 	@rm -rf doxygen
 	@( cat Doxyfile ; echo "PROJECT_NUMBER=`git describe`" ) | doxygen -
 
-### update the local copy of the documentation
-doc: clean
-	@rm -rf doc
-	@git clone https://github.com/shaarli/Shaarli.wiki.git doc
-	@rm -rf doc/.git
-
-### Generate a custom sidebar
-#
-# Sidebar content:
-#  - convert GitHub-flavoured relative links to standard Markdown
-#  - trim HTML, only keep the list (<ul>[...]</ul>) part
-htmlsidebar:
-	@echo '<div id="local-sidebar">' > doc/sidebar.html
-	@awk 'BEGIN { FS = "[\\[\\]]{2}" }'\
-	'm = /\[/ { t=$$2; gsub(/ /, "-", $$2); print $$1"["t"]("$$2".html)"$$3 }'\
-	'!m { print $$0 }' doc/_Sidebar.md > doc/tmp.md
-	@pandoc -f markdown -t html5 -s doc/tmp.md | awk '/(ul>|li>)/' >> doc/sidebar.html
-	@echo '</div>' >> doc/sidebar.html
-	@rm doc/tmp.md
-
 ### Convert local markdown documentation to HTML
 #
 # For all pages:
-#  - infer title from the file name
 #  - convert GitHub-flavoured relative links to standard Markdown
-#  - insert the sidebar menu
+#  - generate html documentation with mkdocs
 htmlpages:
-	@for file in `find doc/ -maxdepth 1 -name "*.md"`; do \
-		base=`basename $$file .md`; \
-		sed -i "1i #$${base//-/ }" $$file; \
-		awk 'BEGIN { FS = "[\\[\\]]{2}" }'\
-	'm = /\[/ { t=$$2; gsub(/ /, "-", $$2); print $$1"["t"]("$$2".html)"$$3 }'\
-	'!m { print $$0 }' $$file > doc/tmp.md; \
-		mv doc/tmp.md $$file; \
-		pandoc -f markdown_github -t html5 -s \
-			-c "github-markdown.css" \
-			-T Shaarli -M pagetitle:"$${base//-/ }" -B doc/sidebar.html \
-			-o doc/$$base.html $$file; \
-	done;
+	python3 -m venv venv/
+	bash -c 'source venv/bin/activate; \
+	pip install mkdocs; \
+	mkdocs build'
+	find doc/html/ -type f -exec chmod a-x '{}' \;
+	rm -r venv
 
-htmldoc: authors doc htmlsidebar htmlpages
+doc_html: authors htmlpages

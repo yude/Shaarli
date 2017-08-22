@@ -78,6 +78,7 @@ class PageBuilder
         $this->tpl->assign('version', shaarli_version);
         $this->tpl->assign('scripturl', index_url($_SERVER));
         $this->tpl->assign('privateonly', !empty($_SESSION['privateonly'])); // Show only private links?
+        $this->tpl->assign('untaggedonly', !empty($_SESSION['untaggedonly']));
         $this->tpl->assign('pagetitle', $this->conf->get('general.title', 'Shaarli'));
         if ($this->conf->exists('general.header_link')) {
             $this->tpl->assign('titleLink', $this->conf->get('general.header_link'));
@@ -89,7 +90,7 @@ class PageBuilder
         $this->tpl->assign('hide_timestamps', $this->conf->get('privacy.hide_timestamps', false));
         $this->tpl->assign('token', getToken($this->conf));
         if ($this->linkDB !== null) {
-            $this->tpl->assign('tags', $this->linkDB->allTags());
+            $this->tpl->assign('tags', $this->linkDB->linksCountPerTag());
         }
         // To be removed with a proper theme configuration.
         $this->tpl->assign('conf', $this->conf);

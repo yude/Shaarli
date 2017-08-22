@@ -9,13 +9,16 @@
     {/if}
     &middot;
     The personal, minimalist, super-fast, database free, bookmarking service by the Shaarli community &middot;
-    <a href="doc/Home.html" rel="nofollow">Documentation</a>
+    <a href="doc/html/index.html" rel="nofollow">Documentation</a>
       {loop="$plugins_footer.text"}
           {$value}
       {/loop}
   </div>
   <div class="pure-u-2-24"></div>
 </div>
+
+<input type="hidden" name="token" value="{$token}" id="token" />
+
 {loop="$plugins_footer.endofpage"}
     {$value}
 {/loop}

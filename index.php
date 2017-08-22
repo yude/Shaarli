@@ -225,27 +225,6 @@ function setup_login_state($conf)
 }
 $userIsLoggedIn = setup_login_state($conf);
 
-/**
- * PubSubHubbub protocol support (if enabled)  [UNTESTED]
- * (Source: http://aldarone.fr/les-flux-rss-shaarli-et-pubsubhubbub/ )
- *
- * @param ConfigManager $conf Configuration Manager instance.
- */
-function pubsubhub($conf)
-{
-    $pshUrl = $conf->get('config.PUBSUBHUB_URL');
-    if (!empty($pshUrl))
-    {
-        include_once './publisher.php';
-        $p = new Publisher($pshUrl);
-        $topic_url = array (
-            index_url($_SERVER).'?do=atom',
-            index_url($_SERVER).'?do=rss'
-        );
-        $p->publish_update($topic_url);
-    }
-}
-
 // ------------------------------------------------------------------------------------------
 // Session management
 
@@ -308,6 +287,7 @@ function logout() {
         unset($_SESSION['ip']);
         unset($_SESSION['username']);
         unset($_SESSION['privateonly']);
+        unset($_SESSION['untaggedonly']);
     }
     setcookie('shaarli_staySignedIn', FALSE, 0, WEB_PATH);
 }
@@ -706,6 +686,7 @@ function showLinkList($PAGE, $LINKSDB, $conf, $pluginManager) {
  * @param ConfigManager $conf          Configuration Manager instance.
  * @param PluginManager $pluginManager Plugin Manager instance,
  * @param LinkDB        $LINKSDB
+ * @param History       $history       instance
  */
 function renderPage($conf, $pluginManager, $LINKSDB, $history)
 {
@@ -811,7 +792,9 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
     // -------- Tag cloud
     if ($targetPage == Router::$PAGE_TAGCLOUD)
     {
-        $tags= $LINKSDB->allTags();
+        $visibility = ! empty($_SESSION['privateonly']) ? 'private' : 'all';
+        $filteringTags = isset($_GET['searchtags']) ? explode(' ', $_GET['searchtags']) : [];
+        $tags = $LINKSDB->linksCountPerTag($filteringTags, $visibility);
 
         // We sort tags alphabetically, then choose a font size according to count.
         // First, find max value.
@@ -820,20 +803,13 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
             $maxcount = max($maxcount, $value);
         }
 
-        // Sort tags alphabetically: case insensitive, support locale if available.
-        uksort($tags, function($a, $b) {
-            // Collator is part of PHP intl.
-            if (class_exists('Collator')) {
-                $c = new Collator(setlocale(LC_COLLATE, 0));
-                if (!intl_is_failure(intl_get_error_code())) {
-                    return $c->compare($a, $b);
-                }
-            }
-            return strcasecmp($a, $b);
-        });
+        alphabetical_sort($tags, true, true);
 
         $tagList = array();
         foreach($tags as $key => $value) {
+            if (in_array($key, $filteringTags)) {
+                continue;
+            }
             // Tag font size scaling:
             //   default 15 and 30 logarithm bases affect scaling,
             //   22 and 6 are arbitrary font sizes for max and min sizes.
@@ -845,6 +821,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
         }
 
         $data = array(
+            'search_tags' => implode(' ', $filteringTags),
             'tags' => $tagList,
         );
         $pluginManager->executeHooks('render_tagcloud', $data, array('loggedin' => isLoggedIn()));
@@ -853,7 +830,37 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
             $PAGE->assign($key, $value);
         }
 
-        $PAGE->renderPage('tagcloud');
+        $PAGE->renderPage('tag.cloud');
+        exit;
+    }
+
+    // -------- Tag list
+    if ($targetPage == Router::$PAGE_TAGLIST)
+    {
+        $visibility = ! empty($_SESSION['privateonly']) ? 'private' : 'all';
+        $filteringTags = isset($_GET['searchtags']) ? explode(' ', $_GET['searchtags']) : [];
+        $tags = $LINKSDB->linksCountPerTag($filteringTags, $visibility);
+        foreach ($filteringTags as $tag) {
+            if (array_key_exists($tag, $tags)) {
+                unset($tags[$tag]);
+            }
+        }
+
+        if (! empty($_GET['sort']) && $_GET['sort'] === 'alpha') {
+            alphabetical_sort($tags, false, true);
+        }
+
+        $data = [
+            'search_tags' => implode(' ', $filteringTags),
+            'tags' => $tags,
+        ];
+        $pluginManager->executeHooks('render_taglist', $data, ['loggedin' => isLoggedIn()]);
+
+        foreach ($data as $key => $value) {
+            $PAGE->assign($key, $value);
+        }
+
+        $PAGE->renderPage('tag.list');
         exit;
     }
 
@@ -1005,6 +1012,19 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
 
         if (! empty($_SERVER['HTTP_REFERER'])) {
             $location = generateLocation($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST'], array('privateonly'));
+        } else {
+            $location = '?';
+        }
+        header('Location: '. $location);
+        exit;
+    }
+
+    // -------- User wants to see only untagged links (toggle)
+    if (isset($_GET['untaggedonly'])) {
+        $_SESSION['untaggedonly'] = empty($_SESSION['untaggedonly']);
+
+        if (! empty($_SERVER['HTTP_REFERER'])) {
+            $location = generateLocation($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST'], array('untaggedonly'));
         } else {
             $location = '?';
         }
@@ -1170,6 +1190,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
     if ($targetPage == Router::$PAGE_CHANGETAG)
     {
         if (empty($_POST['fromtag']) || (empty($_POST['totag']) && isset($_POST['renametag']))) {
+            $PAGE->assign('fromtag', ! empty($_GET['fromtag']) ? escape($_GET['fromtag']) : '');
             $PAGE->renderPage('changetag');
             exit;
         }
@@ -1178,41 +1199,18 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
             die('Wrong token.');
         }
 
-        // Delete a tag:
-        if (isset($_POST['deletetag']) && !empty($_POST['fromtag'])) {
-            $needle = trim($_POST['fromtag']);
-            // True for case-sensitive tag search.
-            $linksToAlter = $LINKSDB->filterSearch(array('searchtags' => $needle), true);
-            foreach($linksToAlter as $key=>$value)
-            {
-                $tags = explode(' ',trim($value['tags']));
-                unset($tags[array_search($needle,$tags)]); // Remove tag.
-                $value['tags']=trim(implode(' ',$tags));
-                $LINKSDB[$key]=$value;
-                $history->updateLink($LINKSDB[$key]);
-            }
-            $LINKSDB->save($conf->get('resource.page_cache'));
-            echo '<script>alert("Tag was removed from '.count($linksToAlter).' links.");document.location=\'?do=changetag\';</script>';
-            exit;
+        $alteredLinks = $LINKSDB->renameTag(escape($_POST['fromtag']), escape($_POST['totag']));
+        $LINKSDB->save($conf->get('resource.page_cache'));
+        foreach ($alteredLinks as $link) {
+            $history->updateLink($link);
         }
-
-        // Rename a tag:
-        if (isset($_POST['renametag']) && !empty($_POST['fromtag']) && !empty($_POST['totag'])) {
-            $needle = trim($_POST['fromtag']);
-            // True for case-sensitive tag search.
-            $linksToAlter = $LINKSDB->filterSearch(array('searchtags' => $needle), true);
-            foreach($linksToAlter as $key=>$value) {
-                $tags = preg_split('/\s+/', trim($value['tags']));
-                // Replace tags value.
-                $tags[array_search($needle, $tags)] = trim($_POST['totag']);
-                $value['tags'] = implode(' ', array_unique($tags));
-                $LINKSDB[$key] = $value;
-                $history->updateLink($LINKSDB[$key]);
-            }
-            $LINKSDB->save($conf->get('resource.page_cache')); // Save to disk.
-            echo '<script>alert("Tag was renamed in '.count($linksToAlter).' links.");document.location=\'?searchtags='.urlencode(escape($_POST['totag'])).'\';</script>';
-            exit;
-        }
+        $delete = empty($_POST['totag']);
+        $redirect = $delete ? 'do=changetag' : 'searchtags='. urlencode(escape($_POST['totag']));
+        $alert = $delete
+            ? sprintf(t('The tag was removed from %d links.'), count($alteredLinks))
+            : sprintf(t('The tag was renamed in %d links.'), count($alteredLinks));
+        echo '<script>alert("'. $alert .'");document.location=\'?'. $redirect .'\';</script>';
+        exit;
     }
 
     // -------- User wants to add a link without using the bookmarklet: Show form.
@@ -1258,13 +1256,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
         // Remove duplicates.
         $tags = implode(' ', array_unique(explode(' ', $tags)));
 
-        $url = trim($_POST['lf_url']);
-        if (! startsWith($url, 'http:') && ! startsWith($url, 'https:')
-            && ! startsWith($url, 'ftp:') && ! startsWith($url, 'magnet:')
-            && ! startsWith($url, '?') && ! startsWith($url, 'javascript:')
-        ) {
-            $url = 'http://' . $url;
-        }
+        $url = whitelist_protocols(trim($_POST['lf_url']), $conf->get('security.allowed_protocols'));
 
         $link = array(
             'id' => $id,
@@ -1329,18 +1321,21 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
     // -------- User clicked the "Delete" button when editing a link: Delete link from database.
     if ($targetPage == Router::$PAGE_DELETELINK)
     {
-        // We do not need to ask for confirmation:
-        // - confirmation is handled by JavaScript
-        // - we are protected from XSRF by the token.
-
         if (! tokenOk($_GET['token'])) {
             die('Wrong token.');
         }
 
-        $id = intval(escape($_GET['lf_linkdate']));
-        $link = $LINKSDB[$id];
-        $pluginManager->executeHooks('delete_link', $link);
-        unset($LINKSDB[$id]);
+        if (strpos($_GET['lf_linkdate'], ' ') !== false) {
+            $ids = array_values(array_filter(preg_split('/\s+/', escape($_GET['lf_linkdate']))));
+        } else {
+            $ids = [$_GET['lf_linkdate']];
+        }
+        foreach ($ids as $id) {
+            $id = (int) escape($id);
+            $link = $LINKSDB[$id];
+            $pluginManager->executeHooks('delete_link', $link);
+            unset($LINKSDB[$id]);
+        }
         $LINKSDB->save($conf->get('resource.page_cache')); // save to disk
         $history->deleteLink($link);
 
@@ -1372,7 +1367,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
             'link' => $link,
             'link_is_new' => false,
             'http_referer' => (isset($_SERVER['HTTP_REFERER']) ? escape($_SERVER['HTTP_REFERER']) : ''),
-            'tags' => $LINKSDB->allTags(),
+            'tags' => $LINKSDB->linksCountPerTag(),
         );
         $pluginManager->executeHooks('render_editlink', $data);
 
@@ -1430,7 +1425,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
                 'url' => $url,
                 'description' => $description,
                 'tags' => $tags,
-                'private' => $private
+                'private' => $private,
             );
         } else {
             $link['linkdate'] = $link['created']->format(LinkDB::LINK_DATE_FORMAT);
@@ -1441,7 +1436,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
             'link_is_new' => $link_is_new,
             'http_referer' => (isset($_SERVER['HTTP_REFERER']) ? escape($_SERVER['HTTP_REFERER']) : ''),
             'source' => (isset($_GET['source']) ? $_GET['source'] : ''),
-            'tags' => $LINKSDB->allTags(),
+            'tags' => $LINKSDB->linksCountPerTag(),
             'default_private_links' => $conf->get('privacy.default_private_links', false),
         );
         $pluginManager->executeHooks('render_editlink', $data);
@@ -1597,6 +1592,13 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
         exit;
     }
 
+    // Get a fresh token
+    if ($targetPage == Router::$GET_TOKEN) {
+        header('Content-Type:text/plain');
+        echo getToken($conf);
+        exit;
+    }
+
     // -------- Otherwise, simply display search form and links:
     showLinkList($PAGE, $LINKSDB, $conf, $pluginManager);
     exit;
@@ -1614,7 +1616,15 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
 function buildLinkList($PAGE,$LINKSDB, $conf, $pluginManager)
 {
     // Used in templates
-    $searchtags = !empty($_GET['searchtags']) ? escape(normalize_spaces($_GET['searchtags'])) : '';
+    if (isset($_GET['searchtags'])) {
+        if (! empty($_GET['searchtags'])) {
+            $searchtags = escape(normalize_spaces($_GET['searchtags']));
+        } else {
+            $searchtags = false;
+        }
+    } else {
+        $searchtags = '';
+    }
     $searchterm = !empty($_GET['searchterm']) ? escape(normalize_spaces($_GET['searchterm'])) : '';
 
     // Smallhash filter
@@ -1629,7 +1639,11 @@ function buildLinkList($PAGE,$LINKSDB, $conf, $pluginManager)
     } else {
         // Filter links according search parameters.
         $visibility = ! empty($_SESSION['privateonly']) ? 'private' : 'all';
-        $linksToDisplay = $LINKSDB->filterSearch($_GET, false, $visibility);
+        $request = [
+            'searchtags' => $searchtags,
+            'searchterm' => $searchterm,
+        ];
+        $linksToDisplay = $LINKSDB->filterSearch($request, false, $visibility, !empty($_SESSION['untaggedonly']));
     }
 
     // ---- Handle paging.
@@ -1676,7 +1690,7 @@ function buildLinkList($PAGE,$LINKSDB, $conf, $pluginManager)
     }
 
     // Compute paging navigation
-    $searchtagsUrl = empty($searchtags) ? '' : '&searchtags=' . urlencode($searchtags);
+    $searchtagsUrl = $searchtags === '' ? '' : '&searchtags=' . urlencode($searchtags);
     $searchtermUrl = empty($searchterm) ? '' : '&searchterm=' . urlencode($searchterm);
     $previous_page_url = '';
     if ($i != count($keys)) {
@@ -2223,6 +2237,12 @@ if (!isset($_SESSION['LINKS_PER_PAGE'])) {
     $_SESSION['LINKS_PER_PAGE'] = $conf->get('general.links_per_page', 20);
 }
 
+try {
+    $history = new History($conf->get('resource.history'));
+} catch(Exception $e) {
+    die($e->getMessage());
+}
+
 $linkDb = new LinkDB(
     $conf->get('resource.datastore'),
     isLoggedIn(),
@@ -2230,12 +2250,6 @@ $linkDb = new LinkDB(
     $conf->get('redirector.url'),
     $conf->get('redirector.encode_url')
 );
-
-try {
-    $history = new History($conf->get('resource.history'));
-} catch(Exception $e) {
-    die($e->getMessage());
-}
 
 $container = new \Slim\Container();
 $container['conf'] = $conf;
