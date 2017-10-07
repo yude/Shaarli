@@ -48,8 +48,8 @@ if (! file_exists(__DIR__ . '/vendor/autoload.php')) {
         ."If you installed Shaarli through Git or using the development branch,\n"
         ."please refer to the installation documentation to install PHP"
         ." dependencies using Composer:\n"
-        ."- https://github.com/shaarli/Shaarli/wiki/Server-requirements\n"
-        ."- https://github.com/shaarli/Shaarli/wiki/Download-and-Installation";
+        ."- https://shaarli.readthedocs.io/en/master/Server-requirements/\n"
+        ."- https://shaarli.readthedocs.io/en/master/Download-and-Installation/";
     exit;
 }
 require_once 'inc/rain.tpl.class.php';
@@ -88,7 +88,7 @@ try {
     exit;
 }
 
-define('shaarli_version', ApplicationUtils::getVersion(__DIR__ .'/'. ApplicationUtils::$VERSION_FILE));
+define('SHAARLI_VERSION', ApplicationUtils::getVersion(__DIR__ .'/'. ApplicationUtils::$VERSION_FILE));
 
 // Force cookie path (but do not change lifetime)
 $cookie = session_get_cookie_params();
@@ -132,15 +132,6 @@ $pluginManager->load($conf->get('general.enabled_plugins'));
 date_default_timezone_set($conf->get('general.timezone', 'UTC'));
 
 ob_start();  // Output buffering for the page cache.
-
-// In case stupid admin has left magic_quotes enabled in php.ini:
-if (get_magic_quotes_gpc())
-{
-    function stripslashes_deep($value) { $value = is_array($value) ? array_map('stripslashes_deep', $value) : stripslashes($value); return $value; }
-    $_POST = array_map('stripslashes_deep', $_POST);
-    $_GET = array_map('stripslashes_deep', $_GET);
-    $_COOKIE = array_map('stripslashes_deep', $_COOKIE);
-}
 
 // Prevent caching on client side or proxy: (yes, it's ugly)
 header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
@@ -186,42 +177,42 @@ if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
  */
 function setup_login_state($conf)
 {
-	if ($conf->get('security.open_shaarli')) {
-	    return true;
-	}
-	$userIsLoggedIn = false; // By default, we do not consider the user as logged in;
-	$loginFailure = false; // If set to true, every attempt to authenticate the user will fail. This indicates that an important condition isn't met.
-	if (! $conf->exists('credentials.login')) {
-	    $userIsLoggedIn = false;  // Shaarli is not configured yet.
-	    $loginFailure = true;
-	}
-	if (isset($_COOKIE['shaarli_staySignedIn']) &&
-	    $_COOKIE['shaarli_staySignedIn']===STAY_SIGNED_IN_TOKEN &&
-	    !$loginFailure)
-	{
-	    fillSessionInfo($conf);
-	    $userIsLoggedIn = true;
-	}
-	// If session does not exist on server side, or IP address has changed, or session has expired, logout.
-	if (empty($_SESSION['uid'])
+    if ($conf->get('security.open_shaarli')) {
+        return true;
+    }
+    $userIsLoggedIn = false; // By default, we do not consider the user as logged in;
+    $loginFailure = false; // If set to true, every attempt to authenticate the user will fail. This indicates that an important condition isn't met.
+    if (! $conf->exists('credentials.login')) {
+        $userIsLoggedIn = false;  // Shaarli is not configured yet.
+        $loginFailure = true;
+    }
+    if (isset($_COOKIE['shaarli_staySignedIn']) &&
+        $_COOKIE['shaarli_staySignedIn']===STAY_SIGNED_IN_TOKEN &&
+        !$loginFailure)
+    {
+        fillSessionInfo($conf);
+        $userIsLoggedIn = true;
+    }
+    // If session does not exist on server side, or IP address has changed, or session has expired, logout.
+    if (empty($_SESSION['uid'])
         || ($conf->get('security.session_protection_disabled') === false && $_SESSION['ip'] != allIPs())
         || time() >= $_SESSION['expires_on'])
-	{
-	    logout();
-	    $userIsLoggedIn = false;
-	    $loginFailure = true;
-	}
-	if (!empty($_SESSION['longlastingsession'])) {
-	    $_SESSION['expires_on']=time()+$_SESSION['longlastingsession']; // In case of "Stay signed in" checked.
-	}
-	else {
-	    $_SESSION['expires_on']=time()+INACTIVITY_TIMEOUT; // Standard session expiration date.
-	}
-	if (!$loginFailure) {
-	    $userIsLoggedIn = true;
-	}
+    {
+        logout();
+        $userIsLoggedIn = false;
+        $loginFailure = true;
+    }
+    if (!empty($_SESSION['longlastingsession'])) {
+        $_SESSION['expires_on']=time()+$_SESSION['longlastingsession']; // In case of "Stay signed in" checked.
+    }
+    else {
+        $_SESSION['expires_on']=time()+INACTIVITY_TIMEOUT; // Standard session expiration date.
+    }
+    if (!$loginFailure) {
+        $userIsLoggedIn = true;
+    }
 
-	return $userIsLoggedIn;
+    return $userIsLoggedIn;
 }
 $userIsLoggedIn = setup_login_state($conf);
 
@@ -245,10 +236,10 @@ function allIPs()
  */
 function fillSessionInfo($conf)
 {
-	$_SESSION['uid'] = sha1(uniqid('',true).'_'.mt_rand()); // Generate unique random number (different than phpsessionid)
-	$_SESSION['ip']=allIPs();                // We store IP address(es) of the client to make sure session is not hijacked.
-	$_SESSION['username']= $conf->get('credentials.login');
-	$_SESSION['expires_on']=time()+INACTIVITY_TIMEOUT;  // Set session expiration.
+    $_SESSION['uid'] = sha1(uniqid('',true).'_'.mt_rand()); // Generate unique random number (different than phpsessionid)
+    $_SESSION['ip']=allIPs();                // We store IP address(es) of the client to make sure session is not hijacked.
+    $_SESSION['username']= $conf->get('credentials.login');
+    $_SESSION['expires_on']=time()+INACTIVITY_TIMEOUT;  // Set session expiration.
 }
 
 /**
@@ -265,7 +256,7 @@ function check_auth($login, $password, $conf)
     $hash = sha1($password . $login . $conf->get('credentials.salt'));
     if ($login == $conf->get('credentials.login') && $hash == $conf->get('credentials.hash'))
     {   // Login/password is correct.
-		fillSessionInfo($conf);
+        fillSessionInfo($conf);
         logm($conf->get('resource.log'), $_SERVER['REMOTE_ADDR'], 'Login successful');
         return true;
     }
@@ -394,9 +385,10 @@ if (isset($_POST['login']))
         // If user wants to keep the session cookie even after the browser closes:
         if (!empty($_POST['longlastingsession']))
         {
-			setcookie('shaarli_staySignedIn', STAY_SIGNED_IN_TOKEN, time()+31536000, WEB_PATH);
-            $_SESSION['longlastingsession']=31536000;  // (31536000 seconds = 1 year)
-            $_SESSION['expires_on']=time()+$_SESSION['longlastingsession'];  // Set session expiration on server-side.
+            $_SESSION['longlastingsession'] = 31536000; // (31536000 seconds = 1 year)
+            $expiration = time() + $_SESSION['longlastingsession']; // calculate relative cookie expiration (1 year from now)
+            setcookie('shaarli_staySignedIn', STAY_SIGNED_IN_TOKEN, $expiration, WEB_PATH);
+            $_SESSION['expires_on'] = $expiration;  // Set session expiration on server-side.
 
             $cookiedir = ''; if(dirname($_SERVER['SCRIPT_NAME'])!='/') $cookiedir=dirname($_SERVER["SCRIPT_NAME"]).'/';
             session_set_cookie_params($_SESSION['longlastingsession'],$cookiedir,$_SERVER['SERVER_NAME']); // Set session cookie expiration on client side
@@ -591,20 +583,29 @@ function showDailyRSS($conf) {
  */
 function showDaily($pageBuilder, $LINKSDB, $conf, $pluginManager)
 {
-    $day=date('Ymd',strtotime('-1 day')); // Yesterday, in format YYYYMMDD.
-    if (isset($_GET['day'])) $day=$_GET['day'];
-
-    $days = $LINKSDB->days();
-    $i = array_search($day,$days);
-    if ($i===false) { $i=count($days)-1; $day=$days[$i]; }
-    $previousday='';
-    $nextday='';
-    if ($i!==false)
-    {
-        if ($i>=1) $previousday=$days[$i-1];
-        if ($i<count($days)-1) $nextday=$days[$i+1];
+    $day = date('Ymd', strtotime('-1 day')); // Yesterday, in format YYYYMMDD.
+    if (isset($_GET['day'])) {
+      $day = $_GET['day'];
     }
 
+    $days = $LINKSDB->days();
+    $i = array_search($day, $days);
+    if ($i === false && count($days)) {
+        // no links for day, but at least one day with links
+        $i = count($days) - 1;
+        $day = $days[$i];
+    }
+    $previousday = '';
+    $nextday = '';
+
+    if ($i !== false) {
+        if ($i >= 1) {
+             $previousday=$days[$i - 1];
+        }
+        if ($i < count($days) - 1) {
+          $nextday = $days[$i + 1];
+        }
+    }
     try {
         $linksToDisplay = $LINKSDB->filterDay($day);
     } catch (Exception $exc) {
@@ -613,9 +614,7 @@ function showDaily($pageBuilder, $LINKSDB, $conf, $pluginManager)
     }
 
     // We pre-format some fields for proper output.
-    foreach($linksToDisplay as $key=>$link)
-    {
-
+    foreach($linksToDisplay as $key => $link) {
         $taglist = explode(' ',$link['tags']);
         uasort($taglist, 'strcasecmp');
         $linksToDisplay[$key]['taglist']=$taglist;
@@ -629,21 +628,22 @@ function showDaily($pageBuilder, $LINKSDB, $conf, $pluginManager)
        so I manually spread entries with a simple method: I roughly evaluate the
        height of a div according to title and description length.
     */
-    $columns=array(array(),array(),array()); // Entries to display, for each column.
-    $fill=array(0,0,0);  // Rough estimate of columns fill.
-    foreach($linksToDisplay as $key=>$link)
-    {
+    $columns = array(array(), array(), array()); // Entries to display, for each column.
+    $fill = array(0, 0, 0);  // Rough estimate of columns fill.
+    foreach($linksToDisplay as $key => $link) {
         // Roughly estimate length of entry (by counting characters)
         // Title: 30 chars = 1 line. 1 line is 30 pixels height.
         // Description: 836 characters gives roughly 342 pixel height.
         // This is not perfect, but it's usually OK.
-        $length=strlen($link['title'])+(342*strlen($link['description']))/836;
-        if ($link['thumbnail']) $length +=100; // 1 thumbnails roughly takes 100 pixels height.
+        $length = strlen($link['title']) + (342 * strlen($link['description'])) / 836;
+        if ($link['thumbnail']) {
+          $length += 100; // 1 thumbnails roughly takes 100 pixels height.
+        }
         // Then put in column which is the less filled:
-        $smallest=min($fill); // find smallest value in array.
-        $index=array_search($smallest,$fill); // find index of this smallest value.
-        array_push($columns[$index],$link); // Put entry in this column.
-        $fill[$index]+=$length;
+        $smallest = min($fill); // find smallest value in array.
+        $index = array_search($smallest, $fill); // find index of this smallest value.
+        array_push($columns[$index], $link); // Put entry in this column.
+        $fill[$index] += $length;
     }
 
     $dayDate = DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, $day.'_000000');
@@ -718,6 +718,23 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
     $query = (isset($_SERVER['QUERY_STRING'])) ? $_SERVER['QUERY_STRING'] : '';
     $targetPage = Router::findPage($query, $_GET, isLoggedIn());
 
+    if (
+        // if the user isn't logged in
+        !isLoggedIn() &&
+        // and Shaarli doesn't have public content...
+        $conf->get('privacy.hide_public_links') &&
+        // and is configured to enforce the login
+        $conf->get('privacy.force_login') &&
+        // and the current page isn't already the login page
+        $targetPage !== Router::$PAGE_LOGIN &&
+        // and the user is not requesting a feed (which would lead to a different content-type as expected)
+        $targetPage !== Router::$PAGE_FEED_ATOM &&
+        $targetPage !== Router::$PAGE_FEED_RSS
+    ) {
+        // force current page to be the login page
+        $targetPage = Router::$PAGE_LOGIN;
+    }
+
     // Call plugin hooks for header, footer and includes, specifying which page will be rendered.
     // Then assign generated data to RainTPL.
     $common_hooks = array(
@@ -745,6 +762,8 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
             $PAGE->assign('username', escape($_GET['username']));
         }
         $PAGE->assign('returnurl',(isset($_SERVER['HTTP_REFERER']) ? escape($_SERVER['HTTP_REFERER']):''));
+        // add default state of the 'remember me' checkbox
+        $PAGE->assign('remember_user_default', $conf->get('privacy.remember_user_default'));
         $PAGE->renderPage('loginform');
         exit;
     }
@@ -803,7 +822,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
             $maxcount = max($maxcount, $value);
         }
 
-        alphabetical_sort($tags, true, true);
+        alphabetical_sort($tags, false, true);
 
         $tagList = array();
         foreach($tags as $key => $value) {
@@ -821,7 +840,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
         }
 
         $data = array(
-            'search_tags' => implode(' ', $filteringTags),
+            'search_tags' => implode(' ', escape($filteringTags)),
             'tags' => $tagList,
         );
         $pluginManager->executeHooks('render_tagcloud', $data, array('loggedin' => isLoggedIn()));
@@ -851,7 +870,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
         }
 
         $data = [
-            'search_tags' => implode(' ', $filteringTags),
+            'search_tags' => implode(' ', escape($filteringTags)),
             'tags' => $tags,
         ];
         $pluginManager->executeHooks('render_taglist', $data, ['loggedin' => isLoggedIn()]);
@@ -1063,10 +1082,10 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
     // -------- Display the Tools menu if requested (import/export/bookmarklet...)
     if ($targetPage == Router::$PAGE_TOOLS)
     {
-        $data = array(
+        $data = [
             'pageabsaddr' => index_url($_SERVER),
-            'sslenabled' => !empty($_SERVER['HTTPS'])
-        );
+            'sslenabled' => is_https($_SERVER),
+        ];
         $pluginManager->executeHooks('render_tools', $data);
 
         foreach ($data as $key => $value) {
@@ -1233,7 +1252,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
         // Linkdate is kept here to:
         //   - use the same permalink for notes as they're displayed when creating them
         //   - let users hack creation date of their posts
-        //     See: https://github.com/shaarli/Shaarli/wiki/Datastore-hacks#changing-the-timestamp-for-a-link
+        //     See: https://shaarli.readthedocs.io/en/master/Various-hacks/#changing-the-timestamp-for-a-shaare
         $linkdate = escape($_POST['lf_linkdate']);
         if (isset($LINKSDB[$id])) {
             // Edit
@@ -1256,6 +1275,9 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
         // Remove duplicates.
         $tags = implode(' ', array_unique(explode(' ', $tags)));
 
+        if (empty(trim($_POST['lf_url']))) {
+            $_POST['lf_url'] = '?' . smallHash($linkdate . $id);
+        }
         $url = whitelist_protocols(trim($_POST['lf_url']), $conf->get('security.allowed_protocols'));
 
         $link = array(
@@ -1325,10 +1347,17 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
             die('Wrong token.');
         }
 
-        if (strpos($_GET['lf_linkdate'], ' ') !== false) {
-            $ids = array_values(array_filter(preg_split('/\s+/', escape($_GET['lf_linkdate']))));
+        $ids = trim($_GET['lf_linkdate']);
+        if (strpos($ids, ' ') !== false) {
+            // multiple, space-separated ids provided
+            $ids = array_values(array_filter(preg_split('/\s+/', escape($ids))));
         } else {
-            $ids = [$_GET['lf_linkdate']];
+            // only a single id provided
+            $ids = [$ids];
+        }
+        // assert at least one id is given
+        if(!count($ids)){
+            die('no id provided');
         }
         foreach ($ids as $id) {
             $id = (int) escape($id);
@@ -1414,7 +1443,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
 
             if ($url == '') {
                 $url = '?' . smallHash($linkdate . $LINKSDB->getNextId());
-                $title = 'Note: ';
+                $title = $conf->get('general.default_note_title', 'Note: ');
             }
             $url = escape($url);
             $title = escape($title);

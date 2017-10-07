@@ -22,6 +22,17 @@ It runs the latest development version of Shaarli and is updated/reset daily.
 
 Login: `demo`; Password: `demo`
 
+Docker users can start a personal instance from an [autobuild image](https://hub.docker.com/r/shaarli/shaarli/). For example to start a temporary Shaarli at ``localhost:8000``, and keep session data (config, storage):
+```
+MY_SHAARLI_VOLUME=$(cd /path/to/shaarli/data/ && pwd -P)
+docker run -ti --rm \
+         -p 8000:80 \
+         -v $MY_SHAARLI_VOLUME:/var/www/shaarli/data \
+         shaarli/shaarli
+```
+
+A brief guide on getting starting using docker is given in [Docker 101](docker/docker-101).
+To learn more about user data and how to keep it across versions, please see [Upgrade and Migration](Upgrade-and-migration) documentation.
 
 ## Features
 
@@ -37,7 +48,7 @@ Login: `demo`; Password: `demo`
     - daily RSS feed
 - permalinks for easy reference
 - links can be public or private
-- extensible through [plugins](https://github.com/shaarli/Shaarli/wiki/Plugins#plugin-usage)
+- extensible through [plugins](https://shaarli.readthedocs.io/en/master/Plugins/#plugin-usage)
 
 ### Tag, view and search your links!
 - add a custom title and description to archived links

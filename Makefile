@@ -19,6 +19,16 @@ PHP_COMMA_SOURCE = index.php,application,tests,plugins
 all: static_analysis_summary check_permissions test
 
 ##
+# Docker test adapter
+#
+# Shaarli sources and vendored libraries are copied from a shared volume
+# to a user-owned directory to enable running tests as a non-root user.
+##
+docker_%:
+	rsync -az /shaarli/ ~/shaarli/
+	cd ~/shaarli && make $*
+
+##
 # Concise status of the project
 # These targets are non-blocking: || exit 0
 ##
@@ -159,14 +169,14 @@ composer_dependencies: clean
 	find vendor/ -name ".git" -type d -exec rm -rf {} +
 
 ### generate a release tarball and include 3rd-party dependencies
-release_tar: composer_dependencies doc_html
+release_tar: composer_dependencies htmldoc
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).tar HEAD
 	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^vendor|$(ARCHIVE_PREFIX)vendor|" vendor/
 	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^doc/html|$(ARCHIVE_PREFIX)doc/html|" doc/html/
 	gzip $(ARCHIVE_VERSION).tar
 
 ### generate a release zip and include 3rd-party dependencies
-release_zip: composer_dependencies doc_html
+release_zip: composer_dependencies htmldoc
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).zip -9 HEAD
 	mkdir -p $(ARCHIVE_PREFIX)/{doc,vendor}
 	rsync -a doc/html/ $(ARCHIVE_PREFIX)doc/html/
@@ -195,17 +205,11 @@ doxygen: clean
 	@rm -rf doxygen
 	@( cat Doxyfile ; echo "PROJECT_NUMBER=`git describe`" ) | doxygen -
 
-### Convert local markdown documentation to HTML
-#
-# For all pages:
-#  - convert GitHub-flavoured relative links to standard Markdown
-#  - generate html documentation with mkdocs
-htmlpages:
+### generate HTML documentation from Markdown pages with MkDocs
+htmldoc:
 	python3 -m venv venv/
 	bash -c 'source venv/bin/activate; \
 	pip install mkdocs; \
 	mkdocs build'
 	find doc/html/ -type f -exec chmod a-x '{}' \;
 	rm -r venv
-
-doc_html: authors htmlpages
