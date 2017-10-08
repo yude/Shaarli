@@ -9,8 +9,8 @@ use Shaarli\Config\Exception\UnauthorizedConfigException;
  *
  * Manages all Shaarli's settings.
  * See the documentation for more information on settings:
- *   - doc/Shaarli-configuration.html
- *   - https://github.com/shaarli/Shaarli/wiki/Shaarli-configuration
+ *   - doc/md/Shaarli-configuration.md
+ *   - https://shaarli.readthedocs.io/en/master/Shaarli-configuration/#configuration
  */
 class ConfigManager
 {
@@ -317,6 +317,7 @@ class ConfigManager
         $this->setEmpty('general.header_link', '?');
         $this->setEmpty('general.links_per_page', 20);
         $this->setEmpty('general.enabled_plugins', self::$DEFAULT_PLUGINS);
+        $this->setEmpty('general.default_note_title', 'Note: ');
 
         $this->setEmpty('updates.check_updates', false);
         $this->setEmpty('updates.check_updates_branch', 'stable');
@@ -327,7 +328,10 @@ class ConfigManager
 
         $this->setEmpty('privacy.default_private_links', false);
         $this->setEmpty('privacy.hide_public_links', false);
+        $this->setEmpty('privacy.force_login', false);
         $this->setEmpty('privacy.hide_timestamps', false);
+        // default state of the 'remember me' checkbox of the login form
+        $this->setEmpty('privacy.remember_user_default', true);
 
         $this->setEmpty('thumbnail.enable_thumbnails', true);
         $this->setEmpty('thumbnail.enable_localcache', true);

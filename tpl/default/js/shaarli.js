@@ -275,8 +275,14 @@ window.onload = function () {
     };
     function init () {
         function resize () {
+            /* Fix jumpy resizing: https://stackoverflow.com/a/18262927/1484919 */
+            var scrollTop  = window.pageYOffset ||
+                (document.documentElement || document.body.parentNode || document.body).scrollTop;
+
             description.style.height = 'auto';
             description.style.height = description.scrollHeight+10+'px';
+
+            window.scrollTo(0, scrollTop);
         }
         /* 0-timeout to get the already changed text */
         function delayedResize () {
@@ -401,14 +407,14 @@ window.onload = function () {
 
             var message = 'Are you sure you want to delete '+ links.length +' links?\n';
             message += 'This action is IRREVERSIBLE!\n\nTitles:\n';
-            var ids = '';
+            var ids = [];
             links.forEach(function(item) {
                 message += '  - '+ item['title'] +'\n';
-                ids += item['id'] +'+';
+                ids.push(item['id']);
             });
 
             if (window.confirm(message)) {
-                window.location = '?delete_link&lf_linkdate='+ ids +'&token='+ token.value;
+                window.location = '?delete_link&lf_linkdate='+ ids.join('+') +'&token='+ token.value;
             }
         });
     }
@@ -607,10 +613,11 @@ function htmlEntities(str)
 function activateFirefoxSocial(node) {
     var loc = location.href;
     var baseURL = loc.substring(0, loc.lastIndexOf("/") + 1);
+    var title = document.title;
 
     // Keeping the data separated (ie. not in the DOM) so that it's maintainable and diffable.
     var data = {
-        name: "{$shaarlititle}",
+        name: title,
         description: "The personal, minimalist, super-fast, database free, bookmarking service by the Shaarli community.",
         author: "Shaarli",
         version: "1.0.0",

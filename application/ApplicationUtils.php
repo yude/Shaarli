@@ -168,14 +168,15 @@ class ApplicationUtils
     public static function checkResourcePermissions($conf)
     {
         $errors = array();
+        $rainTplDir = rtrim($conf->get('resource.raintpl_tpl'), '/');
 
         // Check script and template directories are readable
         foreach (array(
             'application',
             'inc',
             'plugins',
-            $conf->get('resource.raintpl_tpl'),
-            $conf->get('resource.raintpl_tpl').'/'.$conf->get('resource.theme'),
+            $rainTplDir,
+            $rainTplDir.'/'.$conf->get('resource.theme'),
         ) as $path) {
             if (! is_readable(realpath($path))) {
                 $errors[] = '"'.$path.'" directory is not readable';
@@ -219,5 +220,20 @@ class ApplicationUtils
         }
 
         return $errors;
+    }
+
+    /**
+     * Returns a salted hash representing the current Shaarli version.
+     *
+     * Useful for assets browser cache.
+     *
+     * @param string $currentVersion of Shaarli
+     * @param string $salt           User personal salt, also used for the authentication
+     *
+     * @return string version hash
+     */
+    public static function getVersionHash($currentVersion, $salt)
+    {
+        return hash_hmac('sha256', $currentVersion, $salt);
     }
 }
