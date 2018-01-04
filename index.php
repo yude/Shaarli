@@ -1,6 +1,6 @@
 <?php
 /**
- * Shaarli v0.8.4 - Shaare your links...
+ * Shaarli v0.8.5 - Shaare your links...
  *
  * The personal, minimalist, super-fast, database free, bookmarking service.
  *
@@ -459,7 +459,7 @@ if (isset($_POST['login']))
     else
     {
         ban_loginFailed($conf);
-        $redir = '&username='. $_POST['login'];
+        $redir = '&username='. urlencode($_POST['login']);
         if (isset($_GET['post'])) {
             $redir .= '&post=' . urlencode($_GET['post']);
             foreach (array('description', 'source', 'title') as $param) {
