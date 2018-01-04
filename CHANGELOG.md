@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.9.3](https://github.com/shaarli/Shaarli/releases/tag/v0.9.3) - 2018-01-04
+
+**XSS vulnerability fixed. Please update.**
+
+### Security
+- Fix an XSS (cross-site-scripting) vulnerability in `index.php`
+
+
 ## [v0.9.2](https://github.com/shaarli/Shaarli/releases/tag/v0.9.2) - 2017-10-07
 
 **Major security issue fixed. Please update.**
