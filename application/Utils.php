@@ -182,36 +182,6 @@ function generateLocation($referer, $host, $loopTerms = array())
 }
 
 /**
- * Validate session ID to prevent Full Path Disclosure.
- *
- * See #298.
- * The session ID's format depends on the hash algorithm set in PHP settings
- *
- * @param string $sessionId Session ID
- *
- * @return true if valid, false otherwise.
- *
- * @see http://php.net/manual/en/function.hash-algos.php
- * @see http://php.net/manual/en/session.configuration.php
- */
-function is_session_id_valid($sessionId)
-{
-    if (empty($sessionId)) {
-        return false;
-    }
-
-    if (!$sessionId) {
-        return false;
-    }
-
-    if (!preg_match('/^[a-zA-Z0-9,-]{2,128}$/', $sessionId)) {
-        return false;
-    }
-
-    return true;
-}
-
-/**
  * Sniff browser language to set the locale automatically.
  * Note that is may not work on your server if the corresponding locale is not installed.
  *
@@ -452,7 +422,7 @@ function get_max_upload_size($limitPost, $limitUpload, $format = true)
  */
 function alphabetical_sort(&$data, $reverse = false, $byKeys = false)
 {
-    $callback = function($a, $b) use ($reverse) {
+    $callback = function ($a, $b) use ($reverse) {
         // Collator is part of PHP intl.
         if (class_exists('Collator')) {
             $collator = new Collator(setlocale(LC_COLLATE, 0));
@@ -469,4 +439,19 @@ function alphabetical_sort(&$data, $reverse = false, $byKeys = false)
     } else {
         usort($data, $callback);
     }
+}
+
+/**
+ * Wrapper function for translation which match the API
+ * of gettext()/_() and ngettext().
+ *
+ * @param string $text   Text to translate.
+ * @param string $nText  The plural message ID.
+ * @param int    $nb     The number of items for plural forms.
+ * @param string $domain The domain where the translation is stored (default: shaarli).
+ *
+ * @return string Text translated.
+ */
+function t($text, $nText = '', $nb = 1, $domain = 'shaarli') {
+    return dn__($domain, $text, $nText, $nb);
 }

@@ -32,11 +32,10 @@ class NetscapeBookmarkUtils
     {
         // see tpl/export.html for possible values
         if (! in_array($selection, array('all', 'public', 'private'))) {
-            throw new Exception('Invalid export selection: "'.$selection.'"');
+            throw new Exception(t('Invalid export selection:') .' "'.$selection.'"');
         }
 
         $bookmarkLinks = array();
-
         foreach ($linkDb as $link) {
             if ($link['private'] != 0 && $selection == 'public') {
                 continue;
@@ -66,6 +65,7 @@ class NetscapeBookmarkUtils
      * @param int    $importCount    how many links were imported
      * @param int    $overwriteCount how many links were overwritten
      * @param int    $skipCount      how many links were skipped
+     * @param int    $duration       how many seconds did the import take
      *
      * @return string Summary of the bookmark import status
      */
@@ -74,16 +74,18 @@ class NetscapeBookmarkUtils
         $filesize,
         $importCount=0,
         $overwriteCount=0,
-        $skipCount=0
+        $skipCount=0,
+        $duration=0
     )
     {
-        $status = 'File '.$filename.' ('.$filesize.' bytes) ';
+        $status = sprintf(t('File %s (%d bytes) '), $filename, $filesize);
         if ($importCount == 0 && $overwriteCount == 0 && $skipCount == 0) {
-            $status .= 'has an unknown file format. Nothing was imported.';
+            $status .= t('has an unknown file format. Nothing was imported.');
         } else {
-            $status .= 'was successfully processed: '.$importCount.' links imported, ';
-            $status .= $overwriteCount.' links overwritten, ';
-            $status .= $skipCount.' links skipped.';
+            $status .= vsprintf(
+                t('was successfully processed in %d seconds: %d links imported, %d links overwritten, %d links skipped.'),
+                [$duration, $importCount, $overwriteCount, $skipCount]
+            );
         }
         return $status;
     }
@@ -101,6 +103,7 @@ class NetscapeBookmarkUtils
      */
     public static function import($post, $files, $linkDb, $conf, $history)
     {
+        $start = time();
         $filename = $files['filetoupload']['name'];
         $filesize = $files['filetoupload']['size'];
         $data = file_get_contents($files['filetoupload']['tmp_name']);
@@ -184,7 +187,6 @@ class NetscapeBookmarkUtils
                 $linkDb[$existingLink['id']] = $newLink;
                 $importCount++;
                 $overwriteCount++;
-                $history->updateLink($newLink);
                 continue;
             }
 
@@ -196,16 +198,19 @@ class NetscapeBookmarkUtils
             $newLink['shorturl'] = link_small_hash($newLink['created'], $newLink['id']);
             $linkDb[$newLink['id']] = $newLink;
             $importCount++;
-            $history->addLink($newLink);
         }
 
         $linkDb->save($conf->get('resource.page_cache'));
+        $history->importLinks();
+
+        $duration = time() - $start;
         return self::importStatus(
             $filename,
             $filesize,
             $importCount,
             $overwriteCount,
-            $skipCount
+            $skipCount,
+            $duration
         );
     }
 }

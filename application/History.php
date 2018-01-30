@@ -16,6 +16,7 @@
  *   - UPDATED: link updated
  *   - DELETED: link deleted
  *   - SETTINGS: the settings have been updated through the UI.
+ *   - IMPORT: bulk links import
  *
  * Note: new events are put at the beginning of the file and history array.
  */
@@ -40,6 +41,11 @@ class History
      * @var string Action key: settings have been updated.
      */
     const SETTINGS = 'SETTINGS';
+
+    /**
+     * @var string Action key: a bulk import has been processed.
+     */
+    const IMPORT = 'IMPORT';
 
     /**
      * @var string History file path.
@@ -122,6 +128,16 @@ class History
     }
 
     /**
+     * Add Event: bulk import.
+     *
+     * Note: we don't store links add/update one by one since it can have a huge impact on performances.
+     */
+    public function importLinks()
+    {
+        $this->addEvent(self::IMPORT);
+    }
+
+    /**
      * Save a new event and write it in the history file.
      *
      * @param string $status Event key, should be defined as constant.
@@ -155,7 +171,7 @@ class History
         }
 
         if (! is_writable($this->historyFilePath)) {
-            throw new Exception('History file isn\'t readable or writable');
+            throw new Exception(t('History file isn\'t readable or writable'));
         }
     }
 
@@ -166,7 +182,7 @@ class History
     {
         $this->history = FileUtils::readFlatDB($this->historyFilePath, []);
         if ($this->history === false) {
-            throw new Exception('Could not parse history file');
+            throw new Exception(t('Could not parse history file'));
         }
     }
 

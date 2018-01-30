@@ -64,7 +64,6 @@ require_once 'application/FeedBuilder.php';
 require_once 'application/FileUtils.php';
 require_once 'application/History.php';
 require_once 'application/HttpUtils.php';
-require_once 'application/Languages.php';
 require_once 'application/LinkDB.php';
 require_once 'application/LinkFilter.php';
 require_once 'application/LinkUtils.php';
@@ -76,8 +75,10 @@ require_once 'application/Utils.php';
 require_once 'application/PluginManager.php';
 require_once 'application/Router.php';
 require_once 'application/Updater.php';
+use \Shaarli\Languages;
 use \Shaarli\ThemeUtils;
 use \Shaarli\Config\ConfigManager;
+use \Shaarli\SessionManager;
 
 // Ensure the PHP version is supported
 try {
@@ -115,14 +116,23 @@ if (session_id() == '') {
 }
 
 // Regenerate session ID if invalid or not defined in cookie.
-if (isset($_COOKIE['shaarli']) && !is_session_id_valid($_COOKIE['shaarli'])) {
+if (isset($_COOKIE['shaarli']) && !SessionManager::checkId($_COOKIE['shaarli'])) {
     session_regenerate_id(true);
     $_COOKIE['shaarli'] = session_id();
 }
 
 $conf = new ConfigManager();
+$sessionManager = new SessionManager($_SESSION, $conf);
+
+// Sniff browser language and set date format accordingly.
+if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
+    autoLocale($_SERVER['HTTP_ACCEPT_LANGUAGE']);
+}
+
+new Languages(setlocale(LC_MESSAGES, 0), $conf);
+
 $conf->setEmpty('general.timezone', date_default_timezone_get());
-$conf->setEmpty('general.title', 'Shared links on '. escape(index_url($_SERVER)));
+$conf->setEmpty('general.title', t('Shared links on '). escape(index_url($_SERVER)));
 RainTPL::$tpl_dir = $conf->get('resource.raintpl_tpl').'/'.$conf->get('resource.theme').'/'; // template directory
 RainTPL::$cache_dir = $conf->get('resource.raintpl_tmp'); // cache directory
 
@@ -144,7 +154,7 @@ if (! is_file($conf->getConfigFileExt())) {
     $errors = ApplicationUtils::checkResourcePermissions($conf);
 
     if ($errors != array()) {
-        $message = '<p>Insufficient permissions:</p><ul>';
+        $message = '<p>'. t('Insufficient permissions:') .'</p><ul>';
 
         foreach ($errors as $error) {
             $message .= '<li>'.$error.'</li>';
@@ -157,16 +167,11 @@ if (! is_file($conf->getConfigFileExt())) {
     }
 
     // Display the installation form if no existing config is found
-    install($conf);
+    install($conf, $sessionManager);
 }
 
 // a token depending of deployment salt, user password, and the current ip
 define('STAY_SIGNED_IN_TOKEN', sha1($conf->get('credentials.hash') . $_SERVER['REMOTE_ADDR'] . $conf->get('credentials.salt')));
-
-// Sniff browser language and set date format accordingly.
-if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
-    autoLocale($_SERVER['HTTP_ACCEPT_LANGUAGE']);
-}
 
 /**
  * Checking session state (i.e. is the user still logged in)
@@ -376,9 +381,9 @@ function ban_canLogin($conf)
 // Process login form: Check if login/password is correct.
 if (isset($_POST['login']))
 {
-    if (!ban_canLogin($conf)) die('I said: NO. You are banned for the moment. Go away.');
+    if (!ban_canLogin($conf)) die(t('I said: NO. You are banned for the moment. Go away.'));
     if (isset($_POST['password'])
-        && tokenOk($_POST['token'])
+        && $sessionManager->checkToken($_POST['token'])
         && (check_auth($_POST['login'], $_POST['password'], $conf))
     ) {   // Login/password is OK.
         ban_loginOk($conf);
@@ -440,7 +445,8 @@ if (isset($_POST['login']))
                 }
             }
         }
-        echo '<script>alert("Wrong login/password.");document.location=\'?do=login'.$redir.'\';</script>'; // Redirect to login screen.
+        // Redirect to login screen.
+        echo '<script>alert("'. t("Wrong login/password.") .'");document.location=\'?do=login'.$redir.'\';</script>';
         exit;
     }
 }
@@ -449,32 +455,6 @@ if (isset($_POST['login']))
 // Token management for XSRF protection
 // Token should be used in any form which acts on data (create,update,delete,import...).
 if (!isset($_SESSION['tokens'])) $_SESSION['tokens']=array();  // Token are attached to the session.
-
-/**
- * Returns a token.
- *
- * @param ConfigManager $conf Configuration Manager instance.
- *
- * @return string token.
- */
-function getToken($conf)
-{
-    $rnd = sha1(uniqid('', true) .'_'. mt_rand() . $conf->get('credentials.salt'));  // We generate a random string.
-    $_SESSION['tokens'][$rnd]=1;  // Store it on the server side.
-    return $rnd;
-}
-
-// Tells if a token is OK. Using this function will destroy the token.
-// true=token is OK.
-function tokenOk($token)
-{
-    if (isset($_SESSION['tokens'][$token]))
-    {
-        unset($_SESSION['tokens'][$token]); // Token is used: destroy it.
-        return true; // Token is OK.
-    }
-    return false; // Wrong token, or already used.
-}
 
 /**
  * Daily RSS feed: 1 RSS entry per day giving all the links on that day.
@@ -546,7 +526,11 @@ function showDailyRSS($conf) {
 
         // We pre-format some fields for proper output.
         foreach ($links as &$link) {
-            $link['formatedDescription'] = format_description($link['description'], $conf->get('redirector.url'));
+            $link['formatedDescription'] = format_description(
+                $link['description'],
+                $conf->get('redirector.url'),
+                $conf->get('redirector.encode_url')
+            );
             $link['thumbnail'] = thumbnail($conf, $link['url']);
             $link['timestamp'] = $link['created']->getTimestamp();
             if (startsWith($link['url'], '?')) {
@@ -618,7 +602,11 @@ function showDaily($pageBuilder, $LINKSDB, $conf, $pluginManager)
         $taglist = explode(' ',$link['tags']);
         uasort($taglist, 'strcasecmp');
         $linksToDisplay[$key]['taglist']=$taglist;
-        $linksToDisplay[$key]['formatedDescription'] = format_description($link['description'], $conf->get('redirector.url'));
+        $linksToDisplay[$key]['formatedDescription'] = format_description(
+            $link['description'],
+            $conf->get('redirector.url'),
+            $conf->get('redirector.encode_url')
+        );
         $linksToDisplay[$key]['thumbnail'] = thumbnail($conf, $link['url']);
         $linksToDisplay[$key]['timestamp'] =  $link['created']->getTimestamp();
     }
@@ -683,12 +671,13 @@ function showLinkList($PAGE, $LINKSDB, $conf, $pluginManager) {
 /**
  * Render HTML page (according to URL parameters and user rights)
  *
- * @param ConfigManager $conf          Configuration Manager instance.
- * @param PluginManager $pluginManager Plugin Manager instance,
- * @param LinkDB        $LINKSDB
- * @param History       $history       instance
+ * @param ConfigManager  $conf           Configuration Manager instance.
+ * @param PluginManager  $pluginManager  Plugin Manager instance,
+ * @param LinkDB         $LINKSDB
+ * @param History        $history        instance
+ * @param SessionManager $sessionManager SessionManager instance
  */
-function renderPage($conf, $pluginManager, $LINKSDB, $history)
+function renderPage($conf, $pluginManager, $LINKSDB, $history, $sessionManager)
 {
     $updater = new Updater(
         read_updates_file($conf->get('resource.updates')),
@@ -709,7 +698,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
         die($e->getMessage());
     }
 
-    $PAGE = new PageBuilder($conf, $LINKSDB);
+    $PAGE = new PageBuilder($conf, $LINKSDB, $sessionManager->generateToken());
     $PAGE->assign('linkcount', count($LINKSDB));
     $PAGE->assign('privateLinkcount', count_private($LINKSDB));
     $PAGE->assign('plugin_errors', $pluginManager->getErrors());
@@ -1100,16 +1089,19 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
     if ($targetPage == Router::$PAGE_CHANGEPASSWORD)
     {
         if ($conf->get('security.open_shaarli')) {
-            die('You are not supposed to change a password on an Open Shaarli.');
+            die(t('You are not supposed to change a password on an Open Shaarli.'));
         }
 
         if (!empty($_POST['setpassword']) && !empty($_POST['oldpassword']))
         {
-            if (!tokenOk($_POST['token'])) die('Wrong token.'); // Go away!
+            if (!$sessionManager->checkToken($_POST['token'])) die(t('Wrong token.')); // Go away!
 
             // Make sure old password is correct.
             $oldhash = sha1($_POST['oldpassword'].$conf->get('credentials.login').$conf->get('credentials.salt'));
-            if ($oldhash!= $conf->get('credentials.hash')) { echo '<script>alert("The old password is not correct.");document.location=\'?do=changepasswd\';</script>'; exit; }
+            if ($oldhash!= $conf->get('credentials.hash')) {
+                echo '<script>alert("'. t('The old password is not correct.') .'");document.location=\'?do=changepasswd\';</script>';
+                exit;
+            }
             // Save new password
             // Salt renders rainbow-tables attacks useless.
             $conf->set('credentials.salt', sha1(uniqid('', true) .'_'. mt_rand()));
@@ -1127,7 +1119,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
                 echo '<script>alert("'. $e->getMessage() .'");document.location=\'?do=tools\';</script>';
                 exit;
             }
-            echo '<script>alert("Your password has been changed.");document.location=\'?do=tools\';</script>';
+            echo '<script>alert("'. t('Your password has been changed') .'");document.location=\'?do=tools\';</script>';
             exit;
         }
         else // show the change password form.
@@ -1142,8 +1134,8 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
     {
         if (!empty($_POST['title']) )
         {
-            if (!tokenOk($_POST['token'])) {
-                die('Wrong token.'); // Go away!
+            if (!$sessionManager->checkToken($_POST['token'])) {
+                die(t('Wrong token.')); // Go away!
             }
             $tz = 'UTC';
             if (!empty($_POST['continent']) && !empty($_POST['city'])
@@ -1163,6 +1155,8 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
             $conf->set('privacy.hide_public_links', !empty($_POST['hidePublicLinks']));
             $conf->set('api.enabled', !empty($_POST['enableApi']));
             $conf->set('api.secret', escape($_POST['apiSecret']));
+            $conf->set('translation.language', escape($_POST['language']));
+
             try {
                 $conf->write(isLoggedIn());
                 $history->updateSettings();
@@ -1178,7 +1172,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
                 echo '<script>alert("'. $e->getMessage() .'");document.location=\'?do=configure\';</script>';
                 exit;
             }
-            echo '<script>alert("Configuration was saved.");document.location=\'?do=configure\';</script>';
+            echo '<script>alert("'. t('Configuration was saved.') .'");document.location=\'?do=configure\';</script>';
             exit;
         }
         else // Show the configuration form.
@@ -1200,6 +1194,8 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
             $PAGE->assign('hide_public_links', $conf->get('privacy.hide_public_links', false));
             $PAGE->assign('api_enabled', $conf->get('api.enabled', true));
             $PAGE->assign('api_secret', $conf->get('api.secret'));
+            $PAGE->assign('languages', Languages::getAvailableLanguages());
+            $PAGE->assign('language', $conf->get('translation.language'));
             $PAGE->renderPage('configure');
             exit;
         }
@@ -1214,8 +1210,8 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
             exit;
         }
 
-        if (!tokenOk($_POST['token'])) {
-            die('Wrong token.');
+        if (!$sessionManager->checkToken($_POST['token'])) {
+            die(t('Wrong token.'));
         }
 
         $alteredLinks = $LINKSDB->renameTag(escape($_POST['fromtag']), escape($_POST['totag']));
@@ -1225,9 +1221,10 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
         }
         $delete = empty($_POST['totag']);
         $redirect = $delete ? 'do=changetag' : 'searchtags='. urlencode(escape($_POST['totag']));
+        $count = count($alteredLinks);
         $alert = $delete
-            ? sprintf(t('The tag was removed from %d links.'), count($alteredLinks))
-            : sprintf(t('The tag was renamed in %d links.'), count($alteredLinks));
+            ? sprintf(t('The tag was removed from %d link.', 'The tag was removed from %d links.', $count), $count)
+            : sprintf(t('The tag was renamed in %d link.', 'The tag was renamed in %d links.', $count), $count);
         echo '<script>alert("'. $alert .'");document.location=\'?'. $redirect .'\';</script>';
         exit;
     }
@@ -1243,8 +1240,8 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
     if (isset($_POST['save_edit']))
     {
         // Go away!
-        if (! tokenOk($_POST['token'])) {
-            die('Wrong token.');
+        if (! $sessionManager->checkToken($_POST['token'])) {
+            die(t('Wrong token.'));
         }
 
         // lf_id should only be present if the link exists.
@@ -1343,8 +1340,8 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
     // -------- User clicked the "Delete" button when editing a link: Delete link from database.
     if ($targetPage == Router::$PAGE_DELETELINK)
     {
-        if (! tokenOk($_GET['token'])) {
-            die('Wrong token.');
+        if (! $sessionManager->checkToken($_GET['token'])) {
+            die(t('Wrong token.'));
         }
 
         $ids = trim($_GET['lf_linkdate']);
@@ -1428,22 +1425,16 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
             // If this is an HTTP(S) link, we try go get the page to extract the title (otherwise we will to straight to the edit form.)
             if (empty($title) && strpos(get_url_scheme($url), 'http') !== false) {
                 // Short timeout to keep the application responsive
-                list($headers, $content) = get_http_response($url, 4);
-                if (strpos($headers[0], '200 OK') !== false) {
-                    // Retrieve charset.
-                    $charset = get_charset($headers, $content);
-                    // Extract title.
-                    $title = html_extract_title($content);
-                    // Re-encode title in utf-8 if necessary.
-                    if (! empty($title) && strtolower($charset) != 'utf-8') {
-                        $title = mb_convert_encoding($title, 'utf-8', $charset);
-                    }
+                // The callback will fill $charset and $title with data from the downloaded page.
+                get_http_response($url, 25, 4194304, get_curl_download_callback($charset, $title));
+                if (! empty($title) && strtolower($charset) != 'utf-8') {
+                    $title = mb_convert_encoding($title, 'utf-8', $charset);
                 }
             }
 
             if ($url == '') {
                 $url = '?' . smallHash($linkdate . $LINKSDB->getNextId());
-                $title = $conf->get('general.default_note_title', 'Note: ');
+                $title = $conf->get('general.default_note_title', t('Note: '));
             }
             $url = escape($url);
             $title = escape($title);
@@ -1550,14 +1541,17 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
         // Import bookmarks from an uploaded file
         if (isset($_FILES['filetoupload']['size']) && $_FILES['filetoupload']['size'] == 0) {
             // The file is too big or some form field may be missing.
-            echo '<script>alert("The file you are trying to upload is probably'
-                .' bigger than what this webserver can accept ('
-                .get_max_upload_size(ini_get('post_max_size'), ini_get('upload_max_filesize')).').'
-                .' Please upload in smaller chunks.");document.location=\'?do='
-                .Router::$PAGE_IMPORT .'\';</script>';
+            $msg = sprintf(
+                t(
+                    'The file you are trying to upload is probably bigger than what this webserver can accept'
+                    .' (%s). Please upload in smaller chunks.'
+                ),
+                get_max_upload_size(ini_get('post_max_size'), ini_get('upload_max_filesize'))
+            );
+            echo '<script>alert("'. $msg .'");document.location=\'?do='.Router::$PAGE_IMPORT .'\';</script>';
             exit;
         }
-        if (! tokenOk($_POST['token'])) {
+        if (! $sessionManager->checkToken($_POST['token'])) {
             die('Wrong token.');
         }
         $status = NetscapeBookmarkUtils::import(
@@ -1624,7 +1618,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history)
     // Get a fresh token
     if ($targetPage == Router::$GET_TOKEN) {
         header('Content-Type:text/plain');
-        echo getToken($conf);
+        echo $sessionManager->generateToken($conf);
         exit;
     }
 
@@ -1696,7 +1690,11 @@ function buildLinkList($PAGE,$LINKSDB, $conf, $pluginManager)
     while ($i<$end && $i<count($keys))
     {
         $link = $linksToDisplay[$keys[$i]];
-        $link['description'] = format_description($link['description'], $conf->get('redirector.url'));
+        $link['description'] = format_description(
+            $link['description'],
+            $conf->get('redirector.url'),
+            $conf->get('redirector.encode_url')
+        );
         $classLi =  ($i % 2) != 0 ? '' : 'publicLinkHightLight';
         $link['class'] = $link['private'] == 0 ? $classLi : 'private';
         $link['timestamp'] = $link['created']->getTimestamp();
@@ -1950,10 +1948,10 @@ function lazyThumbnail($conf, $url,$href=false)
  * Installation
  * This function should NEVER be called if the file data/config.php exists.
  *
- * @param ConfigManager $conf Configuration Manager instance.
+ * @param ConfigManager  $conf           Configuration Manager instance.
+ * @param SessionManager $sessionManager SessionManager instance
  */
-function install($conf)
-{
+function install($conf, $sessionManager) {
     // On free.fr host, make sure the /sessions directory exists, otherwise login will not work.
     if (endsWith($_SERVER['HTTP_HOST'],'.free.fr') && !is_dir($_SERVER['DOCUMENT_ROOT'].'/sessions')) mkdir($_SERVER['DOCUMENT_ROOT'].'/sessions',0705);
 
@@ -1962,12 +1960,20 @@ function install($conf)
     // (Because on some hosts, session.save_path may not be set correctly,
     // or we may not have write access to it.)
     if (isset($_GET['test_session']) && ( !isset($_SESSION) || !isset($_SESSION['session_tested']) || $_SESSION['session_tested']!='Working'))
-    {   // Step 2: Check if data in session is correct.
-        echo '<pre>Sessions do not seem to work correctly on your server.<br>';
-        echo 'Make sure the variable session.save_path is set correctly in your php config, and that you have write access to it.<br>';
-        echo 'It currently points to '.session_save_path().'<br>';
-        echo 'Check that the hostname used to access Shaarli contains a dot. On some browsers, accessing your server via a hostname like \'localhost\' or any custom hostname without a dot causes cookie storage to fail. We recommend accessing your server via it\'s IP address or Fully Qualified Domain Name.<br>';
-        echo '<br><a href="?">Click to try again.</a></pre>';
+    {
+        // Step 2: Check if data in session is correct.
+        $msg = t(
+            '<pre>Sessions do not seem to work correctly on your server.<br>'.
+            'Make sure the variable "session.save_path" is set correctly in your PHP config, '.
+            'and that you have write access to it.<br>'.
+            'It currently points to %s.<br>'.
+            'On some browsers, accessing your server via a hostname like \'localhost\' '.
+            'or any custom hostname without a dot causes cookie storage to fail. '.
+            'We recommend accessing your server via it\'s IP address or Fully Qualified Domain Name.<br>'
+        );
+        $msg = sprintf($msg, session_save_path());
+        echo $msg;
+        echo '<br><a href="?">'. t('Click to try again.') .'</a></pre>';
         die;
     }
     if (!isset($_SESSION['session_tested']))
@@ -2000,6 +2006,7 @@ function install($conf)
         } else {
             $conf->set('general.title', 'Shared links on '.escape(index_url($_SERVER)));
         }
+        $conf->set('translation.language', escape($_POST['language']));
         $conf->set('updates.check_updates', !empty($_POST['updateCheck']));
         $conf->set('api.enabled', !empty($_POST['enableApi']));
         $conf->set(
@@ -2027,10 +2034,11 @@ function install($conf)
         exit;
     }
 
-    $PAGE = new PageBuilder($conf);
+    $PAGE = new PageBuilder($conf, null, $sessionManager->generateToken());
     list($continents, $cities) = generateTimeZoneData(timezone_identifiers_list(), date_default_timezone_get());
     $PAGE->assign('continents', $continents);
     $PAGE->assign('cities', $cities);
+    $PAGE->assign('languages', Languages::getAvailableLanguages());
     $PAGE->renderPage('install');
     exit;
 }
@@ -2303,7 +2311,7 @@ $response = $app->run(true);
 if ($response->getStatusCode() == 404 && strpos($_SERVER['REQUEST_URI'], '/api/v1') === false) {
     // We use UTF-8 for proper international characters handling.
     header('Content-Type: text/html; charset=utf-8');
-    renderPage($conf, $pluginManager, $linkDb, $history);
+    renderPage($conf, $pluginManager, $linkDb, $history, $sessionManager);
 } else {
     $app->respond($response);
 }

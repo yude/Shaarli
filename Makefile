@@ -1,17 +1,6 @@
 # The personal, minimalist, super-fast, database free, bookmarking service.
 # Makefile for PHP code analysis & testing, documentation and release generation
 
-# Prerequisites:
-# - install Composer, either:
-#   - from your distro's package manager;
-#   - from the official website (https://getcomposer.org/download/);
-# - install/update test dependencies:
-#   $ composer install  # 1st setup
-#   $ composer update
-# - install Xdebug for PHPUnit code coverage reports:
-#   - see http://xdebug.org/docs/install
-#   - enable in php.ini
-
 BIN = vendor/bin
 PHP_SOURCE = index.php application tests plugins
 PHP_COMMA_SOURCE = index.php,application,tests,plugins
@@ -115,7 +104,7 @@ check_permissions:
 	@echo "----------------------"
 	@echo "Check file permissions"
 	@echo "----------------------"
-	@for file in `git ls-files`; do \
+	@for file in `git ls-files | grep -v docker`; do \
 		if [ -x $$file ]; then \
 			errors=true; \
 			echo "$${file} is executable"; \
@@ -130,12 +119,12 @@ check_permissions:
 # See phpunit.xml for configuration
 # https://phpunit.de/manual/current/en/appendixes.configuration.html
 ##
-test:
+test: translate
 	@echo "-------"
 	@echo "PHPUNIT"
 	@echo "-------"
 	@mkdir -p sandbox coverage
-	@$(BIN)/phpunit --coverage-php coverage/main.cov --testsuite unit-tests
+	@$(BIN)/phpunit --coverage-php coverage/main.cov --bootstrap tests/bootstrap.php --testsuite unit-tests
 
 locale_test_%:
 	@UT_LOCALE=$*.utf8 \
@@ -168,15 +157,15 @@ composer_dependencies: clean
 	composer install --no-dev --prefer-dist
 	find vendor/ -name ".git" -type d -exec rm -rf {} +
 
-### generate a release tarball and include 3rd-party dependencies
-release_tar: composer_dependencies htmldoc
+### generate a release tarball and include 3rd-party dependencies and translations
+release_tar: composer_dependencies htmldoc translate
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).tar HEAD
 	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^vendor|$(ARCHIVE_PREFIX)vendor|" vendor/
 	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^doc/html|$(ARCHIVE_PREFIX)doc/html|" doc/html/
 	gzip $(ARCHIVE_VERSION).tar
 
-### generate a release zip and include 3rd-party dependencies
-release_zip: composer_dependencies htmldoc
+### generate a release zip and include 3rd-party dependencies and translations
+release_zip: composer_dependencies htmldoc translate
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).zip -9 HEAD
 	mkdir -p $(ARCHIVE_PREFIX)/{doc,vendor}
 	rsync -a doc/html/ $(ARCHIVE_PREFIX)doc/html/
@@ -213,3 +202,8 @@ htmldoc:
 	mkdocs build'
 	find doc/html/ -type f -exec chmod a-x '{}' \;
 	rm -r venv
+
+
+### Generate Shaarli's translation compiled file (.mo)
+translate:
+	@find inc/languages/ -name shaarli.po -execdir msgfmt shaarli.po -o shaarli.mo \;

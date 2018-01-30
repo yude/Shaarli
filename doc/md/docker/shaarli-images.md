@@ -1,3 +1,6 @@
+A brief guide on getting starting using docker is given in [Docker 101](docker-101.md).
+To learn more about user data and how to keep it across versions, please see [Upgrade and Migration](../Upgrade-and-migration.md).
+
 ## Get and run a Shaarli image
 
 ### DockerHub repository
@@ -5,13 +8,23 @@ The images can be found in the [`shaarli/shaarli`](https://hub.docker.com/r/shaa
 repository.
 
 ### Available image tags
-- `latest`: master branch (tarball release)
+- `latest`: latest branch (tarball release)
+- `master`: master branch (tarball release)
 - `stable`: stable branch (tarball release)
 
-All images rely on:
+The `latest` and `master` images rely on:
+
+- [Alpine Linux](https://www.alpinelinux.org/)
+- [PHP7-FPM](http://php-fpm.org/)
+- [Nginx](http://nginx.org/)
+
+The `stable` image relies on:
+
 - [Debian 8 Jessie](https://hub.docker.com/_/debian/)
 - [PHP5-FPM](http://php-fpm.org/)
 - [Nginx](http://nginx.org/)
+
+Additional [Dockerfiles](https://github.com/shaarli/Shaarli/tree/master/docker) are provided for the `arm32v7` platform, relying on [Linuxserver.io Alpine armhf images](https://hub.docker.com/r/lsiobase/alpine.armhf/). These images must be built using [`docker build`](https://docs.docker.com/engine/reference/commandline/build/) on an `arm32v7` machine or using an emulator such as [qemu](https://resin.io/blog/building-arm-containers-on-any-x86-machine-even-dockerhub/).
 
 ### Download from DockerHub
 ```bash
@@ -68,4 +81,15 @@ backstabbing_galileo
 
 $ docker ps -a
 CONTAINER ID  IMAGE            COMMAND               CREATED         STATUS        PORTS                 NAMES
+```
+
+### Automatic builds
+
+Docker users can start a personal instance from an [autobuild image](https://hub.docker.com/r/shaarli/shaarli/). For example to start a temporary Shaarli at ``localhost:8000``, and keep session data (config, storage):
+```
+MY_SHAARLI_VOLUME=$(cd /path/to/shaarli/data/ && pwd -P)
+docker run -ti --rm \
+         -p 8000:80 \
+         -v $MY_SHAARLI_VOLUME:/var/www/shaarli/data \
+         shaarli/shaarli
 ```

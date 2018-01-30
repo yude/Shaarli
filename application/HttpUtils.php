@@ -3,9 +3,11 @@
  * GET an HTTP URL to retrieve its content
  * Uses the cURL library or a fallback method 
  *
- * @param string $url      URL to get (http://...)
- * @param int    $timeout  network timeout (in seconds)
- * @param int    $maxBytes maximum downloaded bytes (default: 4 MiB)
+ * @param string          $url               URL to get (http://...)
+ * @param int             $timeout           network timeout (in seconds)
+ * @param int             $maxBytes          maximum downloaded bytes (default: 4 MiB)
+ * @param callable|string $curlWriteFunction Optional callback called during the download (cURL CURLOPT_WRITEFUNCTION).
+ *                                           Can be used to add download conditions on the headers (response code, content type, etc.).
  *
  * @return array HTTP response headers, downloaded content
  *
@@ -29,7 +31,7 @@
  * @see http://stackoverflow.com/q/9183178
  * @see http://stackoverflow.com/q/1462720
  */
-function get_http_response($url, $timeout = 30, $maxBytes = 4194304)
+function get_http_response($url, $timeout = 30, $maxBytes = 4194304, $curlWriteFunction = null)
 {
     $urlObj = new Url($url);
     $cleanUrl = $urlObj->idnToAscii();
@@ -75,8 +77,12 @@ function get_http_response($url, $timeout = 30, $maxBytes = 4194304)
     curl_setopt($ch, CURLOPT_TIMEOUT,           $timeout);
     curl_setopt($ch, CURLOPT_USERAGENT,         $userAgent);
 
+    if (is_callable($curlWriteFunction)) {
+        curl_setopt($ch, CURLOPT_WRITEFUNCTION, $curlWriteFunction);
+    }
+
     // Max download size management
-    curl_setopt($ch, CURLOPT_BUFFERSIZE,        1024);
+    curl_setopt($ch, CURLOPT_BUFFERSIZE,        1024*16);
     curl_setopt($ch, CURLOPT_NOPROGRESS,        false);
     curl_setopt($ch, CURLOPT_PROGRESSFUNCTION,
         function($arg0, $arg1, $arg2, $arg3, $arg4 = 0) use ($maxBytes)
@@ -300,6 +306,13 @@ function server_url($server)
                 $port = trim($ports[0]);
             } else {
                 $port = $server['HTTP_X_FORWARDED_PORT'];
+            }
+
+            // This is a workaround for proxies that don't forward the scheme properly.
+            // Connecting over port 443 has to be in HTTPS.
+            // See https://github.com/shaarli/Shaarli/issues/1022
+            if ($port == '443') {
+                $scheme = 'https';
             }
 
             if (($scheme == 'http' && $port != '80')
