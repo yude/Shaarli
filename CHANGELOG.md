@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## [v0.8.6](https://github.com/shaarli/Shaarli/releases/tag/v0.8.5) - 2018-02-19
+
+### Changed
+- Run version check tests against the 'stable' branch
+
+
 ## [v0.8.5](https://github.com/shaarli/Shaarli/releases/tag/v0.8.5) - 2018-01-04
 
  **XSS vulnerability fixed. Please update.**
