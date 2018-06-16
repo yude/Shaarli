@@ -1,0 +1,30 @@
+# Shaarli runtime resources
+cache/*
+data/*
+pagecache/*
+tmp/*
+
+# Eclipse project files
+.settings
+.buildpath
+.project
+
+# Raintpl generated pages
+*.rtpl.php
+
+# 3rd-party dependencies
+composer.lock
+vendor/
+
+# Release archives
+*.tar
+*.zip
+
+# Development and test resources
+coverage
+doxygen
+sandbox
+phpmd.html
+
+# User plugin configuration
+plugins/*/config.php
