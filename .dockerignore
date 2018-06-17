@@ -1,3 +1,7 @@
+# Docker-ignore
+# Note: .git/ is kept for HTML documentation generation
+tests
+
 # Shaarli runtime resources
 cache/*
 data/*

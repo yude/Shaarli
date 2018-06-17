@@ -1,12 +1,20 @@
 # Stage 1:
 # - Get Shaarli sources
+# - Build documentation
+FROM dalibo/pandocker:stable as docs
+ADD . /pandoc/shaarli
+RUN cd /pandoc/shaarli \
+    && make htmldoc \
+    && rm -rf .git
+
+# Stage 2:
 # - Resolve PHP dependencies with Composer
 FROM composer:latest as composer
-ADD . /app/shaarli
+COPY --from=docs /pandoc/shaarli /app/shaarli
 RUN cd shaarli \
     && composer --prefer-dist --no-dev install
 
-# Stage 2:
+# Stage 3:
 # - Shaarli image
 FROM debian:jessie
 LABEL maintainer="Shaarli Community"
