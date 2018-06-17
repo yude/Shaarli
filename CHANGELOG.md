@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 - Build the Docker image from the local Git sources
 
+### Removed
+- Disable PHP 5.3 Travis build (unsupported)
+
 
 ## [v0.8.6](https://github.com/shaarli/Shaarli/releases/tag/v0.8.6) - 2018-02-19
 ### Changed
