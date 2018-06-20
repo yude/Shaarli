@@ -11,6 +11,7 @@
 # - install Xdebug for PHPUnit code coverage reports:
 #   - see http://xdebug.org/docs/install
 #   - enable in php.ini
+SHELL := /bin/bash
 
 BIN = vendor/bin
 PHP_SOURCE = index.php application tests plugins
@@ -203,14 +204,18 @@ htmlsidebar:
 htmlpages:
 	@for file in `find doc/ -maxdepth 1 -name "*.md"`; do \
 		base=`basename $$file .md`; \
-		sed -i "1i #$${base//-/ }" $$file; \
+		sed -i "1i # $${base//-/ }" $$file; \
 		awk 'BEGIN { FS = "[\\[\\]]{2}" }'\
 	'm = /\[/ { t=$$2; gsub(/ /, "-", $$2); print $$1"["t"]("$$2".html)"$$3 }'\
 	'!m { print $$0 }' $$file > doc/tmp.md; \
 		mv doc/tmp.md $$file; \
-		pandoc -f markdown_github -t html5 -s \
+		pandoc  -f gfm \
+			-t html5 \
+			-s \
 			-c "github-markdown.css" \
-			-T Shaarli -M pagetitle:"$${base//-/ }" -B doc/sidebar.html \
+			-T Shaarli \
+			-M pagetitle:"$${base//-/ }" \
+			-B doc/sidebar.html \
 			-o doc/$$base.html $$file; \
 	done;
 
