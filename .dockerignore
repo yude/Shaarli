@@ -1,0 +1,44 @@
+# Docker-ignore
+.dev
+.git
+.github
+tests
+
+# Shaarli runtime resources
+cache/*
+data/*
+pagecache/*
+tmp/*
+
+# Eclipse project files
+.settings
+.buildpath
+.project
+
+# Raintpl generated pages
+*.rtpl.php
+
+# 3rd-party dependencies
+vendor/
+
+# Release archives
+*.tar.gz
+*.zip
+inc/languages/*/LC_MESSAGES/shaarli.mo
+
+# Development and test resources
+coverage
+doxygen
+sandbox
+phpmd.html
+
+# User plugin configuration
+plugins/*/config.php
+
+# HTML documentation
+doc/html/
+
+# 3rd party themes
+tpl/*
+!tpl/default
+!tpl/vintage

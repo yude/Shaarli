@@ -4,8 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.9.7](https://github.com/shaarli/Shaarli/releases/tag/v0.9.7) - UNPUBLISHED
+### Changed
+- Build the Docker images from the local Git sources
+
+
 ## [v0.9.6](https://github.com/shaarli/Shaarli/releases/tag/v0.9.6) - 2018-03-25
-## Changed
+### Changed
 - htaccess: prevent accessing resources not managed by SCM
 - htaccess: always forward the 'Authorization' HTTP header
 
