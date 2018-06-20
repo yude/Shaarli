@@ -4,9 +4,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.8.7](https://github.com/shaarli/Shaarli/releases/tag/v0.8.7) - UNPUBLISHED
+### Changed
+- Build the Docker image from the local Git sources
 
-## [v0.8.6](https://github.com/shaarli/Shaarli/releases/tag/v0.8.5) - 2018-02-19
+### Removed
+- Disable PHP 5.3 Travis build (unsupported)
 
+
+## [v0.8.6](https://github.com/shaarli/Shaarli/releases/tag/v0.8.6) - 2018-02-19
 ### Changed
 - Run version check tests against the 'stable' branch
 
