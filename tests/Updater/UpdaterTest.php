@@ -2,6 +2,7 @@
 use Shaarli\Config\ConfigJson;
 use Shaarli\Config\ConfigManager;
 use Shaarli\Config\ConfigPhp;
+use Shaarli\Thumbnailer;
 
 require_once 'tests/Updater/DummyUpdater.php';
 require_once 'inc/rain.tpl.class.php';
@@ -20,7 +21,7 @@ class UpdaterTest extends PHPUnit_Framework_TestCase
     /**
      * @var string Config file path (without extension).
      */
-    protected static $configFile = 'tests/utils/config/configJson';
+    protected static $configFile = 'sandbox/config';
 
     /**
      * @var ConfigManager
@@ -32,6 +33,7 @@ class UpdaterTest extends PHPUnit_Framework_TestCase
      */
     public function setUp()
     {
+        copy('tests/utils/config/configJson.json.php', self::$configFile .'.json.php');
         $this->conf = new ConfigManager(self::$configFile);
     }
 
@@ -619,5 +621,115 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
         $updater = new Updater([], [], $this->conf, true);
         $this->assertTrue($updater->updateMethodAtomDefault());
         $this->assertTrue($this->conf->get('feed.show_atom'));
+    }
+
+    /**
+     * Test updateMethodDownloadSizeAndTimeoutConf, it should be set if none is already defined.
+     */
+    public function testUpdateMethodDownloadSizeAndTimeoutConf()
+    {
+        $sandboxConf = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
+        $this->conf = new ConfigManager($sandboxConf);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodDownloadSizeAndTimeoutConf());
+        $this->assertEquals(4194304, $this->conf->get('general.download_max_size'));
+        $this->assertEquals(30, $this->conf->get('general.download_timeout'));
+
+        $this->conf = new ConfigManager($sandboxConf);
+        $this->assertEquals(4194304, $this->conf->get('general.download_max_size'));
+        $this->assertEquals(30, $this->conf->get('general.download_timeout'));
+    }
+
+    /**
+     * Test updateMethodDownloadSizeAndTimeoutConf, it shouldn't be set if it is already defined.
+     */
+    public function testUpdateMethodDownloadSizeAndTimeoutConfIgnore()
+    {
+        $sandboxConf = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
+        $this->conf = new ConfigManager($sandboxConf);
+        $this->conf->set('general.download_max_size', 38);
+        $this->conf->set('general.download_timeout', 70);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodDownloadSizeAndTimeoutConf());
+        $this->assertEquals(38, $this->conf->get('general.download_max_size'));
+        $this->assertEquals(70, $this->conf->get('general.download_timeout'));
+    }
+
+    /**
+     * Test updateMethodDownloadSizeAndTimeoutConf, only the maz size should be set here.
+     */
+    public function testUpdateMethodDownloadSizeAndTimeoutConfOnlySize()
+    {
+        $sandboxConf = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
+        $this->conf = new ConfigManager($sandboxConf);
+        $this->conf->set('general.download_max_size', 38);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodDownloadSizeAndTimeoutConf());
+        $this->assertEquals(38, $this->conf->get('general.download_max_size'));
+        $this->assertEquals(30, $this->conf->get('general.download_timeout'));
+    }
+
+    /**
+     * Test updateMethodDownloadSizeAndTimeoutConf, only the time out should be set here.
+     */
+    public function testUpdateMethodDownloadSizeAndTimeoutConfOnlyTimeout()
+    {
+        $sandboxConf = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
+        $this->conf = new ConfigManager($sandboxConf);
+        $this->conf->set('general.download_timeout', 3);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodDownloadSizeAndTimeoutConf());
+        $this->assertEquals(4194304, $this->conf->get('general.download_max_size'));
+        $this->assertEquals(3, $this->conf->get('general.download_timeout'));
+    }
+
+    /**
+     * Test updateMethodWebThumbnailer with thumbnails enabled.
+     */
+    public function testUpdateMethodWebThumbnailerEnabled()
+    {
+        $this->conf->remove('thumbnails');
+        $this->conf->set('thumbnail.enable_thumbnails', true);
+        $updater = new Updater([], [], $this->conf, true, $_SESSION);
+        $this->assertTrue($updater->updateMethodWebThumbnailer());
+        $this->assertFalse($this->conf->exists('thumbnail'));
+        $this->assertEquals(\Shaarli\Thumbnailer::MODE_ALL, $this->conf->get('thumbnails.mode'));
+        $this->assertEquals(125, $this->conf->get('thumbnails.width'));
+        $this->assertEquals(90, $this->conf->get('thumbnails.height'));
+        $this->assertContains('You have enabled or changed thumbnails', $_SESSION['warnings'][0]);
+    }
+
+    /**
+     * Test updateMethodWebThumbnailer with thumbnails disabled.
+     */
+    public function testUpdateMethodWebThumbnailerDisabled()
+    {
+        $this->conf->remove('thumbnails');
+        $this->conf->set('thumbnail.enable_thumbnails', false);
+        $updater = new Updater([], [], $this->conf, true, $_SESSION);
+        $this->assertTrue($updater->updateMethodWebThumbnailer());
+        $this->assertFalse($this->conf->exists('thumbnail'));
+        $this->assertEquals(Thumbnailer::MODE_NONE, $this->conf->get('thumbnails.mode'));
+        $this->assertEquals(125, $this->conf->get('thumbnails.width'));
+        $this->assertEquals(90, $this->conf->get('thumbnails.height'));
+        $this->assertTrue(empty($_SESSION['warnings']));
+    }
+
+    /**
+     * Test updateMethodWebThumbnailer with thumbnails disabled.
+     */
+    public function testUpdateMethodWebThumbnailerNothingToDo()
+    {
+        $updater = new Updater([], [], $this->conf, true, $_SESSION);
+        $this->assertTrue($updater->updateMethodWebThumbnailer());
+        $this->assertFalse($this->conf->exists('thumbnail'));
+        $this->assertEquals(Thumbnailer::MODE_COMMON, $this->conf->get('thumbnails.mode'));
+        $this->assertEquals(90, $this->conf->get('thumbnails.width'));
+        $this->assertEquals(53, $this->conf->get('thumbnails.height'));
+        $this->assertTrue(empty($_SESSION['warnings']));
     }
 }

@@ -2,9 +2,9 @@
 
 <div class="pure-g">
   <div class="pure-u-2-24"></div>
-  <div id="footer" class="pure-u-20-24">
+  <div id="footer" class="pure-u-20-24 footer-container">
     <strong><a href="https://github.com/shaarli/Shaarli">Shaarli</a></strong>
-    {if="isLoggedIn()===true"}
+    {if="$is_logged_in===true"}
       {$version}
     {/if}
     &middot;
@@ -38,6 +38,4 @@
   </span>
 </div>
 
-<script src="js/shaarli.js?v={$version_hash}"></script>
-<script src="inc/awesomplete.js?v={$version_hash}#"></script>
-<script src="inc/awesomplete-multiple-tags.js?v={$version_hash}#"></script>
+<script src="js/shaarli.min.js?v={$version_hash}"></script>

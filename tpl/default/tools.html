@@ -45,6 +45,14 @@
       </a>
     </div>
 
+    {if="$thumbnails_enabled"}
+      <div class="tools-item">
+        <a href="?do=thumbs_update" title="{'Synchronize all link thumbnails'|t}">
+          <span class="pure-button pure-u-lg-2-3 pure-u-3-4">{'Synchronize thumbnails'|t}</span>
+        </a>
+      </div>
+    {/if}
+
     {loop="$tools_plugin"}
       <div class="tools-item">
         {$value}
@@ -146,8 +154,14 @@
     </div>
     <div class="tools-item">
       <a href="https://play.google.com/store/apps/details?id=com.dimtion.shaarlier&hl=fr"
-         title="Android">
-        <span class="pure-button pure-u-lg-2-3 pure-u-3-4">Android</span>
+         title="Android Shaarlier">
+        <span class="pure-button pure-u-lg-2-3 pure-u-3-4">Android Shaarlier</span>
+      </a>
+    </div>
+    <div class="tools-item">
+      <a href="https://stakali.toneiv.eu/"
+         title="Android Stakali">
+        <span class="pure-button pure-u-lg-2-3 pure-u-3-4">Android Stakali</span>
       </a>
     </div>
     <div class="tools-item">

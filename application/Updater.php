@@ -2,6 +2,7 @@
 use Shaarli\Config\ConfigJson;
 use Shaarli\Config\ConfigPhp;
 use Shaarli\Config\ConfigManager;
+use Shaarli\Thumbnailer;
 
 /**
  * Class Updater.
@@ -31,6 +32,11 @@ class Updater
     protected $isLoggedIn;
 
     /**
+     * @var array $_SESSION
+     */
+    protected $session;
+
+    /**
      * @var ReflectionMethod[] List of current class methods.
      */
     protected $methods;
@@ -42,13 +48,17 @@ class Updater
      * @param LinkDB        $linkDB      LinkDB instance.
      * @param ConfigManager $conf        Configuration Manager instance.
      * @param boolean       $isLoggedIn  True if the user is logged in.
+     * @param array         $session     $_SESSION (by reference)
+     *
+     * @throws ReflectionException
      */
-    public function __construct($doneUpdates, $linkDB, $conf, $isLoggedIn)
+    public function __construct($doneUpdates, $linkDB, $conf, $isLoggedIn, &$session = [])
     {
         $this->doneUpdates = $doneUpdates;
         $this->linkDB = $linkDB;
         $this->conf = $conf;
         $this->isLoggedIn = $isLoggedIn;
+        $this->session = &$session;
 
         // Retrieve all update methods.
         $class = new ReflectionClass($this);
@@ -443,6 +453,68 @@ class Updater
     public function updateMethodReorderDatastore()
     {
         $this->linkDB->save($this->conf->get('resource.page_cache'));
+        return true;
+    }
+
+    /**
+     * Change privateonly session key to visibility.
+     */
+    public function updateMethodVisibilitySession()
+    {
+        if (isset($_SESSION['privateonly'])) {
+            unset($_SESSION['privateonly']);
+            $_SESSION['visibility'] = 'private';
+        }
+        return true;
+    }
+
+    /**
+     * Add download size and timeout to the configuration file
+     *
+     * @return bool true if the update is successful, false otherwise.
+     */
+    public function updateMethodDownloadSizeAndTimeoutConf()
+    {
+        if ($this->conf->exists('general.download_max_size')
+            && $this->conf->exists('general.download_timeout')
+        ) {
+            return true;
+        }
+
+        if (! $this->conf->exists('general.download_max_size')) {
+            $this->conf->set('general.download_max_size', 1024*1024*4);
+        }
+
+        if (! $this->conf->exists('general.download_timeout')) {
+            $this->conf->set('general.download_timeout', 30);
+        }
+
+        $this->conf->write($this->isLoggedIn);
+        return true;
+    }
+
+    /**
+     * * Move thumbnails management to WebThumbnailer, coming with new settings.
+     */
+    public function updateMethodWebThumbnailer()
+    {
+        if ($this->conf->exists('thumbnails.mode')) {
+            return true;
+        }
+
+        $thumbnailsEnabled = $this->conf->get('thumbnail.enable_thumbnails', true);
+        $this->conf->set('thumbnails.mode', $thumbnailsEnabled ? Thumbnailer::MODE_ALL : Thumbnailer::MODE_NONE);
+        $this->conf->set('thumbnails.width', 125);
+        $this->conf->set('thumbnails.height', 90);
+        $this->conf->remove('thumbnail');
+        $this->conf->write(true);
+
+        if ($thumbnailsEnabled) {
+            $this->session['warnings'][] = t(
+                'You have enabled or changed thumbnails mode. <a href="?do=thumbs_update">Please synchronize them</a>.'
+            );
+        }
+
         return true;
     }
 }

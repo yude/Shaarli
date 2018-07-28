@@ -11,20 +11,21 @@
     "keywords": ["bookmark", "link", "share", "web"],
     "config": {
         "platform": {
-            "php": "5.5.38"
+            "php": "5.6.31"
         }
     },
     "require": {
-        "php": ">=5.5",
+        "php": ">=5.6",
         "shaarli/netscape-bookmark-parser": "^2.0",
-        "erusev/parsedown": "1.6",
+        "erusev/parsedown": "^1.6",
         "slim/slim": "^3.0",
+        "arthurhoaro/web-thumbnailer": "^1.1",
         "pubsubhubbub/publisher": "dev-master",
         "gettext/gettext": "^4.4"
     },
     "require-dev": {
         "phpmd/phpmd" : "@stable",
-        "phpunit/phpunit": "4.8.*",
+        "phpunit/phpunit": "^5.0",
         "sebastian/phpcpd": "*",
         "squizlabs/php_codesniffer": "2.*",
         "phpunit/phpcov": "*"
@@ -36,7 +37,8 @@
             "Shaarli\\Api\\Controllers\\": "application/api/controllers",
             "Shaarli\\Api\\Exceptions\\": "application/api/exceptions",
             "Shaarli\\Config\\": "application/config/",
-            "Shaarli\\Config\\Exception\\": "application/config/exception"
+            "Shaarli\\Config\\Exception\\": "application/config/exception",
+            "Shaarli\\Security\\": "application/security"
         }
     }
 }

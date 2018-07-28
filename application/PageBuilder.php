@@ -1,6 +1,7 @@
 <?php
 
 use Shaarli\Config\ConfigManager;
+use Shaarli\Thumbnailer;
 
 /**
  * This class is in charge of building the final page.
@@ -22,24 +23,41 @@ class PageBuilder
     protected $conf;
 
     /**
+     * @var array $_SESSION
+     */
+    protected $session;
+
+    /**
      * @var LinkDB $linkDB instance.
      */
     protected $linkDB;
 
     /**
+     * @var null|string XSRF token
+     */
+    protected $token;
+
+    /** @var bool $isLoggedIn Whether the user is logged in **/
+    protected $isLoggedIn = false;
+
+    /**
      * PageBuilder constructor.
      * $tpl is initialized at false for lazy loading.
      *
-     * @param ConfigManager $conf   Configuration Manager instance (reference).
-     * @param LinkDB        $linkDB instance.
-     * @param string        $token  Session token
+     * @param ConfigManager $conf       Configuration Manager instance (reference).
+     * @param array         $session    $_SESSION array
+     * @param LinkDB        $linkDB     instance.
+     * @param string        $token      Session token
+     * @param bool          $isLoggedIn
      */
-    public function __construct(&$conf, $linkDB = null, $token = null)
+    public function __construct(&$conf, $session, $linkDB = null, $token = null, $isLoggedIn = false)
     {
         $this->tpl = false;
         $this->conf = $conf;
+        $this->session = $session;
         $this->linkDB = $linkDB;
         $this->token = $token;
+        $this->isLoggedIn = $isLoggedIn;
     }
 
     /**
@@ -55,7 +73,7 @@ class PageBuilder
                 $this->conf->get('resource.update_check'),
                 $this->conf->get('updates.check_updates_interval'),
                 $this->conf->get('updates.check_updates'),
-                isLoggedIn(),
+                $this->isLoggedIn,
                 $this->conf->get('updates.check_updates_branch')
             );
             $this->tpl->assign('newVersion', escape($version));
@@ -67,6 +85,7 @@ class PageBuilder
             $this->tpl->assign('versionError', escape($exc->getMessage()));
         }
 
+        $this->tpl->assign('is_logged_in', $this->isLoggedIn);
         $this->tpl->assign('feedurl', escape(index_url($_SERVER)));
         $searchcrits = ''; // Search criteria
         if (!empty($_GET['searchtags'])) {
@@ -83,7 +102,8 @@ class PageBuilder
             ApplicationUtils::getVersionHash(SHAARLI_VERSION, $this->conf->get('credentials.salt'))
         );
         $this->tpl->assign('scripturl', index_url($_SERVER));
-        $this->tpl->assign('privateonly', !empty($_SESSION['privateonly'])); // Show only private links?
+        $visibility = ! empty($_SESSION['visibility']) ? $_SESSION['visibility'] : '';
+        $this->tpl->assign('visibility', $visibility);
         $this->tpl->assign('untaggedonly', !empty($_SESSION['untaggedonly']));
         $this->tpl->assign('pagetitle', $this->conf->get('general.title', 'Shaarli'));
         if ($this->conf->exists('general.header_link')) {
@@ -99,6 +119,19 @@ class PageBuilder
         if ($this->linkDB !== null) {
             $this->tpl->assign('tags', $this->linkDB->linksCountPerTag());
         }
+
+        $this->tpl->assign(
+            'thumbnails_enabled',
+            $this->conf->get('thumbnails.mode', Thumbnailer::MODE_NONE) !== Thumbnailer::MODE_NONE
+        );
+        $this->tpl->assign('thumbnails_width', $this->conf->get('thumbnails.width'));
+        $this->tpl->assign('thumbnails_height', $this->conf->get('thumbnails.height'));
+
+        if (! empty($_SESSION['warnings'])) {
+            $this->tpl->assign('global_warnings', $_SESSION['warnings']);
+            unset($_SESSION['warnings']);
+        }
+
         // To be removed with a proper theme configuration.
         $this->tpl->assign('conf', $this->conf);
     }

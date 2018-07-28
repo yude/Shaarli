@@ -81,7 +81,7 @@ function whitelist_protocols($url, $protocols)
     // Protocol not allowed: we remove it and replace it with http
     if ($protocol === 1 && ! in_array($match[1], $protocols)) {
         $url = str_replace($match[0], 'http://', $url);
-    } else if ($protocol !== 1) {
+    } elseif ($protocol !== 1) {
         $url = 'http://' . $url;
     }
     return $url;
@@ -260,7 +260,7 @@ class Url
         if (! function_exists('idn_to_ascii') || ! isset($this->parts['host'])) {
             return $out;
         }
-        $asciiHost = idn_to_ascii($this->parts['host']);
+        $asciiHost = idn_to_ascii($this->parts['host'], 0, INTL_IDNA_VARIANT_UTS46);
         return str_replace($this->parts['host'], $asciiHost, $out);
     }
 

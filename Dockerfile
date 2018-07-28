@@ -5,7 +5,11 @@ FROM python:3-alpine as docs
 ADD . /usr/src/app/shaarli
 RUN cd /usr/src/app/shaarli \
     && pip install --no-cache-dir mkdocs \
+<<<<<<< HEAD
     && mkdocs build
+=======
+    && mkdocs build --clean
+>>>>>>> v0.10.0
 
 # Stage 2:
 # - Resolve PHP dependencies with Composer
@@ -15,8 +19,17 @@ RUN cd shaarli \
     && composer --prefer-dist --no-dev install
 
 # Stage 3:
+# - Frontend dependencies
+FROM node:9.9-alpine as node
+COPY --from=composer /app/shaarli shaarli
+RUN cd shaarli \
+    && yarn install \
+    && yarn run build \
+    && rm -rf node_modules
+
+# Stage 4:
 # - Shaarli image
-FROM alpine:3.6
+FROM alpine:3.8
 LABEL maintainer="Shaarli Community"
 
 RUN apk --update --no-cache add \
@@ -47,12 +60,13 @@ RUN rm -rf /etc/php7/php-fpm.d/www.conf \
 
 
 WORKDIR /var/www
-COPY --from=composer /app/shaarli shaarli
+COPY --from=node /shaarli shaarli
 
 RUN chown -R nginx:nginx . \
     && ln -sf /dev/stdout /var/log/nginx/shaarli.access.log \
     && ln -sf /dev/stderr /var/log/nginx/shaarli.error.log
 
+VOLUME /var/www/shaarli/cache
 VOLUME /var/www/shaarli/data
 
 EXPOSE 80

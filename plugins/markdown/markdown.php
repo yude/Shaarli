@@ -6,6 +6,8 @@
  * Shaare's descriptions are parsed with Markdown.
  */
 
+use Shaarli\Config\ConfigManager;
+
 /*
  * If this tag is used on a shaare, the description won't be processed by Parsedown.
  */
@@ -50,6 +52,7 @@ function hook_markdown_render_feed($data, $conf)
             $value = stripNoMarkdownTag($value);
             continue;
         }
+        $value['description'] = reverse_feed_permalink($value['description']);
         $value['description'] = process_markdown(
             $value['description'],
             $conf->get('security.markdown_escape', true),
@@ -70,19 +73,18 @@ function hook_markdown_render_feed($data, $conf)
  */
 function hook_markdown_render_daily($data, $conf)
 {
+    //var_dump($data);die;
     // Manipulate columns data
-    foreach ($data['cols'] as &$value) {
-        foreach ($value as &$value2) {
-            if (!empty($value2['tags']) && noMarkdownTag($value2['tags'])) {
-                $value2 = stripNoMarkdownTag($value2);
-                continue;
-            }
-            $value2['formatedDescription'] = process_markdown(
-                $value2['formatedDescription'],
-                $conf->get('security.markdown_escape', true),
-                $conf->get('security.allowed_protocols')
-            );
+    foreach ($data['linksToDisplay'] as &$value) {
+        if (!empty($value['tags']) && noMarkdownTag($value['tags'])) {
+            $value = stripNoMarkdownTag($value);
+            continue;
         }
+        $value['formatedDescription'] = process_markdown(
+            $value['formatedDescription'],
+            $conf->get('security.markdown_escape', true),
+            $conf->get('security.allowed_protocols')
+        );
     }
 
     return $data;
@@ -136,7 +138,7 @@ function hook_markdown_render_includes($data)
         || $data['_PAGE_'] == Router::$PAGE_DAILY
         || $data['_PAGE_'] == Router::$PAGE_EDITLINK
     ) {
-        
+
         $data['css_files'][] = PluginManager::$PLUGINS_PATH . '/markdown/markdown.css';
     }
 
@@ -245,6 +247,11 @@ function reverse_space2nbsp($description)
     return preg_replace('/(^| )&nbsp;/m', '$1 ', $description);
 }
 
+function reverse_feed_permalink($description)
+{
+    return preg_replace('@&#8212; <a href="([^"]+)" title="[^"]+">(\w+)</a>$@im', '&#8212; [$2]($1)', $description);
+}
+
 /**
  * Replace not whitelisted protocols with http:// in given description.
  *
@@ -289,7 +296,7 @@ function sanitize_html($description)
             $description);
     }
     $description = preg_replace(
-        '#(<[^>]+)on[a-z]*="?[^ "]*"?#is',
+        '#(<[^>]+\s)on[a-z]*="?[^ "]*"?#is',
         '$1',
         $description);
     return $description;

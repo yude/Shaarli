@@ -157,15 +157,23 @@ composer_dependencies: clean
 	composer install --no-dev --prefer-dist
 	find vendor/ -name ".git" -type d -exec rm -rf {} +
 
+### download 3rd-party frontend libraries
+frontend_dependencies:
+	yarn install
+
+### Build frontend dependencies
+build_frontend: frontend_dependencies
+	yarn run build
+
 ### generate a release tarball and include 3rd-party dependencies and translations
-release_tar: composer_dependencies htmldoc translate
+release_tar: composer_dependencies htmldoc translate build_frontend
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).tar HEAD
 	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^vendor|$(ARCHIVE_PREFIX)vendor|" vendor/
 	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^doc/html|$(ARCHIVE_PREFIX)doc/html|" doc/html/
 	gzip $(ARCHIVE_VERSION).tar
 
 ### generate a release zip and include 3rd-party dependencies and translations
-release_zip: composer_dependencies htmldoc translate
+release_zip: composer_dependencies htmldoc translate build_frontend
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).zip -9 HEAD
 	mkdir -p $(ARCHIVE_PREFIX)/{doc,vendor}
 	rsync -a doc/html/ $(ARCHIVE_PREFIX)doc/html/
@@ -192,14 +200,14 @@ authors:
 ### generate Doxygen documentation
 doxygen: clean
 	@rm -rf doxygen
-	@( cat Doxyfile ; echo "PROJECT_NUMBER=`git describe`" ) | doxygen -
+	@doxygen Doxyfile
 
 ### generate HTML documentation from Markdown pages with MkDocs
 htmldoc:
 	python3 -m venv venv/
 	bash -c 'source venv/bin/activate; \
 	pip install mkdocs; \
-	mkdocs build'
+	mkdocs build --clean'
 	find doc/html/ -type f -exec chmod a-x '{}' \;
 	rm -r venv
 
@@ -207,3 +215,12 @@ htmldoc:
 ### Generate Shaarli's translation compiled file (.mo)
 translate:
 	@find inc/languages/ -name shaarli.po -execdir msgfmt shaarli.po -o shaarli.mo \;
+
+### Run ESLint check against Shaarli's JS files
+eslint:
+	@yarn run eslint -c .dev/.eslintrc.js assets/vintage/js/
+	@yarn run eslint -c .dev/.eslintrc.js assets/default/js/
+
+### Run CSSLint check against Shaarli's SCSS files
+sasslint:
+	@yarn run sass-lint -c .dev/.sasslintrc 'assets/default/scss/*.scss' -v -q

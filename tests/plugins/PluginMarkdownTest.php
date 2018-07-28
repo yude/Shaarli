@@ -50,6 +50,30 @@ class PluginMarkdownTest extends PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test render_feed hook.
+     */
+    public function testMarkdownFeed()
+    {
+        $markdown = '# My title' . PHP_EOL . 'Very interesting content.';
+        $markdown .= '&#8212; <a href="http://domain.tld/?0oc_VQ" title="Permalien">Permalien</a>';
+        $data = array(
+            'links' => array(
+                0 => array(
+                    'description' => $markdown,
+                ),
+            ),
+        );
+
+        $data = hook_markdown_render_feed($data, $this->conf);
+        $this->assertNotFalse(strpos($data['links'][0]['description'], '<h1>'));
+        $this->assertNotFalse(strpos($data['links'][0]['description'], '<p>'));
+        $this->assertStringEndsWith(
+            '&#8212; <a href="http://domain.tld/?0oc_VQ">Permalien</a></p></div>',
+            $data['links'][0]['description']
+        );
+    }
+
+    /**
      * Test render_daily hook.
      * Only check that there is basic markdown rendering.
      */
@@ -58,20 +82,17 @@ class PluginMarkdownTest extends PHPUnit_Framework_TestCase
         $markdown = '# My title' . PHP_EOL . 'Very interesting content.';
         $data = array(
             // Columns data
-            'cols' => array(
-                // First, second, third.
+            'linksToDisplay' => array(
+                // nth link
                 0 => array(
-                    // nth link
-                    0 => array(
-                        'formatedDescription' => $markdown,
-                    ),
+                    'formatedDescription' => $markdown,
                 ),
             ),
         );
 
         $data = hook_markdown_render_daily($data, $this->conf);
-        $this->assertNotFalse(strpos($data['cols'][0][0]['formatedDescription'], '<h1>'));
-        $this->assertNotFalse(strpos($data['cols'][0][0]['formatedDescription'], '<p>'));
+        $this->assertNotFalse(strpos($data['linksToDisplay'][0]['formatedDescription'], '<h1>'));
+        $this->assertNotFalse(strpos($data['linksToDisplay'][0]['formatedDescription'], '<p>'));
     }
 
     /**
@@ -105,6 +126,37 @@ class PluginMarkdownTest extends PHPUnit_Framework_TestCase
         $processedText = space2nbsp($text);
         $reversedText = reverse_space2nbsp($processedText);
         $this->assertEquals($text, $reversedText);
+    }
+
+    public function testReverseFeedPermalink()
+    {
+        $text = 'Description... ';
+        $text .= '&#8212; <a href="http://domain.tld/?0oc_VQ" title="Permalien">Permalien</a>';
+        $expected = 'Description... &#8212; [Permalien](http://domain.tld/?0oc_VQ)';
+        $processedText = reverse_feed_permalink($text);
+
+        $this->assertEquals($expected, $processedText);
+    }
+
+    public function testReverseLastFeedPermalink()
+    {
+        $text = 'Description... ';
+        $text .= '<br>&#8212; <a href="http://domain.tld/?0oc_VQ" title="Permalien">Permalien</a>';
+        $expected = $text;
+        $text .= '<br>&#8212; <a href="http://domain.tld/?0oc_VQ" title="Permalien">Permalien</a>';
+        $expected .= '<br>&#8212; [Permalien](http://domain.tld/?0oc_VQ)';
+        $processedText = reverse_feed_permalink($text);
+
+        $this->assertEquals($expected, $processedText);
+    }
+
+    public function testReverseNoFeedPermalink()
+    {
+        $text = 'Hello! Where are you from?';
+        $expected = $text;
+        $processedText = reverse_feed_permalink($text);
+
+        $this->assertEquals($expected, $processedText);
     }
 
     /**
@@ -148,21 +200,18 @@ class PluginMarkdownTest extends PHPUnit_Framework_TestCase
 
         $data = array(
             // Columns data
-            'cols' => array(
-                // First, second, third.
+            'linksToDisplay' => array(
+                // nth link
                 0 => array(
-                    // nth link
-                    0 => array(
-                        'formatedDescription' => $str,
-                        'tags' => NO_MD_TAG,
-                        'taglist' => array(),
-                    ),
+                    'formatedDescription' => $str,
+                    'tags' => NO_MD_TAG,
+                    'taglist' => array(),
                 ),
             ),
         );
 
         $data = hook_markdown_render_daily($data, $this->conf);
-        $this->assertEquals($str, $data['cols'][0][0]['formatedDescription']);
+        $this->assertEquals($str, $data['linksToDisplay'][0]['formatedDescription']);
     }
 
     /**
