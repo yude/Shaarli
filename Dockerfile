@@ -1,50 +1,61 @@
 # Stage 1:
-# - Get Shaarli sources
+# - Copy Shaarli sources
 # - Build documentation
-FROM dalibo/pandocker:stable as docs
-ADD . /pandoc/shaarli
-RUN cd /pandoc/shaarli \
-    && make htmldoc \
-    && rm -rf .git
+FROM python:3-alpine as docs
+ADD . /usr/src/app/shaarli
+RUN cd /usr/src/app/shaarli \
+    && pip install --no-cache-dir mkdocs \
+    && mkdocs build
 
 # Stage 2:
 # - Resolve PHP dependencies with Composer
 FROM composer:latest as composer
-COPY --from=docs /pandoc/shaarli /app/shaarli
+COPY --from=docs /usr/src/app/shaarli /app/shaarli
 RUN cd shaarli \
     && composer --prefer-dist --no-dev install
 
 # Stage 3:
 # - Shaarli image
-FROM debian:jessie
+FROM alpine:3.6
 LABEL maintainer="Shaarli Community"
 
-ENV TERM dumb
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y \
-       ca-certificates \
-       curl \
-       nginx-light \
-       php5-curl \
-       php5-fpm \
-       php5-gd \
-       php5-intl \
-       supervisor \
-    && apt-get clean
-
-RUN sed -i 's/post_max_size.*/post_max_size = 10M/' /etc/php5/fpm/php.ini \
-    && sed -i 's/upload_max_filesize.*/upload_max_filesize = 10M/' /etc/php5/fpm/php.ini
+RUN apk --update --no-cache add \
+        ca-certificates \
+        nginx \
+        php7 \
+        php7-ctype \
+        php7-curl \
+        php7-fpm \
+        php7-gd \
+        php7-iconv \
+        php7-intl \
+        php7-json \
+        php7-mbstring \
+        php7-openssl \
+        php7-session \
+        php7-xml \
+        php7-zlib \
+        s6
 
 COPY .docker/nginx.conf /etc/nginx/nginx.conf
-COPY .docker/supervised.conf /etc/supervisor/conf.d/supervised.conf
+COPY .docker/php-fpm.conf /etc/php7/php-fpm.conf
+COPY .docker/services.d /etc/services.d
+
+RUN rm -rf /etc/php7/php-fpm.d/www.conf \
+    && sed -i 's/post_max_size.*/post_max_size = 10M/' /etc/php7/php.ini \
+    && sed -i 's/upload_max_filesize.*/upload_max_filesize = 10M/' /etc/php7/php.ini
+
 
 WORKDIR /var/www
 COPY --from=composer /app/shaarli shaarli
-RUN rm -rf html \
-    && chown -R www-data:www-data .
+
+RUN chown -R nginx:nginx . \
+    && ln -sf /dev/stdout /var/log/nginx/shaarli.access.log \
+    && ln -sf /dev/stderr /var/log/nginx/shaarli.error.log
 
 VOLUME /var/www/shaarli/data
 
 EXPOSE 80
 
-CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]
+ENTRYPOINT ["/bin/s6-svscan", "/etc/services.d"]
+CMD []

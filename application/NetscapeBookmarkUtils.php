@@ -1,7 +1,13 @@
 <?php
 
+use Psr\Log\LogLevel;
+use Shaarli\Config\ConfigManager;
+use Shaarli\NetscapeBookmarkParser\NetscapeBookmarkParser;
+use Katzgrau\KLogger\Logger;
+
 /**
  * Utilities to import and export bookmarks using the Netscape format
+ * TODO: Not static, use a container.
  */
 class NetscapeBookmarkUtils
 {
@@ -26,11 +32,10 @@ class NetscapeBookmarkUtils
     {
         // see tpl/export.html for possible values
         if (! in_array($selection, array('all', 'public', 'private'))) {
-            throw new Exception('Invalid export selection: "'.$selection.'"');
+            throw new Exception(t('Invalid export selection:') .' "'.$selection.'"');
         }
 
         $bookmarkLinks = array();
-
         foreach ($linkDb as $link) {
             if ($link['private'] != 0 && $selection == 'public') {
                 continue;
@@ -60,6 +65,7 @@ class NetscapeBookmarkUtils
      * @param int    $importCount    how many links were imported
      * @param int    $overwriteCount how many links were overwritten
      * @param int    $skipCount      how many links were skipped
+     * @param int    $duration       how many seconds did the import take
      *
      * @return string Summary of the bookmark import status
      */
@@ -68,16 +74,18 @@ class NetscapeBookmarkUtils
         $filesize,
         $importCount=0,
         $overwriteCount=0,
-        $skipCount=0
+        $skipCount=0,
+        $duration=0
     )
     {
-        $status = 'File '.$filename.' ('.$filesize.' bytes) ';
+        $status = sprintf(t('File %s (%d bytes) '), $filename, $filesize);
         if ($importCount == 0 && $overwriteCount == 0 && $skipCount == 0) {
-            $status .= 'has an unknown file format. Nothing was imported.';
+            $status .= t('has an unknown file format. Nothing was imported.');
         } else {
-            $status .= 'was successfully processed: '.$importCount.' links imported, ';
-            $status .= $overwriteCount.' links overwritten, ';
-            $status .= $skipCount.' links skipped.';
+            $status .= vsprintf(
+                t('was successfully processed in %d seconds: %d links imported, %d links overwritten, %d links skipped.'),
+                [$duration, $importCount, $overwriteCount, $skipCount]
+            );
         }
         return $status;
     }
@@ -85,15 +93,17 @@ class NetscapeBookmarkUtils
     /**
      * Imports Web bookmarks from an uploaded Netscape bookmark dump
      *
-     * @param array  $post      Server $_POST parameters
-     * @param array  $files     Server $_FILES parameters
-     * @param LinkDB $linkDb    Loaded LinkDB instance
-     * @param string $pagecache Page cache
+     * @param array         $post      Server $_POST parameters
+     * @param array         $files     Server $_FILES parameters
+     * @param LinkDB        $linkDb    Loaded LinkDB instance
+     * @param ConfigManager $conf      instance
+     * @param History       $history   History instance
      *
      * @return string Summary of the bookmark import status
      */
-    public static function import($post, $files, $linkDb, $pagecache)
+    public static function import($post, $files, $linkDb, $conf, $history)
     {
+        $start = time();
         $filename = $files['filetoupload']['name'];
         $filesize = $files['filetoupload']['size'];
         $data = file_get_contents($files['filetoupload']['tmp_name']);
@@ -119,10 +129,20 @@ class NetscapeBookmarkUtils
         $defaultPrivacy = 0;
 
         $parser = new NetscapeBookmarkParser(
-            true,                       // nested tag support
-            $defaultTags,               // additional user-specified tags
-            strval(1 - $defaultPrivacy) // defaultPub = 1 - defaultPrivacy
+            true,                           // nested tag support
+            $defaultTags,                   // additional user-specified tags
+            strval(1 - $defaultPrivacy),    // defaultPub = 1 - defaultPrivacy
+            $conf->get('resource.data_dir') // log path, will be overridden
         );
+        $logger = new Logger(
+            $conf->get('resource.data_dir'),
+            ! $conf->get('dev.debug') ? LogLevel::INFO : LogLevel::DEBUG,
+            [
+                'prefix' => 'import.',
+                'extension' => 'log',
+            ]
+        );
+        $parser->setLogger($logger);
         $bookmarks = $parser->parseString($data);
 
         $importCount = 0;
@@ -163,6 +183,7 @@ class NetscapeBookmarkUtils
                 $newLink['id'] = $existingLink['id'];
                 $newLink['created'] = $existingLink['created'];
                 $newLink['updated'] = new DateTime();
+                $newLink['shorturl'] = $existingLink['shorturl'];
                 $linkDb[$existingLink['id']] = $newLink;
                 $importCount++;
                 $overwriteCount++;
@@ -179,13 +200,17 @@ class NetscapeBookmarkUtils
             $importCount++;
         }
 
-        $linkDb->save($pagecache);
+        $linkDb->save($conf->get('resource.page_cache'));
+        $history->importLinks();
+
+        $duration = time() - $start;
         return self::importStatus(
             $filename,
             $filesize,
             $importCount,
             $overwriteCount,
-            $skipCount
+            $skipCount,
+            $duration
         );
     }
 }

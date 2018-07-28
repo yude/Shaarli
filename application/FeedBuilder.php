@@ -63,11 +63,6 @@ class FeedBuilder
     protected $hideDates;
 
     /**
-     * @var string PubSub hub URL.
-     */
-    protected $pubsubhubUrl;
-
-    /**
      * @var string server locale.
      */
     protected $locale;
@@ -102,6 +97,11 @@ class FeedBuilder
      */
     public function buildData()
     {
+        // Search for untagged links
+        if (isset($this->userInput['searchtags']) && empty($this->userInput['searchtags'])) {
+            $this->userInput['searchtags'] = false;
+        }
+
         // Optionally filter the results:
         $linksToDisplay = $this->linkDB->filterSearch($this->userInput);
 
@@ -120,7 +120,6 @@ class FeedBuilder
         }
 
         $data['language'] = $this->getTypeLanguage();
-        $data['pubsubhub_url'] = $this->pubsubhubUrl;
         $data['last_update'] = $this->getLatestDateFormatted();
         $data['show_dates'] = !$this->hideDates || $this->isLoggedIn;
         // Remove leading slash from REQUEST_URI.
@@ -149,11 +148,11 @@ class FeedBuilder
             $link['url'] = $pageaddr . $link['url'];
         }
         if ($this->usePermalinks === true) {
-            $permalink = '<a href="'. $link['url'] .'" title="Direct link">Direct link</a>';
+            $permalink = '<a href="'. $link['url'] .'" title="'. t('Direct link') .'">'. t('Direct link') .'</a>';
         } else {
-            $permalink = '<a href="'. $link['guid'] .'" title="Permalink">Permalink</a>';
+            $permalink = '<a href="'. $link['guid'] .'" title="'. t('Permalink') .'">'. t('Permalink') .'</a>';
         }
-        $link['description']  = format_description($link['description'], '', $pageaddr);
+        $link['description']  = format_description($link['description'], '', false, $pageaddr);
         $link['description'] .= PHP_EOL .'<br>&#8212; '. $permalink;
 
         $pubDate = $link['created'];
@@ -180,16 +179,6 @@ class FeedBuilder
         $link['taglist'] = $taglist;
 
         return $link;
-    }
-
-    /**
-     * Assign PubSub hub URL.
-     *
-     * @param string $pubsubhubUrl PubSub hub url.
-     */
-    public function setPubsubhubUrl($pubsubhubUrl)
-    {
-        $this->pubsubhubUrl = $pubsubhubUrl;
     }
 
     /**

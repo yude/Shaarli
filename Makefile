@@ -1,23 +1,21 @@
 # The personal, minimalist, super-fast, database free, bookmarking service.
 # Makefile for PHP code analysis & testing, documentation and release generation
 
-# Prerequisites:
-# - install Composer, either:
-#   - from your distro's package manager;
-#   - from the official website (https://getcomposer.org/download/);
-# - install/update test dependencies:
-#   $ composer install  # 1st setup
-#   $ composer update
-# - install Xdebug for PHPUnit code coverage reports:
-#   - see http://xdebug.org/docs/install
-#   - enable in php.ini
-SHELL := /bin/bash
-
 BIN = vendor/bin
 PHP_SOURCE = index.php application tests plugins
 PHP_COMMA_SOURCE = index.php,application,tests,plugins
 
 all: static_analysis_summary check_permissions test
+
+##
+# Docker test adapter
+#
+# Shaarli sources and vendored libraries are copied from a shared volume
+# to a user-owned directory to enable running tests as a non-root user.
+##
+docker_%:
+	rsync -az /shaarli/ ~/shaarli/
+	cd ~/shaarli && make $*
 
 ##
 # Concise status of the project
@@ -106,7 +104,7 @@ check_permissions:
 	@echo "----------------------"
 	@echo "Check file permissions"
 	@echo "----------------------"
-	@for file in `git ls-files`; do \
+	@for file in `git ls-files | grep -v docker`; do \
 		if [ -x $$file ]; then \
 			errors=true; \
 			echo "$${file} is executable"; \
@@ -121,12 +119,24 @@ check_permissions:
 # See phpunit.xml for configuration
 # https://phpunit.de/manual/current/en/appendixes.configuration.html
 ##
-test:
+test: translate
 	@echo "-------"
 	@echo "PHPUNIT"
 	@echo "-------"
-	@mkdir -p sandbox
-	@$(BIN)/phpunit tests
+	@mkdir -p sandbox coverage
+	@$(BIN)/phpunit --coverage-php coverage/main.cov --bootstrap tests/bootstrap.php --testsuite unit-tests
+
+locale_test_%:
+	@UT_LOCALE=$*.utf8 \
+		$(BIN)/phpunit \
+		--coverage-php coverage/$(firstword $(subst _, ,$*)).cov \
+		--bootstrap tests/languages/bootstrap.php \
+		--testsuite language-$(firstword $(subst _, ,$*))
+
+all_tests: test locale_test_de_DE locale_test_en_US locale_test_fr_FR
+	@$(BIN)/phpcov merge --html coverage coverage
+	@# --text doesn't work with phpunit 4.* (v5 requires PHP 5.6)
+	@#$(BIN)/phpcov merge --text coverage/txt coverage
 
 ##
 # Custom release archive generation
@@ -144,19 +154,22 @@ release_archive: release_tar release_zip
 
 ### download 3rd-party PHP libraries
 composer_dependencies: clean
-	composer update --no-dev
+	composer install --no-dev --prefer-dist
 	find vendor/ -name ".git" -type d -exec rm -rf {} +
 
-### generate a release tarball and include 3rd-party dependencies
-release_tar: composer_dependencies
+### generate a release tarball and include 3rd-party dependencies and translations
+release_tar: composer_dependencies htmldoc translate
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).tar HEAD
 	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^vendor|$(ARCHIVE_PREFIX)vendor|" vendor/
+	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^doc/html|$(ARCHIVE_PREFIX)doc/html|" doc/html/
 	gzip $(ARCHIVE_VERSION).tar
 
-### generate a release zip and include 3rd-party dependencies
-release_zip: composer_dependencies
+### generate a release zip and include 3rd-party dependencies and translations
+release_zip: composer_dependencies htmldoc translate
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).zip -9 HEAD
-	mkdir $(ARCHIVE_PREFIX)
+	mkdir -p $(ARCHIVE_PREFIX)/{doc,vendor}
+	rsync -a doc/html/ $(ARCHIVE_PREFIX)doc/html/
+	zip -r $(ARCHIVE_VERSION).zip $(ARCHIVE_PREFIX)doc/
 	rsync -a vendor/ $(ARCHIVE_PREFIX)vendor/
 	zip -r $(ARCHIVE_VERSION).zip $(ARCHIVE_PREFIX)vendor/
 	rm -rf $(ARCHIVE_PREFIX)
@@ -170,53 +183,26 @@ clean:
 	@git clean -df
 	@rm -rf sandbox
 
+### generate the AUTHORS file from Git commit information
+authors:
+	@cp .github/mailmap .mailmap
+	@git shortlog -sne > AUTHORS
+	@rm .mailmap
+
 ### generate Doxygen documentation
 doxygen: clean
 	@rm -rf doxygen
 	@( cat Doxyfile ; echo "PROJECT_NUMBER=`git describe`" ) | doxygen -
 
-### update the local copy of the documentation
-doc: clean
-	@rm -rf doc
-	@git clone https://github.com/shaarli/Shaarli.wiki.git doc
-	@rm -rf doc/.git
+### generate HTML documentation from Markdown pages with MkDocs
+htmldoc:
+	python3 -m venv venv/
+	bash -c 'source venv/bin/activate; \
+	pip install mkdocs; \
+	mkdocs build'
+	find doc/html/ -type f -exec chmod a-x '{}' \;
+	rm -r venv
 
-### Generate a custom sidebar
-#
-# Sidebar content:
-#  - convert GitHub-flavoured relative links to standard Markdown
-#  - trim HTML, only keep the list (<ul>[...]</ul>) part
-htmlsidebar:
-	@echo '<div id="local-sidebar">' > doc/sidebar.html
-	@awk 'BEGIN { FS = "[\\[\\]]{2}" }'\
-	'm = /\[/ { t=$$2; gsub(/ /, "-", $$2); print $$1"["t"]("$$2".html)"$$3 }'\
-	'!m { print $$0 }' doc/_Sidebar.md > doc/tmp.md
-	@pandoc -f markdown -t html5 -s doc/tmp.md | awk '/(ul>|li>)/' >> doc/sidebar.html
-	@echo '</div>' >> doc/sidebar.html
-	@rm doc/tmp.md
-
-### Convert local markdown documentation to HTML
-#
-# For all pages:
-#  - infer title from the file name
-#  - convert GitHub-flavoured relative links to standard Markdown
-#  - insert the sidebar menu
-htmlpages:
-	@for file in `find doc/ -maxdepth 1 -name "*.md"`; do \
-		base=`basename $$file .md`; \
-		sed -i "1i # $${base//-/ }" $$file; \
-		awk 'BEGIN { FS = "[\\[\\]]{2}" }'\
-	'm = /\[/ { t=$$2; gsub(/ /, "-", $$2); print $$1"["t"]("$$2".html)"$$3 }'\
-	'!m { print $$0 }' $$file > doc/tmp.md; \
-		mv doc/tmp.md $$file; \
-		pandoc  -f gfm \
-			-t html5 \
-			-s \
-			-c "github-markdown.css" \
-			-T Shaarli \
-			-M pagetitle:"$${base//-/ }" \
-			-B doc/sidebar.html \
-			-o doc/$$base.html $$file; \
-	done;
-
-htmldoc: doc htmlsidebar htmlpages
+### Generate Shaarli's translation compiled file (.mo)
+translate:
+	@find inc/languages/ -name shaarli.po -execdir msgfmt shaarli.po -o shaarli.mo \;

@@ -17,14 +17,10 @@ Check the [milestones](https://github.com/shaarli/Shaarli/milestones) to see wha
  * You can also join instant discussion at https://gitter.im/shaarli/Shaarli, or via IRC as described [here](https://github.com/shaarli/Shaarli/issues/44#issuecomment-77745105)
  
 ### Documentation
-**the [wiki](https://github.com/shaarli/Shaarli/wiki) is world-writable** - anyone can edit or add chapters and pages.
 
- * Large changes should preferably be discussed in [General discussion](https://github.com/shaarli/Shaarli/issues/44) beforehand (you can post a draft there and edit it).
- * If you create a new page, please link it from the new page (eg from the [Other links](https://github.com/shaarli/Shaarli/wiki#other-links) section.
- * The wiki is a general documentation about Shaarli:  usage, development, hacks, usage tricks, related links, projects. Try to keep it organized.
- * The wiki will be synced to Shaarli's `doc/` directory on each release. Keep that in mind when reviewing the quality of your edits.
+The [official documentation](http://shaarli.readthedocs.io/en/rtfd/) is generated from [Markdown](https://daringfireball.net/projects/markdown/syntax) documents in the `doc/md/` directory. HTML documentation is generated using [Mkdocs](http://www.mkdocs.org/). [Read the Docs](https://readthedocs.org/) provides hosting for the online documentation. 
 
-You can make the project known by publishing blog posts/articles/videos about it and adding them to the links section in the wiki.
+To edit the documentation, please edit the appropriate `doc/md/*.md` files (and optionally `make htmlpages` to preview changes to HTML files). Then submit your changes as a Pull Request. Have a look at the MkDocs documentation and configuration file `mkdocs.yml` if you need to add/remove/rename/reorder pages.
 
 ### Translations
 Currently Shaarli has no translation/internationalization/localization system available and is single-language. You can help by proposing an i18n system (issue https://github.com/shaarli/Shaarli/issues/121)
@@ -58,7 +54,7 @@ Please report any problem you might find.
  * starting from branch ` master`, switch to a new branch (eg. `git checkout -b my-awesome-feature`)
  * edit the required files (from the Github web interface or your text editor)
  * add and commit your changes with a meaningful commit message (eg `Cool new feature, fixes issue #1001`)
- * run unit tests against your patched version, see [Running unit tests](https://github.com/shaarli/Shaarli/wiki/Running-unit-tests)
+ * run unit tests against your patched version, see [Running unit tests](https://shaarli.readthedocs.io/en/master/Unit-tests/#run-unit-tests)
  * Open your fork in the Github web interface and click the "Compare and Pull Request" button, enter required info and submit your Pull Request.
 
 All changes you will do on the `my-awesome-feature`  in the future will be added to your Pull Request. Don't work directly on the master branch, don't do unrelated work on your  `my-awesome-feature` branch.

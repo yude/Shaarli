@@ -2,6 +2,7 @@
 
 require_once 'application/NetscapeBookmarkUtils.php';
 
+use Shaarli\Config\ConfigManager;
 
 /**
  * Utility function to load a file's metadata in a $_FILES-like array
@@ -33,6 +34,11 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
     protected static $testDatastore = 'sandbox/datastore.php';
 
     /**
+     * @var string History file path
+     */
+    protected static $historyFilePath = 'sandbox/history.php';
+
+    /**
      * @var LinkDB private LinkDB instance
      */
     protected $linkDb = null;
@@ -41,6 +47,16 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
      * @var string Dummy page cache
      */
     protected $pagecache = 'tests';
+
+    /**
+     * @var ConfigManager instance.
+     */
+    protected $conf;
+
+    /**
+     * @var History instance.
+     */
+    protected $history;
 
     /**
      * @var string Save the current timezone.
@@ -65,6 +81,17 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
         // start with an empty datastore
         file_put_contents(self::$testDatastore, '<?php /* S7QysKquBQA= */ ?>');
         $this->linkDb = new LinkDB(self::$testDatastore, true, false);
+        $this->conf = new ConfigManager('tests/utils/config/configJson');
+        $this->conf->set('resource.page_cache', $this->pagecache);
+        $this->history = new History(self::$historyFilePath);
+    }
+
+    /**
+     * Delete history file.
+     */
+    public function tearDown()
+    {
+        @unlink(self::$historyFilePath);
     }
 
     public static function tearDownAfterClass()
@@ -81,7 +108,7 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
         $this->assertEquals(
             'File empty.htm (0 bytes) has an unknown file format.'
             .' Nothing was imported.',
-            NetscapeBookmarkUtils::import(NULL, $files, NULL, NULL)
+            NetscapeBookmarkUtils::import(null, $files, null, $this->conf, $this->history)
         );
         $this->assertEquals(0, count($this->linkDb));
     }
@@ -94,7 +121,7 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
         $files = file2array('no_doctype.htm');
         $this->assertEquals(
             'File no_doctype.htm (350 bytes) has an unknown file format. Nothing was imported.',
-            NetscapeBookmarkUtils::import(NULL, $files, NULL, NULL)
+            NetscapeBookmarkUtils::import(null, $files, null, $this->conf, $this->history)
         );
         $this->assertEquals(0, count($this->linkDb));
     }
@@ -105,10 +132,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
     public function testImportInternetExplorerEncoding()
     {
         $files = file2array('internet_explorer_encoding.htm');
-        $this->assertEquals(
-            'File internet_explorer_encoding.htm (356 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File internet_explorer_encoding.htm (356 bytes) was successfully processed in %d seconds:'
             .' 1 links imported, 0 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import(array(), $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import([], $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(1, count($this->linkDb));
         $this->assertEquals(0, count_private($this->linkDb));
@@ -134,10 +161,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
     public function testImportNested()
     {
         $files = file2array('netscape_nested.htm');
-        $this->assertEquals(
-            'File netscape_nested.htm (1337 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_nested.htm (1337 bytes) was successfully processed in %d seconds:'
             .' 8 links imported, 0 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import(array(), $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import([], $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(8, count($this->linkDb));
         $this->assertEquals(2, count_private($this->linkDb));
@@ -256,10 +283,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
     public function testImportDefaultPrivacyNoPost()
     {
         $files = file2array('netscape_basic.htm');
-        $this->assertEquals(
-            'File netscape_basic.htm (482 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_basic.htm (482 bytes) was successfully processed in %d seconds:'
             .' 2 links imported, 0 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import(array(), $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import([], $files, $this->linkDb, $this->conf, $this->history)
         );
 
         $this->assertEquals(2, count($this->linkDb));
@@ -301,10 +328,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
     {
         $post = array('privacy' => 'default');
         $files = file2array('netscape_basic.htm');
-        $this->assertEquals(
-            'File netscape_basic.htm (482 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_basic.htm (482 bytes) was successfully processed in %d seconds:'
             .' 2 links imported, 0 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(2, count($this->linkDb));
         $this->assertEquals(1, count_private($this->linkDb));
@@ -345,10 +372,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
     {
         $post = array('privacy' => 'public');
         $files = file2array('netscape_basic.htm');
-        $this->assertEquals(
-            'File netscape_basic.htm (482 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_basic.htm (482 bytes) was successfully processed in %d seconds:'
             .' 2 links imported, 0 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(2, count($this->linkDb));
         $this->assertEquals(0, count_private($this->linkDb));
@@ -369,10 +396,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
     {
         $post = array('privacy' => 'private');
         $files = file2array('netscape_basic.htm');
-        $this->assertEquals(
-            'File netscape_basic.htm (482 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_basic.htm (482 bytes) was successfully processed in %d seconds:'
             .' 2 links imported, 0 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(2, count($this->linkDb));
         $this->assertEquals(2, count_private($this->linkDb));
@@ -395,10 +422,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
 
         // import links as private
         $post = array('privacy' => 'private');
-        $this->assertEquals(
-            'File netscape_basic.htm (482 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_basic.htm (482 bytes) was successfully processed in %d seconds:'
             .' 2 links imported, 0 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(2, count($this->linkDb));
         $this->assertEquals(2, count_private($this->linkDb));
@@ -415,10 +442,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
             'privacy' => 'public',
             'overwrite' => 'true'
         );
-        $this->assertEquals(
-            'File netscape_basic.htm (482 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_basic.htm (482 bytes) was successfully processed in %d seconds:'
             .' 2 links imported, 2 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(2, count($this->linkDb));
         $this->assertEquals(0, count_private($this->linkDb));
@@ -441,10 +468,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
 
         // import links as public
         $post = array('privacy' => 'public');
-        $this->assertEquals(
-            'File netscape_basic.htm (482 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_basic.htm (482 bytes) was successfully processed in %d seconds:'
             .' 2 links imported, 0 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(2, count($this->linkDb));
         $this->assertEquals(0, count_private($this->linkDb));
@@ -462,10 +489,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
             'privacy' => 'private',
             'overwrite' => 'true'
         );
-        $this->assertEquals(
-            'File netscape_basic.htm (482 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_basic.htm (482 bytes) was successfully processed in %d seconds:'
             .' 2 links imported, 2 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(2, count($this->linkDb));
         $this->assertEquals(2, count_private($this->linkDb));
@@ -486,20 +513,20 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
     {
         $post = array('privacy' => 'public');
         $files = file2array('netscape_basic.htm');
-        $this->assertEquals(
-            'File netscape_basic.htm (482 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_basic.htm (482 bytes) was successfully processed in %d seconds:'
             .' 2 links imported, 0 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(2, count($this->linkDb));
         $this->assertEquals(0, count_private($this->linkDb));
 
         // re-import as private, DO NOT enable overwriting
         $post = array('privacy' => 'private');
-        $this->assertEquals(
-            'File netscape_basic.htm (482 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_basic.htm (482 bytes) was successfully processed in %d seconds:'
             .' 0 links imported, 0 links overwritten, 2 links skipped.',
-            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(2, count($this->linkDb));
         $this->assertEquals(0, count_private($this->linkDb));
@@ -515,10 +542,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
             'default_tags' => 'tag1,tag2 tag3'
         );
         $files = file2array('netscape_basic.htm');
-        $this->assertEquals(
-            'File netscape_basic.htm (482 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_basic.htm (482 bytes) was successfully processed in %d seconds:'
             .' 2 links imported, 0 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(2, count($this->linkDb));
         $this->assertEquals(0, count_private($this->linkDb));
@@ -542,10 +569,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
             'default_tags' => 'tag1&,tag2 "tag3"'
         );
         $files = file2array('netscape_basic.htm');
-        $this->assertEquals(
-            'File netscape_basic.htm (482 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File netscape_basic.htm (482 bytes) was successfully processed in %d seconds:'
             .' 2 links imported, 0 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(2, count($this->linkDb));
         $this->assertEquals(0, count_private($this->linkDb));
@@ -567,10 +594,10 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
     public function testImportSameDate()
     {
         $files = file2array('same_date.htm');
-        $this->assertEquals(
-            'File same_date.htm (453 bytes) was successfully processed:'
+        $this->assertStringMatchesFormat(
+            'File same_date.htm (453 bytes) was successfully processed in %d seconds:'
             .' 3 links imported, 0 links overwritten, 0 links skipped.',
-            NetscapeBookmarkUtils::import(array(), $files, $this->linkDb, $this->pagecache)
+            NetscapeBookmarkUtils::import(array(), $files, $this->linkDb, $this->conf, $this->history)
         );
         $this->assertEquals(3, count($this->linkDb));
         $this->assertEquals(0, count_private($this->linkDb));
@@ -586,5 +613,28 @@ class BookmarkImportTest extends PHPUnit_Framework_TestCase
             2,
             $this->linkDb[2]['id']
         );
+    }
+
+    public function testImportCreateUpdateHistory()
+    {
+        $post = [
+            'privacy' => 'public',
+            'overwrite' => 'true',
+        ];
+        $files = file2array('netscape_basic.htm');
+        NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history);
+        $history = $this->history->getHistory();
+        $this->assertEquals(1, count($history));
+        $this->assertEquals(History::IMPORT, $history[0]['event']);
+        $this->assertTrue(new DateTime('-5 seconds') < $history[0]['datetime']);
+
+        // re-import as private, enable overwriting
+        NetscapeBookmarkUtils::import($post, $files, $this->linkDb, $this->conf, $this->history);
+        $history = $this->history->getHistory();
+        $this->assertEquals(2, count($history));
+        $this->assertEquals(History::IMPORT, $history[0]['event']);
+        $this->assertTrue(new DateTime('-5 seconds') < $history[0]['datetime']);
+        $this->assertEquals(History::IMPORT, $history[1]['event']);
+        $this->assertTrue(new DateTime('-5 seconds') < $history[1]['datetime']);
     }
 }

@@ -50,12 +50,6 @@ class LinkDB implements Iterator, Countable, ArrayAccess
     // Link date storage format
     const LINK_DATE_FORMAT = 'Ymd_His';
 
-    // Datastore PHP prefix
-    protected static $phpPrefix = '<?php /* ';
-
-    // Datastore PHP suffix
-    protected static $phpSuffix = ' */ ?>';
-
     // List of links (associative array)
     //  - key:   link date (e.g. "20110823_124546"),
     //  - value: associative array (keys: title, description...)
@@ -139,16 +133,16 @@ class LinkDB implements Iterator, Countable, ArrayAccess
     {
         // TODO: use exceptions instead of "die"
         if (!$this->loggedIn) {
-            die('You are not authorized to add a link.');
+            die(t('You are not authorized to add a link.'));
         }
         if (!isset($value['id']) || empty($value['url'])) {
-            die('Internal Error: A link should always have an id and URL.');
+            die(t('Internal Error: A link should always have an id and URL.'));
         }
-        if ((! empty($offset) && ! is_int($offset)) || ! is_int($value['id'])) {
-            die('You must specify an integer as a key.');
+        if (($offset !== null && ! is_int($offset)) || ! is_int($value['id'])) {
+            die(t('You must specify an integer as a key.'));
         }
-        if (! empty($offset) && $offset !== $value['id']) {
-            die('Array offset and link ID must be equal.');
+        if ($offset !== null && $offset !== $value['id']) {
+            die(t('Array offset and link ID must be equal.'));
         }
 
         // If the link exists, we reuse the real offset, otherwise new entry
@@ -254,13 +248,13 @@ class LinkDB implements Iterator, Countable, ArrayAccess
         $this->links = array();
         $link = array(
             'id' => 1,
-            'title'=>' Shaarli: the personal, minimalist, super-fast, no-database delicious clone',
-            'url'=>'https://github.com/shaarli/Shaarli/wiki',
-            'description'=>'Welcome to Shaarli! This is your first public bookmark. To edit or delete me, you must first login.
+            'title'=> t('The personal, minimalist, super-fast, database free, bookmarking service'),
+            'url'=>'https://shaarli.readthedocs.io',
+            'description'=>t('Welcome to Shaarli! This is your first public bookmark. To edit or delete me, you must first login.
 
-To learn how to use Shaarli, consult the link "Help/documentation" at the bottom of this page.
+To learn how to use Shaarli, consult the link "Documentation" at the bottom of this page.
 
-You use the community supported version of the original Shaarli project, by Sebastien Sauvage.',
+You use the community supported version of the original Shaarli project, by Sebastien Sauvage.'),
             'private'=>0,
             'created'=> new DateTime(),
             'tags'=>'opensource software'
@@ -270,9 +264,9 @@ You use the community supported version of the original Shaarli project, by Seba
 
         $link = array(
             'id' => 0,
-            'title'=>'My secret stuff... - Pastebin.com',
+            'title'=> t('My secret stuff... - Pastebin.com'),
             'url'=>'http://sebsauvage.net/paste/?8434b27936c09649#bR7XsXhoTiLcqCpQbmOpBi3rq2zzQUC5hBI7ZT1O3x8=',
-            'description'=>'Shhhh! I\'m a private link only YOU can see. You can delete me too.',
+            'description'=> t('Shhhh! I\'m a private link only YOU can see. You can delete me too.'),
             'private'=>1,
             'created'=> new DateTime('1 minute ago'),
             'tags'=>'secretstuff',
@@ -295,22 +289,15 @@ You use the community supported version of the original Shaarli project, by Seba
             return;
         }
 
-        // Read data
-        // Note that gzinflate is faster than gzuncompress.
-        // See: http://www.php.net/manual/en/function.gzdeflate.php#96439
-        $this->links = array();
-
-        if (file_exists($this->datastore)) {
-            $this->links = unserialize(gzinflate(base64_decode(
-                substr(file_get_contents($this->datastore),
-                       strlen(self::$phpPrefix), -strlen(self::$phpSuffix)))));
-        }
+        $this->urls = [];
+        $this->ids = [];
+        $this->links = FileUtils::readFlatDB($this->datastore, []);
 
         $toremove = array();
         foreach ($this->links as $key => &$link) {
             if (! $this->loggedIn && $link['private'] != 0) {
                 // Transition for not upgraded databases.
-                $toremove[] = $key;
+                unset($this->links[$key]);
                 continue;
             }
 
@@ -344,14 +331,10 @@ You use the community supported version of the original Shaarli project, by Seba
                 }
                 $link['shorturl'] = smallHash($link['linkdate']);
             }
-        }
 
-        // If user is not logged in, filter private links.
-        foreach ($toremove as $offset) {
-            unset($this->links[$offset]);
+            $this->urls[$link['url']] = $key;
+            $this->ids[$link['id']] = $key;
         }
-
-        $this->reorder();
     }
 
     /**
@@ -361,19 +344,8 @@ You use the community supported version of the original Shaarli project, by Seba
      */
     private function write()
     {
-        if (is_file($this->datastore) && !is_writeable($this->datastore)) {
-            // The datastore exists but is not writeable
-            throw new IOException($this->datastore);
-        } else if (!is_file($this->datastore) && !is_writeable(dirname($this->datastore))) {
-            // The datastore does not exist and its parent directory is not writeable
-            throw new IOException(dirname($this->datastore));
-        }
-
-        file_put_contents(
-            $this->datastore,
-            self::$phpPrefix.base64_encode(gzdeflate(serialize($this->links))).self::$phpSuffix
-        );
-
+        $this->reorder();
+        FileUtils::writeFlatDB($this->datastore, $this->links);
     }
 
     /**
@@ -443,50 +415,37 @@ You use the community supported version of the original Shaarli project, by Seba
      *                                - searchtags: list of tags
      *                                - searchterm: term search
      * @param bool   $casesensitive Optional: Perform case sensitive filter
-     * @param bool   $privateonly   Optional: Returns private links only if true.
+     * @param string $visibility    return only all/private/public links
+     * @param string $untaggedonly  return only untagged links
      *
      * @return array filtered links, all links if no suitable filter was provided.
      */
-    public function filterSearch($filterRequest = array(), $casesensitive = false, $privateonly = false)
+    public function filterSearch($filterRequest = array(), $casesensitive = false, $visibility = 'all', $untaggedonly = false)
     {
         // Filter link database according to parameters.
-        $searchtags = !empty($filterRequest['searchtags']) ? escape($filterRequest['searchtags']) : '';
-        $searchterm = !empty($filterRequest['searchterm']) ? escape($filterRequest['searchterm']) : '';
+        $searchtags = isset($filterRequest['searchtags']) ? escape($filterRequest['searchtags']) : '';
+        $searchterm = isset($filterRequest['searchterm']) ? escape($filterRequest['searchterm']) : '';
 
-        // Search tags + fullsearch.
-        if (! empty($searchtags) && ! empty($searchterm)) {
-            $type = LinkFilter::$FILTER_TAG | LinkFilter::$FILTER_TEXT;
-            $request = array($searchtags, $searchterm);
-        }
-        // Search by tags.
-        elseif (! empty($searchtags)) {
-            $type = LinkFilter::$FILTER_TAG;
-            $request = $searchtags;
-        }
-        // Fulltext search.
-        elseif (! empty($searchterm)) {
-            $type = LinkFilter::$FILTER_TEXT;
-            $request = $searchterm;
-        }
-        // Otherwise, display without filtering.
-        else {
-            $type = '';
-            $request = '';
-        }
+        // Search tags + fullsearch - blank string parameter will return all links.
+        $type = LinkFilter::$FILTER_TAG | LinkFilter::$FILTER_TEXT; // == "vuotext"
+        $request = [$searchtags, $searchterm];
 
         $linkFilter = new LinkFilter($this);
-        return $linkFilter->filter($type, $request, $casesensitive, $privateonly);
+        return $linkFilter->filter($type, $request, $casesensitive, $visibility, $untaggedonly);
     }
 
     /**
-     * Returns the list of all tags
-     * Output: associative array key=tags, value=0
+     * Returns the list tags appearing in the links with the given tags
+     * @param $filteringTags: tags selecting the links to consider
+     * @param $visibility: process only all/private/public links
+     * @return: a tag=>linksCount array
      */
-    public function allTags()
+    public function linksCountPerTag($filteringTags = [], $visibility = 'all')
     {
+        $links = empty($filteringTags) ? $this->links : $this->filterSearch(['searchtags' => $filteringTags], false, $visibility);
         $tags = array();
         $caseMapping = array();
-        foreach ($this->links as $link) {
+        foreach ($links as $link) {
             foreach (preg_split('/\s+/', $link['tags'], 0, PREG_SPLIT_NO_EMPTY) as $tag) {
                 if (empty($tag)) {
                     continue;
@@ -502,6 +461,39 @@ You use the community supported version of the original Shaarli project, by Seba
         // Sort tags by usage (most used tag first)
         arsort($tags);
         return $tags;
+    }
+
+    /**
+     * Rename or delete a tag across all links.
+     *
+     * @param string $from Tag to rename
+     * @param string $to   New tag. If none is provided, the from tag will be deleted
+     *
+     * @return array|bool List of altered links or false on error
+     */
+    public function renameTag($from, $to)
+    {
+        if (empty($from)) {
+            return false;
+        }
+        $delete = empty($to);
+        // True for case-sensitive tag search.
+        $linksToAlter = $this->filterSearch(['searchtags' => $from], true);
+        foreach($linksToAlter as $key => &$value)
+        {
+            $tags = preg_split('/\s+/', trim($value['tags']));
+            if (($pos = array_search($from, $tags)) !== false) {
+                if ($delete) {
+                    unset($tags[$pos]); // Remove tag.
+                } else {
+                    $tags[$pos] = trim($to);
+                }
+                $value['tags'] = trim(implode(' ', array_unique($tags)));
+                $this[$value['id']] = $value;
+            }
+        }
+
+        return $linksToAlter;
     }
 
     /**
@@ -535,8 +527,8 @@ You use the community supported version of the original Shaarli project, by Seba
             return $a['created'] < $b['created'] ? 1 * $order : -1 * $order;
         });
 
-        $this->urls = array();
-        $this->ids = array();
+        $this->urls = [];
+        $this->ids = [];
         foreach ($this->links as $key => $link) {
             $this->urls[$link['url']] = $key;
             $this->ids[$link['id']] = $key;

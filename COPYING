@@ -1,33 +1,7 @@
 Files: *
 License: zlib/libpng
 Copyright: (c) 2011-2015 Sébastien SAUVAGE <sebsauvage@sebsauvage.net>
-           (c) 2011-2015 Alexandre Alapetite <alexandre@alapetite.fr>
-           (c) 2011-2015 David Sferruzza <david.sferruzza@gmail.com>
-           (c) 2011-2015 Christophe HENRY <christophe.henry@sbgodin.fr>
-           (c) 2011-2015 Mathieu Chabanon <git@matchab.fr>
-           (c) 2011-2015 BoboTiG <bobotig@gmail.com>
-           (c) 2011-2015 Bronco <bronco@warriordudimanche.net>
-           (c) 2011-2015 Emilien Klein <emilien@klein.st>
-           (c) 2011-2015 Knah Tsaeb <knah-tsaeb@knah-tsaeb.org>
-           (c) 2011-2015 Lionel Martin <renarddesmers@gmail.com>
-           (c) 2011-2015 lehollandaisvolant <levoltigeurhollandais@gmail.com>
-           (c) 2011-2015 timo van neerden <fire@lehollandaisvolant.net>
-           (c) 2011-2015 nodiscc <nodiscc@gmail.com>
-           (c) 2011-2015 Florian Eula <mr.pikzen@gmail.com>
-           (c) 2011-2015 Arthur Hoaro <arthur@hoa.ro>
-           (c) 2011-2015 Aurélien "VirtualTam" Tamisier <virtualtam@flibidi.net>
-           (c) 2011-2015 qwertygc <champlywood@free.fr>
-           (c) 2011-2015 idleman <idleman@idleman.fr>
-           (c) 2015 Alexis Ju <alexis@effingo.be>
-           (c) 2015 dimtion <zizou.xena@gmail.com>
-           (c) 2015 Fanch <fanch-github@qth.fr>
-           (c) 2015 Guillaume Virlet <github@virlet.org>
-           (c) 2015 Felix Bartels <felix@host-consultants.de>
-           (c) 2015 Marsup <marsup@gmail.com>
-           (c) 2015 Miloš Jovanović <mjovanovic@gmail.com>
-           (c) 2015 Nicolás Danelón <hola@nicolasdanelon.com.ar>
-           (c) 2015 TsT <tst2005@gmail.com>
-
+           (c) 2011-2017 The Shaarli Community, see AUTHORS
 
 Files: inc/reset.css
 License: BSD (http://opensource.org/licenses/BSD-3-Clause)
@@ -43,7 +17,7 @@ License: CC-BY (http://creativecommons.org/licenses/by/3.0/)
 Copyright: (c) 2014 Designmodo
 Source: http://designmodo.com/linecons-free/
 
-Files: images/floral_left.png, images/floral_right.png, images/squiggle.png, images/squiggle2.png, images/squiggle_closing.png
+Files: images/floral_left.png, images/floral_right.png, images/squiggle.png, images/squiggle_closing.png
 Licence: Public Domain
 Source: https://openclipart.org/people/j4p4n/j4p4n_ornimental_bookend_-_left.svg
 
@@ -71,6 +45,10 @@ Copyright: (C) 2015 Lea Verou - https://github.com/LeaVerou/awesomplete
 Files: plugins/wallabag/wallabag.png
 License: MIT License (http://opensource.org/licenses/MIT)
 Copyright: (C) 2015 Nicolas Lœuillet - https://github.com/wallabag/wallabag
+
+Files: tpl/default/sad_star.png
+License: MIT License (http://opensource.org/licenses/MIT)
+Copyright: (C) 2015 kalvn - https://github.com/kalvn/Shaarli-Material
 
 ----------------------------------------------------
 ZLIB/LIBPNG LICENSE

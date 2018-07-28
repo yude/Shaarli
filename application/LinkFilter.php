@@ -51,55 +51,73 @@ class LinkFilter
      * @param string $type          Type of filter (eg. tags, permalink, etc.).
      * @param mixed  $request       Filter content.
      * @param bool   $casesensitive Optional: Perform case sensitive filter if true.
-     * @param bool   $privateonly   Optional: Only returns private links if true.
+     * @param string $visibility    Optional: return only all/private/public links
+     * @param string $untaggedonly  Optional: return only untagged links. Applies only if $type includes FILTER_TAG
      *
      * @return array filtered link list.
      */
-    public function filter($type, $request, $casesensitive = false, $privateonly = false)
+    public function filter($type, $request, $casesensitive = false, $visibility = 'all', $untaggedonly = false)
     {
+        if (! in_array($visibility, ['all', 'public', 'private'])) {
+            $visibility = 'all';
+        }
+
         switch($type) {
             case self::$FILTER_HASH:
                 return $this->filterSmallHash($request);
-            case self::$FILTER_TAG | self::$FILTER_TEXT:
-                if (!empty($request)) {
-                    $filtered = $this->links;
-                    if (isset($request[0])) {
-                        $filtered = $this->filterTags($request[0], $casesensitive, $privateonly);
+            case self::$FILTER_TAG | self::$FILTER_TEXT: // == "vuotext"
+                $noRequest = empty($request) || (empty($request[0]) && empty($request[1]));
+                if ($noRequest) {
+                    if ($untaggedonly) {
+                        return $this->filterUntagged($visibility);
                     }
-                    if (isset($request[1])) {
-                        $lf = new LinkFilter($filtered);
-                        $filtered = $lf->filterFulltext($request[1], $privateonly);
-                    }
-                    return $filtered;
+                    return $this->noFilter($visibility);
                 }
-                return $this->noFilter($privateonly);
+                if ($untaggedonly) {
+                    $filtered = $this->filterUntagged($visibility);
+                } else {
+                    $filtered = $this->links;
+                }
+                if (!empty($request[0])) {
+                    $filtered = (new LinkFilter($filtered))->filterTags($request[0], $casesensitive, $visibility);
+                }
+                if (!empty($request[1])) {
+                    $filtered = (new LinkFilter($filtered))->filterFulltext($request[1], $visibility);
+                }
+                return $filtered;
             case self::$FILTER_TEXT:
-                return $this->filterFulltext($request, $privateonly);
+                return $this->filterFulltext($request, $visibility);
             case self::$FILTER_TAG:
-                return $this->filterTags($request, $casesensitive, $privateonly);
+                if ($untaggedonly) {
+                    return $this->filterUntagged($visibility);
+                } else {
+                    return $this->filterTags($request, $casesensitive, $visibility);
+                }
             case self::$FILTER_DAY:
                 return $this->filterDay($request);
             default:
-                return $this->noFilter($privateonly);
+                return $this->noFilter($visibility);
         }
     }
 
     /**
      * Unknown filter, but handle private only.
      *
-     * @param bool $privateonly returns private link only if true.
+     * @param string $visibility Optional: return only all/private/public links
      *
      * @return array filtered links.
      */
-    private function noFilter($privateonly = false)
+    private function noFilter($visibility = 'all')
     {
-        if (! $privateonly) {
+        if ($visibility === 'all') {
             return $this->links;
         }
 
         $out = array();
         foreach ($this->links as $key => $value) {
-            if ($value['private']) {
+            if ($value['private'] && $visibility === 'private') {
+                $out[$key] = $value;
+            } else if (! $value['private'] && $visibility === 'public') {
                 $out[$key] = $value;
             }
         }
@@ -151,14 +169,14 @@ class LinkFilter
      *  - see https://github.com/shaarli/Shaarli/issues/75 for examples
      *
      * @param string $searchterms search query.
-     * @param bool   $privateonly return only private links if true.
+     * @param string $visibility Optional: return only all/private/public links.
      *
      * @return array search results.
      */
-    private function filterFulltext($searchterms, $privateonly = false)
+    private function filterFulltext($searchterms, $visibility = 'all')
     {
         if (empty($searchterms)) {
-            return $this->links;
+            return $this->noFilter($visibility);
         }
 
         $filtered = array();
@@ -189,8 +207,12 @@ class LinkFilter
         foreach ($this->links as $id => $link) {
 
             // ignore non private links when 'privatonly' is on.
-            if (! $link['private'] && $privateonly === true) {
-                continue;
+            if ($visibility !== 'all') {
+                if (! $link['private'] && $visibility === 'private') {
+                    continue;
+                } else if ($link['private'] && $visibility === 'public') {
+                    continue;
+                }
             }
 
             // Concatenate link fields to search across fields.
@@ -228,6 +250,51 @@ class LinkFilter
     }
 
     /**
+     * generate a regex fragment out of a tag
+     * @param string $tag to to generate regexs from. may start with '-' to negate, contain '*' as wildcard
+     * @return string generated regex fragment
+     */
+    private static function tag2regex($tag)
+    {
+        $len = strlen($tag);
+        if(!$len || $tag === "-" || $tag === "*"){
+            // nothing to search, return empty regex
+            return '';
+        }
+        if($tag[0] === "-") {
+            // query is negated
+            $i = 1; // use offset to start after '-' character
+            $regex = '(?!'; // create negative lookahead
+        } else {
+            $i = 0; // start at first character
+            $regex = '(?='; // use positive lookahead
+        }
+        $regex .= '.*(?:^| )'; // before tag may only be a space or the beginning
+        // iterate over string, separating it into placeholder and content
+        for(; $i < $len; $i++){
+            if($tag[$i] === '*'){
+                // placeholder found
+                $regex .= '[^ ]*?';
+            } else {
+                // regular characters
+                $offset = strpos($tag, '*', $i);
+                if($offset === false){
+                    // no placeholder found, set offset to end of string
+                    $offset = $len;
+                }
+                // subtract one, as we want to get before the placeholder or end of string
+                $offset -= 1;
+                // we got a tag name that we want to search for. escape any regex characters to prevent conflicts.
+                $regex .= preg_quote(substr($tag, $i, $offset - $i + 1), '/');
+                // move $i on
+                $i = $offset;
+            }
+        }
+        $regex .= '(?:$| ))'; // after the tag may only be a space or the end
+        return $regex;
+    }
+
+    /**
      * Returns the list of links associated with a given list of tags
      *
      * You can specify one or more tags, separated by space or a comma, e.g.
@@ -235,49 +302,94 @@ class LinkFilter
      *
      * @param string $tags          list of tags separated by commas or blank spaces.
      * @param bool   $casesensitive ignore case if false.
-     * @param bool   $privateonly   returns private links only.
+     * @param string $visibility    Optional: return only all/private/public links.
      *
      * @return array filtered links.
      */
-    public function filterTags($tags, $casesensitive = false, $privateonly = false)
+    public function filterTags($tags, $casesensitive = false, $visibility = 'all')
     {
-        // Implode if array for clean up.
-        $tags = is_array($tags) ? trim(implode(' ', $tags)) : $tags;
-        if (empty($tags)) {
-            return $this->links;
+        // get single tags (we may get passed an array, even though the docs say different)
+        $inputTags = $tags;
+        if(!is_array($tags)) {
+            // we got an input string, split tags
+            $inputTags = preg_split('/(?:\s+)|,/', $inputTags, -1, PREG_SPLIT_NO_EMPTY);
         }
 
-        $searchtags = self::tagsStrToArray($tags, $casesensitive);
+        if(!count($inputTags)){
+            // no input tags
+            return $this->noFilter($visibility);
+        }
+
+        // build regex from all tags
+        $re = '/^' . implode(array_map("self::tag2regex", $inputTags)) . '.*$/';
+        if(!$casesensitive) {
+            // make regex case insensitive
+            $re .= 'i';
+        }
+
+        // create resulting array
         $filtered = array();
-        if (empty($searchtags)) {
-            return $filtered;
-        }
 
+        // iterate over each link
         foreach ($this->links as $key => $link) {
-            // ignore non private links when 'privatonly' is on.
-            if (! $link['private'] && $privateonly === true) {
+            // check level of visibility
+            // ignore non private links when 'privateonly' is on.
+            if ($visibility !== 'all') {
+                if (! $link['private'] && $visibility === 'private') {
+                    continue;
+                } else if ($link['private'] && $visibility === 'public') {
+                    continue;
+                }
+            }
+            $search = $link['tags']; // build search string, start with tags of current link
+            if(strlen(trim($link['description'])) && strpos($link['description'], '#') !== false){
+                // description given and at least one possible tag found
+                $descTags = array();
+                // find all tags in the form of #tag in the description
+                preg_match_all(
+                    '/(?<![' . self::$HASHTAG_CHARS . '])#([' . self::$HASHTAG_CHARS . ']+?)\b/sm',
+                    $link['description'],
+                    $descTags
+                );
+                if(count($descTags[1])){
+                    // there were some tags in the description, add them to the search string
+                    $search .= ' ' . implode(' ', $descTags[1]);
+                }
+            };
+            // match regular expression with search string
+            if(!preg_match($re, $search)){
+                // this entry does _not_ match our regex
                 continue;
             }
+            $filtered[$key] = $link;
+        }
+        return $filtered;
+    }
 
-            $linktags = self::tagsStrToArray($link['tags'], $casesensitive);
-
-            $found = true;
-            for ($i = 0 ; $i < count($searchtags) && $found; $i++) {
-                // Exclusive search, quit if tag found.
-                // Or, tag not found in the link, quit.
-                if (($searchtags[$i][0] == '-'
-                        && $this->searchTagAndHashTag(substr($searchtags[$i], 1), $linktags, $link['description']))
-                    || ($searchtags[$i][0] != '-')
-                        && ! $this->searchTagAndHashTag($searchtags[$i], $linktags, $link['description'])
-                ) {
-                    $found = false;
+    /**
+     * Return only links without any tag.
+     *
+     * @param string $visibility return only all/private/public links.
+     *
+     * @return array filtered links.
+     */
+    public function filterUntagged($visibility)
+    {
+        $filtered = [];
+        foreach ($this->links as $key => $link) {
+            if ($visibility !== 'all') {
+                if (! $link['private'] && $visibility === 'private') {
+                    continue;
+                } else if ($link['private'] && $visibility === 'public') {
+                    continue;
                 }
             }
 
-            if ($found) {
+            if (empty(trim($link['tags']))) {
                 $filtered[$key] = $link;
             }
         }
+
         return $filtered;
     }
 
@@ -311,28 +423,6 @@ class LinkFilter
     }
 
     /**
-     * Check if a tag is found in the taglist, or as an hashtag in the link description.
-     *
-     * @param string $tag         Tag to search.
-     * @param array  $taglist     List of tags for the current link.
-     * @param string $description Link description.
-     *
-     * @return bool True if found, false otherwise.
-     */
-    protected function searchTagAndHashTag($tag, $taglist, $description)
-    {
-        if (in_array($tag, $taglist)) {
-            return true;
-        }
-
-        if (preg_match('/(^| )#'. $tag .'([^'. self::$HASHTAG_CHARS .']|$)/mui', $description) > 0) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
      * Convert a list of tags (str) to an array. Also
      * - handle case sensitivity.
      * - accepts spaces commas as separator.
@@ -341,18 +431,24 @@ class LinkFilter
      * @param bool   $casesensitive will convert everything to lowercase if false.
      *
      * @return array filtered tags string.
-    */
+     */
     public static function tagsStrToArray($tags, $casesensitive)
     {
         // We use UTF-8 conversion to handle various graphemes (i.e. cyrillic, or greek)
         $tagsOut = $casesensitive ? $tags : mb_convert_case($tags, MB_CASE_LOWER, 'UTF-8');
         $tagsOut = str_replace(',', ' ', $tagsOut);
 
-        return array_values(array_filter(explode(' ', trim($tagsOut)), 'strlen'));
+        return preg_split('/\s+/', $tagsOut, -1, PREG_SPLIT_NO_EMPTY);
     }
 }
 
 class LinkNotFoundException extends Exception
 {
-    protected $message = 'The link you are trying to reach does not exist or has been deleted.';
+    /**
+     * LinkNotFoundException constructor.
+     */
+    public function __construct()
+    {
+        $this->message =  t('The link you are trying to reach does not exist or has been deleted.');
+    }
 }

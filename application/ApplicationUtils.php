@@ -4,9 +4,13 @@
  */
 class ApplicationUtils
 {
+    /**
+     * @var string File containing the current version
+     */
+    public static $VERSION_FILE = 'shaarli_version.php';
+
     private static $GIT_URL = 'https://raw.githubusercontent.com/shaarli/Shaarli';
-    private static $GIT_BRANCHES = array('master', 'stable');
-    private static $VERSION_FILE = 'shaarli_version.php';
+    private static $GIT_BRANCHES = array('latest', 'stable');
     private static $VERSION_START_TAG = '<?php /* ';
     private static $VERSION_END_TAG = ' */ ?>';
 
@@ -27,6 +31,30 @@ class ApplicationUtils
         if (strpos($headers[0], '200 OK') === false) {
             error_log('Failed to retrieve ' . $url);
             return false;
+        }
+
+        return $data;
+    }
+
+    /**
+     * Retrieve the version from a remote URL or a file.
+     *
+     * @param string $remote  URL or file to fetch.
+     * @param int    $timeout For URLs fetching.
+     *
+     * @return bool|string The version or false if it couldn't be retrieved.
+     */
+    public static function getVersion($remote, $timeout = 2)
+    {
+        if (startsWith($remote, 'http')) {
+            if (($data = static::getLatestGitVersionCode($remote, $timeout)) === false) {
+                return false;
+            }
+        } else {
+            if (! is_file($remote)) {
+                return false;
+            }
+            $data = file_get_contents($remote);
         }
 
         return str_replace(
@@ -65,13 +93,10 @@ class ApplicationUtils
                                        $isLoggedIn,
                                        $branch='stable')
     {
-        if (! $isLoggedIn) {
-            // Do not check versions for visitors
-            return false;
-        }
-
-        if (empty($enableCheck)) {
-            // Do not check if the user doesn't want to
+        // Do not check versions for visitors
+        // Do not check if the user doesn't want to
+        // Do not check with dev version
+        if (! $isLoggedIn || empty($enableCheck) || $currentVersion === 'dev') {
             return false;
         }
 
@@ -93,7 +118,7 @@ class ApplicationUtils
 
         // Late Static Binding allows overriding within tests
         // See http://php.net/manual/en/language.oop5.late-static-bindings.php
-        $latestVersion = static::getLatestGitVersionCode(
+        $latestVersion = static::getVersion(
             self::$GIT_URL . '/' . $branch . '/' . self::$VERSION_FILE
         );
 
@@ -124,12 +149,13 @@ class ApplicationUtils
     public static function checkPHPVersion($minVersion, $curVersion)
     {
         if (version_compare($curVersion, $minVersion) < 0) {
-            throw new Exception(
+            $msg = t(
                 'Your PHP version is obsolete!'
-                .' Shaarli requires at least PHP '.$minVersion.', and thus cannot run.'
-                .' Your PHP version has known security vulnerabilities and should be'
-                .' updated as soon as possible.'
+                 . ' Shaarli requires at least PHP %s, and thus cannot run.'
+                 . ' Your PHP version has known security vulnerabilities and should be'
+                 . ' updated as soon as possible.'
             );
+            throw new Exception(sprintf($msg, $minVersion));
         }
     }
 
@@ -143,16 +169,18 @@ class ApplicationUtils
     public static function checkResourcePermissions($conf)
     {
         $errors = array();
+        $rainTplDir = rtrim($conf->get('resource.raintpl_tpl'), '/');
 
         // Check script and template directories are readable
         foreach (array(
             'application',
             'inc',
             'plugins',
-            $conf->get('resource.raintpl_tpl'),
+            $rainTplDir,
+            $rainTplDir.'/'.$conf->get('resource.theme'),
         ) as $path) {
             if (! is_readable(realpath($path))) {
-                $errors[] = '"'.$path.'" directory is not readable';
+                $errors[] = '"'.$path.'" '. t('directory is not readable');
             }
         }
 
@@ -164,10 +192,10 @@ class ApplicationUtils
             $conf->get('resource.raintpl_tmp'),
         ) as $path) {
             if (! is_readable(realpath($path))) {
-                $errors[] = '"'.$path.'" directory is not readable';
+                $errors[] = '"'.$path.'" '. t('directory is not readable');
             }
             if (! is_writable(realpath($path))) {
-                $errors[] = '"'.$path.'" directory is not writable';
+                $errors[] = '"'.$path.'" '. t('directory is not writable');
             }
         }
 
@@ -185,13 +213,28 @@ class ApplicationUtils
             }
 
             if (! is_readable(realpath($path))) {
-                $errors[] = '"'.$path.'" file is not readable';
+                $errors[] = '"'.$path.'" '. t('file is not readable');
             }
             if (! is_writable(realpath($path))) {
-                $errors[] = '"'.$path.'" file is not writable';
+                $errors[] = '"'.$path.'" '. t('file is not writable');
             }
         }
 
         return $errors;
+    }
+
+    /**
+     * Returns a salted hash representing the current Shaarli version.
+     *
+     * Useful for assets browser cache.
+     *
+     * @param string $currentVersion of Shaarli
+     * @param string $salt           User personal salt, also used for the authentication
+     *
+     * @return string version hash
+     */
+    public static function getVersionHash($currentVersion, $salt)
+    {
+        return hash_hmac('sha256', $currentVersion, $salt);
     }
 }

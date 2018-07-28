@@ -1,5 +1,7 @@
 <?php
 
+use Shaarli\Config\ConfigManager;
+
 /**
  * This class is in charge of building the final page.
  * (This is basically a wrapper around RainTPL which pre-fills some fields.)
@@ -20,15 +22,24 @@ class PageBuilder
     protected $conf;
 
     /**
+     * @var LinkDB $linkDB instance.
+     */
+    protected $linkDB;
+
+    /**
      * PageBuilder constructor.
      * $tpl is initialized at false for lazy loading.
      *
-     * @param ConfigManager $conf Configuration Manager instance (reference).
+     * @param ConfigManager $conf   Configuration Manager instance (reference).
+     * @param LinkDB        $linkDB instance.
+     * @param string        $token  Session token
      */
-    function __construct(&$conf)
+    public function __construct(&$conf, $linkDB = null, $token = null)
     {
         $this->tpl = false;
         $this->conf = $conf;
+        $this->linkDB = $linkDB;
+        $this->token = $token;
     }
 
     /**
@@ -40,7 +51,7 @@ class PageBuilder
 
         try {
             $version = ApplicationUtils::checkUpdate(
-                shaarli_version,
+                SHAARLI_VERSION,
                 $this->conf->get('resource.update_check'),
                 $this->conf->get('updates.check_updates_interval'),
                 $this->conf->get('updates.check_updates'),
@@ -66,18 +77,28 @@ class PageBuilder
         }
         $this->tpl->assign('searchcrits', $searchcrits);
         $this->tpl->assign('source', index_url($_SERVER));
-        $this->tpl->assign('version', shaarli_version);
+        $this->tpl->assign('version', SHAARLI_VERSION);
+        $this->tpl->assign(
+            'version_hash',
+            ApplicationUtils::getVersionHash(SHAARLI_VERSION, $this->conf->get('credentials.salt'))
+        );
         $this->tpl->assign('scripturl', index_url($_SERVER));
         $this->tpl->assign('privateonly', !empty($_SESSION['privateonly'])); // Show only private links?
+        $this->tpl->assign('untaggedonly', !empty($_SESSION['untaggedonly']));
         $this->tpl->assign('pagetitle', $this->conf->get('general.title', 'Shaarli'));
         if ($this->conf->exists('general.header_link')) {
             $this->tpl->assign('titleLink', $this->conf->get('general.header_link'));
         }
         $this->tpl->assign('shaarlititle', $this->conf->get('general.title', 'Shaarli'));
         $this->tpl->assign('openshaarli', $this->conf->get('security.open_shaarli', false));
-        $this->tpl->assign('showatom', $this->conf->get('feed.show_atom', false));
+        $this->tpl->assign('showatom', $this->conf->get('feed.show_atom', true));
+        $this->tpl->assign('feed_type', $this->conf->get('feed.show_atom', true) !== false ? 'atom' : 'rss');
         $this->tpl->assign('hide_timestamps', $this->conf->get('privacy.hide_timestamps', false));
-        $this->tpl->assign('token', getToken($this->conf));
+        $this->tpl->assign('token', $this->token);
+
+        if ($this->linkDB !== null) {
+            $this->tpl->assign('tags', $this->linkDB->linksCountPerTag());
+        }
         // To be removed with a proper theme configuration.
         $this->tpl->assign('conf', $this->conf);
     }
@@ -140,9 +161,12 @@ class PageBuilder
      *
      * @param string $message A messate to display what is not found
      */
-    public function render404($message = 'The page you are trying to reach does not exist or has been deleted.')
+    public function render404($message = '')
     {
-        header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+        if (empty($message)) {
+            $message = t('The page you are trying to reach does not exist or has been deleted.');
+        }
+        header($_SERVER['SERVER_PROTOCOL'] .' '. t('404 Not Found'));
         $this->tpl->assign('error_message', $message);
         $this->renderPage('404');
     }

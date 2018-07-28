@@ -4,7 +4,7 @@
  */
 class ReferenceLinkDB
 {
-    public static $NB_LINKS_TOTAL = 8;
+    public static $NB_LINKS_TOTAL = 9;
 
     private $_links = array();
     private $_publicCount = 0;
@@ -38,6 +38,16 @@ class ReferenceLinkDB
         );
 
         $this->addLink(
+            9,
+            'PSR-2: Coding Style Guide',
+            'http://www.php-fig.org/psr/psr-2/',
+            'This guide extends and expands on PSR-1, the basic coding standard.',
+            0,
+            DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_152312'),
+            ''
+        );
+
+        $this->addLink(
             8,
             'Free as in Freedom 2.0 @website',
             'https://static.fsf.org/nosvn/faif-2.0.pdf',
@@ -56,7 +66,7 @@ class ReferenceLinkDB
             0,
             DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20130614_184135'),
             'gnu media web .hidden hashtag',
-            null,
+            DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20130615_184230'),
             'IuWvgA'
         );
 
@@ -131,10 +141,32 @@ class ReferenceLinkDB
      */
     public function write($filename)
     {
+        $this->reorder();
         file_put_contents(
             $filename,
             '<?php /* '.base64_encode(gzdeflate(serialize($this->_links))).' */ ?>'
         );
+    }
+
+    /**
+     * Reorder links by creation date (newest first).
+     *
+     * Also update the urls and ids mapping arrays.
+     *
+     * @param string $order ASC|DESC
+     */
+    public function reorder($order = 'DESC')
+    {
+        // backward compatibility: ignore reorder if the the `created` field doesn't exist
+        if (! isset(array_values($this->_links)[0]['created'])) {
+            return;
+        }
+
+        $order = $order === 'ASC' ? -1 : 1;
+        // Reorder array by dates.
+        usort($this->_links, function($a, $b) use ($order) {
+            return $a['created'] < $b['created'] ? 1 * $order : -1 * $order;
+        });
     }
 
     /**
@@ -161,8 +193,23 @@ class ReferenceLinkDB
         return $this->_privateCount;
     }
 
+    /**
+     * Returns the number of links without tag
+     */
+    public function countUntaggedLinks()
+    {
+        $cpt = 0;
+        foreach ($this->_links as $link) {
+            if (empty($link['tags'])) {
+                ++$cpt;
+            }
+        }
+        return $cpt;
+    }
+
     public function getLinks()
     {
+        $this->reorder();
         return $this->_links;
     }
 

@@ -10,23 +10,33 @@
 *.php   text diff=php
 Dockerfile      text
 
-# Do not alter images nor minified scripts
+# Do not alter images nor minified scripts nor fonts
 *.ico           binary
 *.jpg           binary
 *.png           binary
+*.svg           binary
+*.otf           binary
+*.eot           binary
+*.woff          binary
+*.woff2         binary
+*.ttf           binary
 *.min.css       binary
 *.min.js        binary
+*.mo            binary
 
 # Exclude from Git archives
+.editorconfig   export-ignore
 .gitattributes  export-ignore
+.github         export-ignore
 .gitignore      export-ignore
 .travis.yml     export-ignore
 doc/**/*.json   export-ignore
 doc/**/*.md     export-ignore
 .docker/        export-ignore
 .dockerignore   export-ignore
-Dockerfile      export-ignore
+Dockerfile*     export-ignore
 Doxyfile        export-ignore
 Makefile        export-ignore
+mkdocs.yml      export-ignore
 phpunit.xml     export-ignore
 tests/          export-ignore

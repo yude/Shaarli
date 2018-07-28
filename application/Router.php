@@ -13,6 +13,8 @@ class Router
 
     public static $PAGE_TAGCLOUD = 'tagcloud';
 
+    public static $PAGE_TAGLIST = 'taglist';
+
     public static $PAGE_DAILY = 'daily';
 
     public static $PAGE_FEED_ATOM = 'atom';
@@ -31,6 +33,8 @@ class Router
 
     public static $PAGE_EDITLINK = 'edit_link';
 
+    public static $PAGE_DELETELINK = 'delete_link';
+
     public static $PAGE_EXPORT = 'export';
 
     public static $PAGE_IMPORT = 'import';
@@ -42,6 +46,8 @@ class Router
     public static $PAGE_PLUGINSADMIN = 'pluginadmin';
 
     public static $PAGE_SAVE_PLUGINSADMIN = 'save_pluginadmin';
+
+    public static $GET_TOKEN = 'token';
 
     /**
      * Reproducing renderPage() if hell, to avoid regression.
@@ -73,6 +79,10 @@ class Router
 
         if (startsWith($query, 'do='. self::$PAGE_TAGCLOUD)) {
             return self::$PAGE_TAGCLOUD;
+        }
+
+        if (startsWith($query, 'do='. self::$PAGE_TAGLIST)) {
+            return self::$PAGE_TAGLIST;
         }
 
         if (startsWith($query, 'do='. self::$PAGE_OPENSEARCH)) {
@@ -120,6 +130,10 @@ class Router
             return self::$PAGE_EDITLINK;
         }
 
+        if (isset($get['delete_link'])) {
+            return self::$PAGE_DELETELINK;
+        }
+
         if (startsWith($query, 'do='. self::$PAGE_EXPORT)) {
             return self::$PAGE_EXPORT;
         }
@@ -134,6 +148,10 @@ class Router
 
         if (startsWith($query, 'do='. self::$PAGE_SAVE_PLUGINSADMIN)) {
             return self::$PAGE_SAVE_PLUGINSADMIN;
+        }
+
+        if (startsWith($query, 'do='. self::$GET_TOKEN)) {
+            return self::$GET_TOKEN;
         }
 
         return self::$PAGE_LINKLIST;

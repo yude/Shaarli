@@ -26,11 +26,11 @@ function hook_addlink_toolbar_render_header($data)
                 array(
                     'type' => 'text',
                     'name' => 'post',
-                    'placeholder' => 'URI',
+                    'placeholder' => t('URI'),
                 ),
                 array(
                     'type' => 'submit',
-                    'value' => 'Add link',
+                    'value' => t('Add link'),
                     'class' => 'bigbutton',
                 ),
             ),
@@ -42,17 +42,10 @@ function hook_addlink_toolbar_render_header($data)
 }
 
 /**
- * When link list is displayed, include markdown CSS.
- *
- * @param array $data - includes data.
- *
- * @return mixed - includes data with markdown CSS file added.
+ * This function is never called, but contains translation calls for GNU gettext extraction.
  */
-function hook_addlink_toolbar_render_includes($data)
+function addlink_toolbar_dummy_translation()
 {
-    if ($data['_PAGE_'] == Router::$PAGE_LINKLIST && $data['_LOGGEDIN_'] === true) {
-        $data['css_files'][] = PluginManager::$PLUGINS_PATH . '/addlink_toolbar/addlink_toolbar.css';
-    }
-
-    return $data;
+    // meta
+    t('Adds the addlink input on the linklist page.');
 }

@@ -26,7 +26,11 @@ function hook_markdown_render_linklist($data, $conf)
             $value = stripNoMarkdownTag($value);
             continue;
         }
-        $value['description'] = process_markdown($value['description'], $conf->get('security.markdown_escape', true));
+        $value['description'] = process_markdown(
+            $value['description'],
+            $conf->get('security.markdown_escape', true),
+            $conf->get('security.allowed_protocols')
+        );
     }
     return $data;
 }
@@ -46,7 +50,11 @@ function hook_markdown_render_feed($data, $conf)
             $value = stripNoMarkdownTag($value);
             continue;
         }
-        $value['description'] = process_markdown($value['description'], $conf->get('security.markdown_escape', true));
+        $value['description'] = process_markdown(
+            $value['description'],
+            $conf->get('security.markdown_escape', true),
+            $conf->get('security.allowed_protocols')
+        );
     }
 
     return $data;
@@ -71,7 +79,8 @@ function hook_markdown_render_daily($data, $conf)
             }
             $value2['formatedDescription'] = process_markdown(
                 $value2['formatedDescription'],
-                $conf->get('security.markdown_escape', true)
+                $conf->get('security.markdown_escape', true),
+                $conf->get('security.allowed_protocols')
             );
         }
     }
@@ -145,8 +154,13 @@ function hook_markdown_render_includes($data)
 function hook_markdown_render_editlink($data)
 {
     // Load help HTML into a string
-    $data['edit_link_plugin'][] = file_get_contents(PluginManager::$PLUGINS_PATH .'/markdown/help.html');
-
+    $txt = file_get_contents(PluginManager::$PLUGINS_PATH .'/markdown/help.html');
+    $translations = [
+        t('Description will be rendered with'),
+        t('Markdown syntax documentation'),
+        t('Markdown syntax'),
+    ];
+    $data['edit_link_plugin'][] = vsprintf($txt, $translations);
     // Add no markdown 'meta-tag' in tag list if it was never used, for autocompletion.
     if (! in_array(NO_MD_TAG, $data['tags'])) {
         $data['tags'][NO_MD_TAG] = 0;
@@ -232,6 +246,25 @@ function reverse_space2nbsp($description)
 }
 
 /**
+ * Replace not whitelisted protocols with http:// in given description.
+ *
+ * @param string $description      input description text.
+ * @param array  $allowedProtocols list of allowed protocols.
+ *
+ * @return string $description without malicious link.
+ */
+function filter_protocols($description, $allowedProtocols)
+{
+    return preg_replace_callback(
+        '#]\((.*?)\)#is',
+        function ($match) use ($allowedProtocols) {
+            return ']('. whitelist_protocols($match[1], $allowedProtocols) .')';
+        },
+        $description
+    );
+}
+
+/**
  * Remove dangerous HTML tags (tags, iframe, etc.).
  * Doesn't affect <code> content (already escaped by Parsedown).
  *
@@ -275,7 +308,7 @@ function sanitize_html($description)
  *
  * @return string HTML processed $description.
  */
-function process_markdown($description, $escape = true)
+function process_markdown($description, $escape = true, $allowedProtocols = [])
 {
     $parsedown = new Parsedown();
 
@@ -283,6 +316,7 @@ function process_markdown($description, $escape = true)
     $processedDescription = reverse_nl2br($processedDescription);
     $processedDescription = reverse_space2nbsp($processedDescription);
     $processedDescription = reverse_text2clickable($processedDescription);
+    $processedDescription = filter_protocols($processedDescription, $allowedProtocols);
     $processedDescription = unescape($processedDescription);
     $processedDescription = $parsedown
         ->setMarkupEscaped($escape)
@@ -295,4 +329,16 @@ function process_markdown($description, $escape = true)
     }
 
     return $processedDescription;
+}
+
+/**
+ * This function is never called, but contains translation calls for GNU gettext extraction.
+ */
+function markdown_dummy_translation()
+{
+    // meta
+    t('Render shaare description with Markdown syntax.<br><strong>Warning</strong>:
+If your shaared descriptions contained HTML tags before enabling the markdown plugin,
+enabling it might break your page.
+See the <a href="https://github.com/shaarli/Shaarli/tree/master/plugins/markdown#html-rendering">README</a>.');
 }

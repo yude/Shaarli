@@ -39,6 +39,34 @@ class ServerUrlTest extends PHPUnit_Framework_TestCase
     }
 
     /**
+     * Detect a Proxy that sets Forwarded-Host
+     */
+    public function testHttpsProxyForwardedHost()
+    {
+        $this->assertEquals(
+            'https://host.tld:8080',
+            server_url(
+                array(
+                    'HTTP_X_FORWARDED_PROTO' => 'https',
+                    'HTTP_X_FORWARDED_PORT' => '8080',
+                    'HTTP_X_FORWARDED_HOST' => 'host.tld'
+                )
+            )
+        );
+
+        $this->assertEquals(
+            'https://host.tld:4974',
+            server_url(
+                array(
+                    'HTTP_X_FORWARDED_PROTO' => 'https, https',
+                    'HTTP_X_FORWARDED_PORT' => '4974, 80',
+                    'HTTP_X_FORWARDED_HOST' => 'host.tld, example.com'
+                )
+            )
+        );
+    }
+
+    /**
      * Detect a Proxy with SSL enabled
      */
     public function testHttpsProxyForward()
@@ -64,6 +92,19 @@ class ServerUrlTest extends PHPUnit_Framework_TestCase
                     'SERVER_NAME' => 'host.tld',
                     'SERVER_PORT' => '80',
                     'HTTP_X_FORWARDED_PROTO' => 'https'
+                )
+            )
+        );
+
+        $this->assertEquals(
+            'https://host.tld',
+            server_url(
+                array(
+                    'HTTPS' => 'Off',
+                    'SERVER_NAME' => 'host.tld',
+                    'SERVER_PORT' => '80',
+                    'HTTP_X_FORWARDED_PROTO' => 'https',
+                    'HTTP_X_FORWARDED_PORT' => '443'
                 )
             )
         );
@@ -141,6 +182,38 @@ class ServerUrlTest extends PHPUnit_Framework_TestCase
                     'HTTPS' => 'ON',
                     'SERVER_NAME' => 'host.tld',
                     'SERVER_PORT' => '443'
+                )
+            )
+        );
+    }
+
+    /**
+     * Misconfigured server (see #1022): Proxy HTTP but 443
+     */
+    public function testHttpWithPort433()
+    {
+        $this->assertEquals(
+            'https://host.tld',
+            server_url(
+                array(
+                    'HTTPS' => 'Off',
+                    'SERVER_NAME' => 'host.tld',
+                    'SERVER_PORT' => '80',
+                    'HTTP_X_FORWARDED_PROTO' => 'http',
+                    'HTTP_X_FORWARDED_PORT' => '443'
+                )
+            )
+        );
+
+        $this->assertEquals(
+            'https://host.tld',
+            server_url(
+                array(
+                    'HTTPS' => 'Off',
+                    'SERVER_NAME' => 'host.tld',
+                    'SERVER_PORT' => '80',
+                    'HTTP_X_FORWARDED_PROTO' => 'https, http',
+                    'HTTP_X_FORWARDED_PORT' => '443, 80'
                 )
             )
         );

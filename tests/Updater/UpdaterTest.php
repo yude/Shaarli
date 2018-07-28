@@ -1,7 +1,10 @@
 <?php
+use Shaarli\Config\ConfigJson;
+use Shaarli\Config\ConfigManager;
+use Shaarli\Config\ConfigPhp;
 
-require_once 'application/config/ConfigManager.php';
 require_once 'tests/Updater/DummyUpdater.php';
+require_once 'inc/rain.tpl.class.php';
 
 /**
  * Class UpdaterTest.
@@ -271,7 +274,7 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
     public function testEscapeConfig()
     {
         $sandbox = 'sandbox/config';
-        copy(self::$configFile .'.json.php', $sandbox .'.json.php');
+        copy(self::$configFile . '.json.php', $sandbox . '.json.php');
         $this->conf = new ConfigManager($sandbox);
         $title = '<script>alert("title");</script>';
         $headerLink = '<script>alert("header_link");</script>';
@@ -286,7 +289,43 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
         $this->assertEquals(escape($title), $this->conf->get('general.title'));
         $this->assertEquals(escape($headerLink), $this->conf->get('general.header_link'));
         $this->assertEquals(escape($redirectorUrl), $this->conf->get('redirector.url'));
-        unlink($sandbox .'.json.php');
+        unlink($sandbox . '.json.php');
+    }
+
+    /**
+     * Test updateMethodApiSettings(): create default settings for the API (enabled + secret).
+     */
+    public function testUpdateApiSettings()
+    {
+        $confFile = 'sandbox/config';
+        copy(self::$configFile .'.json.php', $confFile .'.json.php');
+        $conf = new ConfigManager($confFile);
+        $updater = new Updater(array(), array(), $conf, true);
+
+        $this->assertFalse($conf->exists('api.enabled'));
+        $this->assertFalse($conf->exists('api.secret'));
+        $updater->updateMethodApiSettings();
+        $conf->reload();
+        $this->assertTrue($conf->get('api.enabled'));
+        $this->assertTrue($conf->exists('api.secret'));
+        unlink($confFile .'.json.php');
+    }
+
+    /**
+     * Test updateMethodApiSettings(): already set, do nothing.
+     */
+    public function testUpdateApiSettingsNothingToDo()
+    {
+        $confFile = 'sandbox/config';
+        copy(self::$configFile .'.json.php', $confFile .'.json.php');
+        $conf = new ConfigManager($confFile);
+        $conf->set('api.enabled', false);
+        $conf->set('api.secret', '');
+        $updater = new Updater(array(), array(), $conf, true);
+        $updater->updateMethodApiSettings();
+        $this->assertFalse($conf->get('api.enabled'));
+        $this->assertEmpty($conf->get('api.secret'));
+        unlink($confFile .'.json.php');
     }
 
     /**
@@ -387,6 +426,50 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
     }
 
     /**
+     * Test defaultTheme update with default settings: nothing to do.
+     */
+    public function testDefaultThemeWithDefaultSettings()
+    {
+        $sandbox = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandbox . '.json.php');
+        $this->conf = new ConfigManager($sandbox);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodDefaultTheme());
+
+        $this->assertEquals('tpl/', $this->conf->get('resource.raintpl_tpl'));
+        $this->assertEquals('default', $this->conf->get('resource.theme'));
+        $this->conf = new ConfigManager($sandbox);
+        $this->assertEquals('tpl/', $this->conf->get('resource.raintpl_tpl'));
+        $this->assertEquals('default', $this->conf->get('resource.theme'));
+        unlink($sandbox . '.json.php');
+    }
+
+    /**
+     * Test defaultTheme update with a custom theme in a subfolder
+     */
+    public function testDefaultThemeWithCustomTheme()
+    {
+        $theme = 'iamanartist';
+        $sandbox = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandbox . '.json.php');
+        $this->conf = new ConfigManager($sandbox);
+        mkdir('sandbox/'. $theme);
+        touch('sandbox/'. $theme .'/linklist.html');
+        $this->conf->set('resource.raintpl_tpl', 'sandbox/'. $theme .'/');
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodDefaultTheme());
+
+        $this->assertEquals('sandbox', $this->conf->get('resource.raintpl_tpl'));
+        $this->assertEquals($theme, $this->conf->get('resource.theme'));
+        $this->conf = new ConfigManager($sandbox);
+        $this->assertEquals('sandbox', $this->conf->get('resource.raintpl_tpl'));
+        $this->assertEquals($theme, $this->conf->get('resource.theme'));
+        unlink($sandbox . '.json.php');
+        unlink('sandbox/'. $theme .'/linklist.html');
+        rmdir('sandbox/'. $theme);
+    }
+
+    /**
      * Test updateMethodEscapeMarkdown with markdown plugin enabled
      * => setting markdown_escape set to false.
      */
@@ -396,8 +479,8 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
         copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
         $this->conf = new ConfigManager($sandboxConf);
 
-        $this->conf->set('general.enabled_plugins', array('markdown'));
-        $updater = new Updater(array(), array(), $this->conf, true);
+        $this->conf->set('general.enabled_plugins', ['markdown']);
+        $updater = new Updater([], [], $this->conf, true);
         $this->assertTrue($updater->updateMethodEscapeMarkdown());
         $this->assertFalse($this->conf->get('security.markdown_escape'));
 
@@ -416,8 +499,8 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
         copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
         $this->conf = new ConfigManager($sandboxConf);
 
-        $this->conf->set('general.enabled_plugins', array());
-        $updater = new Updater(array(), array(), $this->conf, true);
+        $this->conf->set('general.enabled_plugins', []);
+        $updater = new Updater([], [], $this->conf, true);
         $this->assertTrue($updater->updateMethodEscapeMarkdown());
         $this->assertTrue($this->conf->get('security.markdown_escape'));
 
@@ -435,7 +518,7 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
         copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
         $this->conf = new ConfigManager($sandboxConf);
         $this->conf->set('security.markdown_escape', true);
-        $updater = new Updater(array(), array(), $this->conf, true);
+        $updater = new Updater([], [], $this->conf, true);
         $this->assertTrue($updater->updateMethodEscapeMarkdown());
         $this->assertTrue($this->conf->get('security.markdown_escape'));
     }
@@ -446,8 +529,94 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
     public function testEscapeMarkdownSettingNothingToDoDisabled()
     {
         $this->conf->set('security.markdown_escape', false);
-        $updater = new Updater(array(), array(), $this->conf, true);
+        $updater = new Updater([], [], $this->conf, true);
         $this->assertTrue($updater->updateMethodEscapeMarkdown());
         $this->assertFalse($this->conf->get('security.markdown_escape'));
+    }
+
+    /**
+     * Test updateMethodPiwikUrl with valid data
+     */
+    public function testUpdatePiwikUrlValid()
+    {
+        $sandboxConf = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
+        $this->conf = new ConfigManager($sandboxConf);
+        $url = 'mypiwik.tld';
+        $this->conf->set('plugins.PIWIK_URL', $url);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodPiwikUrl());
+        $this->assertEquals('http://'. $url, $this->conf->get('plugins.PIWIK_URL'));
+
+        // reload from file
+        $this->conf = new ConfigManager($sandboxConf);
+        $this->assertEquals('http://'. $url, $this->conf->get('plugins.PIWIK_URL'));
+    }
+
+    /**
+     * Test updateMethodPiwikUrl without setting
+     */
+    public function testUpdatePiwikUrlEmpty()
+    {
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodPiwikUrl());
+        $this->assertEmpty($this->conf->get('plugins.PIWIK_URL'));
+    }
+
+    /**
+     * Test updateMethodPiwikUrl: valid URL, nothing to do
+     */
+    public function testUpdatePiwikUrlNothingToDo()
+    {
+        $url = 'https://mypiwik.tld';
+        $this->conf->set('plugins.PIWIK_URL', $url);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodPiwikUrl());
+        $this->assertEquals($url, $this->conf->get('plugins.PIWIK_URL'));
+    }
+
+    /**
+     * Test updateMethodAtomDefault with show_atom set to false
+     * => update to true.
+     */
+    public function testUpdateMethodAtomDefault()
+    {
+        $sandboxConf = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
+        $this->conf = new ConfigManager($sandboxConf);
+        $this->conf->set('feed.show_atom', false);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodAtomDefault());
+        $this->assertTrue($this->conf->get('feed.show_atom'));
+        // reload from file
+        $this->conf = new ConfigManager($sandboxConf);
+        $this->assertTrue($this->conf->get('feed.show_atom'));
+    }
+    /**
+     * Test updateMethodAtomDefault with show_atom not set.
+     * => nothing to do
+     */
+    public function testUpdateMethodAtomDefaultNoExist()
+    {
+        $sandboxConf = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
+        $this->conf = new ConfigManager($sandboxConf);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodAtomDefault());
+        $this->assertTrue($this->conf->get('feed.show_atom'));
+    }
+    /**
+     * Test updateMethodAtomDefault with show_atom set to true.
+     * => nothing to do
+     */
+    public function testUpdateMethodAtomDefaultAlreadyTrue()
+    {
+        $sandboxConf = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
+        $this->conf = new ConfigManager($sandboxConf);
+        $this->conf->set('feed.show_atom', true);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodAtomDefault());
+        $this->assertTrue($this->conf->get('feed.show_atom'));
     }
 }

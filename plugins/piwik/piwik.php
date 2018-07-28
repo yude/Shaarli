@@ -18,8 +18,8 @@ function piwik_init($conf)
     $piwikUrl = $conf->get('plugins.PIWIK_URL');
     $piwikSiteid = $conf->get('plugins.PIWIK_SITEID');
     if (empty($piwikUrl) || empty($piwikSiteid)) {
-        $error = 'Piwik plugin error: ' .
-            'Please define PIWIK_URL and PIWIK_SITEID in the plugin administration page.';
+        $error = t('Piwik plugin error: ' .
+            'Please define PIWIK_URL and PIWIK_SITEID in the plugin administration page.');
         return array($error);
     }
 }
@@ -50,22 +50,24 @@ function hook_piwik_render_footer($data, $conf)
     }
 
     // Free elements at the end of the page.
-    $data['endofpage'][] = '<!-- Piwik -->' .
-'<script type="text/javascript">' .
-'  var _paq = _paq || [];' .
-'  _paq.push([\'trackPageView\']);' .
-'  _paq.push([\'enableLinkTracking\']);' .
-'  (function() {' .
-'    var u="//' . $piwikUrl . '/";' .
-'    _paq.push([\'setTrackerUrl\', u+\'piwik.php\']);' .
-'    _paq.push([\'setSiteId\', \'' . $piwikSiteid . '\']);' .
-'    var d=document, g=d.createElement(\'script\'), s=d.getElementsByTagName(\'script\')[0];' .
-'    g.type=\'text/javascript\'; g.async=true; g.defer=true; g.src=u+\'piwik.js\'; s.parentNode.insertBefore(g,s);' .
-'  })();' .
-'</script>' .
-'<noscript><p><img src="//' . $piwikUrl . '/piwik.php?idsite=' . $piwikSiteid . '" style="border:0;" alt="" /></p></noscript>' .
-'<!-- End Piwik Code -->';
+    $data['endofpage'][] = sprintf(
+        file_get_contents(PluginManager::$PLUGINS_PATH . '/piwik/piwik.html'),
+        $piwikUrl,
+        $piwikSiteid,
+        $piwikUrl,
+        $piwikSiteid
+    );
 
     return $data;
 }
 
+/**
+ * This function is never called, but contains translation calls for GNU gettext extraction.
+ */
+function piwik_dummy_translation()
+{
+    // meta
+    t('A plugin that adds Piwik tracking code to Shaarli pages.');
+    t('Piwik URL');
+    t('Piwik site ID');
+}

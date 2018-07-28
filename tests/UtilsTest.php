@@ -4,10 +4,7 @@
  */
 
 require_once 'application/Utils.php';
-require_once 'tests/utils/ReferenceSessionIdHashes.php';
-
-// Initialize reference data before PHPUnit starts a session
-ReferenceSessionIdHashes::genAllHashes();
+require_once 'application/Languages.php';
 
 
 /**
@@ -15,22 +12,33 @@ ReferenceSessionIdHashes::genAllHashes();
  */
 class UtilsTest extends PHPUnit_Framework_TestCase
 {
-    // Session ID hashes
-    protected static $sidHashes = null;
-
     // Log file
     protected static $testLogFile = 'tests.log';
 
     // Expected log date format
     protected static $dateFormat = 'Y/m/d H:i:s';
-    
+
+    /**
+     * @var string Save the current timezone.
+     */
+    protected static $defaultTimeZone;
 
     /**
      * Assign reference data
      */
     public static function setUpBeforeClass()
     {
-        self::$sidHashes = ReferenceSessionIdHashes::getHashes();
+        self::$defaultTimeZone = date_default_timezone_get();
+        // Timezone without DST for test consistency
+        date_default_timezone_set('Africa/Nairobi');
+    }
+
+    /**
+     * Reset the timezone
+     */
+    public static function tearDownAfterClass()
+    {
+        date_default_timezone_set(self::$defaultTimeZone);
     }
 
     /**
@@ -204,53 +212,263 @@ class UtilsTest extends PHPUnit_Framework_TestCase
         $this->assertEquals('?', generateLocation($ref, 'localhost'));
     }
 
+
     /**
-     * Test is_session_id_valid with a valid ID - TEST ALL THE HASHES!
-     *
-     * This tests extensively covers all hash algorithms / bit representations
+     * Test generateSecretApi.
      */
-    public function testIsAnyHashSessionIdValid()
+    public function testGenerateSecretApi()
     {
-        foreach (self::$sidHashes as $algo => $bpcs) {
-            foreach ($bpcs as $bpc => $hash) {
-                $this->assertTrue(is_session_id_valid($hash));
-            }
-        }
+        $this->assertEquals(12, strlen(generate_api_secret('foo', 'bar')));
     }
 
     /**
-     * Test is_session_id_valid with a valid ID - SHA-1 hashes
+     * Test generateSecretApi with invalid parameters.
      */
-    public function testIsSha1SessionIdValid()
+    public function testGenerateSecretApiInvalid()
     {
-        $this->assertTrue(is_session_id_valid(sha1('shaarli')));
+        $this->assertFalse(generate_api_secret('', ''));
+        $this->assertFalse(generate_api_secret(false, false));
     }
 
     /**
-     * Test is_session_id_valid with a valid ID - SHA-256 hashes
+     * Test normalize_spaces.
      */
-    public function testIsSha256SessionIdValid()
+    public function testNormalizeSpace()
     {
-        $this->assertTrue(is_session_id_valid(hash('sha256', 'shaarli')));
+        $str = ' foo   bar is   important ';
+        $this->assertEquals('foo bar is important', normalize_spaces($str));
+        $this->assertEquals('foo', normalize_spaces('foo'));
+        $this->assertEquals('', normalize_spaces(''));
+        $this->assertEquals(null, normalize_spaces(null));
     }
 
     /**
-     * Test is_session_id_valid with a valid ID - SHA-512 hashes
+     * Test arrays_combine
      */
-    public function testIsSha512SessionIdValid()
+    public function testCartesianProductGenerator()
     {
-        $this->assertTrue(is_session_id_valid(hash('sha512', 'shaarli')));
+        $arr = [['ab', 'cd'], ['ef', 'gh'], ['ij', 'kl'], ['m']];
+        $expected = [
+            ['ab', 'ef', 'ij', 'm'],
+            ['ab', 'ef', 'kl', 'm'],
+            ['ab', 'gh', 'ij', 'm'],
+            ['ab', 'gh', 'kl', 'm'],
+            ['cd', 'ef', 'ij', 'm'],
+            ['cd', 'ef', 'kl', 'm'],
+            ['cd', 'gh', 'ij', 'm'],
+            ['cd', 'gh', 'kl', 'm'],
+        ];
+        $this->assertEquals($expected, iterator_to_array(cartesian_product_generator($arr)));
     }
 
     /**
-     * Test is_session_id_valid with invalid IDs.
+     * Test date_format() with invalid parameter.
      */
-    public function testIsSessionIdInvalid()
+    public function testDateFormatInvalid()
     {
-        $this->assertFalse(is_session_id_valid(''));
-        $this->assertFalse(is_session_id_valid(array()));
-        $this->assertFalse(
-            is_session_id_valid('c0ZqcWF3VFE2NmJBdm1HMVQ0ZHJ3UmZPbTFsNGhkNHI=')
-        );
+        $this->assertFalse(format_date([]));
+        $this->assertFalse(format_date(null));
+    }
+
+    /**
+     * Test is_integer_mixed with valid values
+     */
+    public function testIsIntegerMixedValid()
+    {
+        $this->assertTrue(is_integer_mixed(12));
+        $this->assertTrue(is_integer_mixed('12'));
+        $this->assertTrue(is_integer_mixed(-12));
+        $this->assertTrue(is_integer_mixed('-12'));
+        $this->assertTrue(is_integer_mixed(0));
+        $this->assertTrue(is_integer_mixed('0'));
+        $this->assertTrue(is_integer_mixed(0x0a));
+    }
+
+    /**
+     * Test is_integer_mixed with invalid values
+     */
+    public function testIsIntegerMixedInvalid()
+    {
+        $this->assertFalse(is_integer_mixed(true));
+        $this->assertFalse(is_integer_mixed(false));
+        $this->assertFalse(is_integer_mixed([]));
+        $this->assertFalse(is_integer_mixed(['test']));
+        $this->assertFalse(is_integer_mixed([12]));
+        $this->assertFalse(is_integer_mixed(new DateTime()));
+        $this->assertFalse(is_integer_mixed('0x0a'));
+        $this->assertFalse(is_integer_mixed('12k'));
+        $this->assertFalse(is_integer_mixed('k12'));
+        $this->assertFalse(is_integer_mixed(''));
+    }
+
+    /**
+     * Test return_bytes
+     */
+    public function testReturnBytes()
+    {
+        $this->assertEquals(2 * 1024, return_bytes('2k'));
+        $this->assertEquals(2 * 1024, return_bytes('2K'));
+        $this->assertEquals(2 * (pow(1024, 2)), return_bytes('2m'));
+        $this->assertEquals(2 * (pow(1024, 2)), return_bytes('2M'));
+        $this->assertEquals(2 * (pow(1024, 3)), return_bytes('2g'));
+        $this->assertEquals(2 * (pow(1024, 3)), return_bytes('2G'));
+        $this->assertEquals(374, return_bytes('374'));
+        $this->assertEquals(374, return_bytes(374));
+        $this->assertEquals(0, return_bytes('0'));
+        $this->assertEquals(0, return_bytes(0));
+        $this->assertEquals(-1, return_bytes('-1'));
+        $this->assertEquals(-1, return_bytes(-1));
+        $this->assertEquals('', return_bytes(''));
+    }
+
+    /**
+     * Test human_bytes
+     */
+    public function testHumanBytes()
+    {
+        $this->assertEquals('2'. t('kiB'), human_bytes(2 * 1024));
+        $this->assertEquals('2'. t('kiB'), human_bytes(strval(2 * 1024)));
+        $this->assertEquals('2'. t('MiB'), human_bytes(2 * (pow(1024, 2))));
+        $this->assertEquals('2'. t('MiB'), human_bytes(strval(2 * (pow(1024, 2)))));
+        $this->assertEquals('2'. t('GiB'), human_bytes(2 * (pow(1024, 3))));
+        $this->assertEquals('2'. t('GiB'), human_bytes(strval(2 * (pow(1024, 3)))));
+        $this->assertEquals('374'. t('B'), human_bytes(374));
+        $this->assertEquals('374'. t('B'), human_bytes('374'));
+        $this->assertEquals('232'. t('kiB'), human_bytes(237481));
+        $this->assertEquals(t('Unlimited'), human_bytes('0'));
+        $this->assertEquals(t('Unlimited'), human_bytes(0));
+        $this->assertEquals(t('Setting not set'), human_bytes(''));
+    }
+
+    /**
+     * Test get_max_upload_size with formatting
+     */
+    public function testGetMaxUploadSize()
+    {
+        $this->assertEquals('1'. t('MiB'), get_max_upload_size(2097152, '1024k'));
+        $this->assertEquals('1'. t('MiB'), get_max_upload_size('1m', '2m'));
+        $this->assertEquals('100'. t('B'), get_max_upload_size(100, 100));
+    }
+
+    /**
+     * Test get_max_upload_size without formatting
+     */
+    public function testGetMaxUploadSizeRaw()
+    {
+        $this->assertEquals('1048576', get_max_upload_size(2097152, '1024k', false));
+        $this->assertEquals('1048576', get_max_upload_size('1m', '2m', false));
+        $this->assertEquals('100', get_max_upload_size(100, 100, false));
+    }
+
+    /**
+     * Test alphabetical_sort by value, not reversed, with php-intl.
+     */
+    public function testAlphabeticalSortByValue()
+    {
+        $arr = [
+            'zZz',
+            'éee',
+            'éae',
+            'eee',
+            'A',
+            'a',
+            'zzz',
+        ];
+        $expected = [
+            'a',
+            'A',
+            'éae',
+            'eee',
+            'éee',
+            'zzz',
+            'zZz',
+        ];
+
+        alphabetical_sort($arr);
+        $this->assertEquals($expected, $arr);
+    }
+
+    /**
+     * Test alphabetical_sort by value, reversed, with php-intl.
+     */
+    public function testAlphabeticalSortByValueReversed()
+    {
+        $arr = [
+            'zZz',
+            'éee',
+            'éae',
+            'eee',
+            'A',
+            'a',
+            'zzz',
+        ];
+        $expected = [
+            'zZz',
+            'zzz',
+            'éee',
+            'eee',
+            'éae',
+            'A',
+            'a',
+        ];
+
+        alphabetical_sort($arr, true);
+        $this->assertEquals($expected, $arr);
+    }
+
+    /**
+     * Test alphabetical_sort by keys, not reversed, with php-intl.
+     */
+    public function testAlphabeticalSortByKeys()
+    {
+        $arr = [
+            'zZz' => true,
+            'éee' => true,
+            'éae' => true,
+            'eee' => true,
+            'A' => true,
+            'a' => true,
+            'zzz' => true,
+        ];
+        $expected = [
+            'a' => true,
+            'A' => true,
+            'éae' => true,
+            'eee' => true,
+            'éee' => true,
+            'zzz' => true,
+            'zZz' => true,
+        ];
+
+        alphabetical_sort($arr, true, true);
+        $this->assertEquals($expected, $arr);
+    }
+
+    /**
+     * Test alphabetical_sort by keys, reversed, with php-intl.
+     */
+    public function testAlphabeticalSortByKeysReversed()
+    {
+        $arr = [
+            'zZz' => true,
+            'éee' => true,
+            'éae' => true,
+            'eee' => true,
+            'A' => true,
+            'a' => true,
+            'zzz' => true,
+        ];
+        $expected = [
+            'zZz' => true,
+            'zzz' => true,
+            'éee' => true,
+            'eee' => true,
+            'éae' => true,
+            'A' => true,
+            'a' => true,
+        ];
+
+        alphabetical_sort($arr, true, true);
+        $this->assertEquals($expected, $arr);
     }
 }

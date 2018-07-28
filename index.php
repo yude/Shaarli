@@ -1,8 +1,12 @@
 <?php
 /**
+<<<<<<< HEAD
  * Shaarli v0.8.7 - Shaare your links...
  *
  * The personal, minimalist, super-fast, database free, bookmarking service.
+=======
+ * Shaarli - The personal, minimalist, super-fast, database free, bookmarking service.
+>>>>>>> v0.9.7
  *
  * Friendly fork by the Shaarli community:
  *  - https://github.com/shaarli/Shaarli
@@ -13,7 +17,7 @@
  *
  * Licence: http://www.opensource.org/licenses/zlib-license.php
  *
- * Requires: PHP 5.3.x
+ * Requires: PHP 5.5.x
  */
 
 // Set 'UTC' as the default timezone if it is not defined in php.ini
@@ -25,7 +29,6 @@ if (date_default_timezone_get() == '') {
 /*
  * PHP configuration
  */
-define('shaarli_version', '0.8.7');
 
 // http://server.com/x/shaarli --> /shaarli/
 define('WEB_PATH', substr($_SERVER['REQUEST_URI'], 0, 1+strrpos($_SERVER['REQUEST_URI'], '/', 0)));
@@ -51,8 +54,8 @@ if (! file_exists(__DIR__ . '/vendor/autoload.php')) {
         ."If you installed Shaarli through Git or using the development branch,\n"
         ."please refer to the installation documentation to install PHP"
         ." dependencies using Composer:\n"
-        ."- https://github.com/shaarli/Shaarli/wiki/Server-requirements\n"
-        ."- https://github.com/shaarli/Shaarli/wiki/Download-and-Installation";
+        ."- https://shaarli.readthedocs.io/en/master/Server-requirements/\n"
+        ."- https://shaarli.readthedocs.io/en/master/Download-and-Installation/";
     exit;
 }
 require_once 'inc/rain.tpl.class.php';
@@ -62,12 +65,11 @@ require_once __DIR__ . '/vendor/autoload.php';
 require_once 'application/ApplicationUtils.php';
 require_once 'application/Cache.php';
 require_once 'application/CachedPage.php';
-require_once 'application/config/ConfigManager.php';
 require_once 'application/config/ConfigPlugin.php';
 require_once 'application/FeedBuilder.php';
 require_once 'application/FileUtils.php';
+require_once 'application/History.php';
 require_once 'application/HttpUtils.php';
-require_once 'application/Languages.php';
 require_once 'application/LinkDB.php';
 require_once 'application/LinkFilter.php';
 require_once 'application/LinkUtils.php';
@@ -79,15 +81,21 @@ require_once 'application/Utils.php';
 require_once 'application/PluginManager.php';
 require_once 'application/Router.php';
 require_once 'application/Updater.php';
+use \Shaarli\Languages;
+use \Shaarli\ThemeUtils;
+use \Shaarli\Config\ConfigManager;
+use \Shaarli\SessionManager;
 
 // Ensure the PHP version is supported
 try {
-    ApplicationUtils::checkPHPVersion('5.3', PHP_VERSION);
+    ApplicationUtils::checkPHPVersion('5.5', PHP_VERSION);
 } catch(Exception $exc) {
     header('Content-Type: text/plain; charset=utf-8');
     echo $exc->getMessage();
     exit;
 }
+
+define('SHAARLI_VERSION', ApplicationUtils::getVersion(__DIR__ .'/'. ApplicationUtils::$VERSION_FILE));
 
 // Force cookie path (but do not change lifetime)
 $cookie = session_get_cookie_params();
@@ -114,15 +122,29 @@ if (session_id() == '') {
 }
 
 // Regenerate session ID if invalid or not defined in cookie.
-if (isset($_COOKIE['shaarli']) && !is_session_id_valid($_COOKIE['shaarli'])) {
+if (isset($_COOKIE['shaarli']) && !SessionManager::checkId($_COOKIE['shaarli'])) {
     session_regenerate_id(true);
     $_COOKIE['shaarli'] = session_id();
 }
 
 $conf = new ConfigManager();
+$sessionManager = new SessionManager($_SESSION, $conf);
+
+// LC_MESSAGES isn't defined without php-intl, in this case use LC_COLLATE locale instead.
+if (! defined('LC_MESSAGES')) {
+    define('LC_MESSAGES', LC_COLLATE);
+}
+
+// Sniff browser language and set date format accordingly.
+if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
+    autoLocale($_SERVER['HTTP_ACCEPT_LANGUAGE']);
+}
+
+new Languages(setlocale(LC_MESSAGES, 0), $conf);
+
 $conf->setEmpty('general.timezone', date_default_timezone_get());
-$conf->setEmpty('general.title', 'Shared links on '. escape(index_url($_SERVER)));
-RainTPL::$tpl_dir = $conf->get('resource.raintpl_tpl'); // template directory
+$conf->setEmpty('general.title', t('Shared links on '). escape(index_url($_SERVER)));
+RainTPL::$tpl_dir = $conf->get('resource.raintpl_tpl').'/'.$conf->get('resource.theme').'/'; // template directory
 RainTPL::$cache_dir = $conf->get('resource.raintpl_tmp'); // cache directory
 
 $pluginManager = new PluginManager($conf);
@@ -131,15 +153,6 @@ $pluginManager->load($conf->get('general.enabled_plugins'));
 date_default_timezone_set($conf->get('general.timezone', 'UTC'));
 
 ob_start();  // Output buffering for the page cache.
-
-// In case stupid admin has left magic_quotes enabled in php.ini:
-if (get_magic_quotes_gpc())
-{
-    function stripslashes_deep($value) { $value = is_array($value) ? array_map('stripslashes_deep', $value) : stripslashes($value); return $value; }
-    $_POST = array_map('stripslashes_deep', $_POST);
-    $_GET = array_map('stripslashes_deep', $_GET);
-    $_COOKIE = array_map('stripslashes_deep', $_COOKIE);
-}
 
 // Prevent caching on client side or proxy: (yes, it's ugly)
 header("Last-Modified: " . gmdate("D, d M Y H:i:s") . " GMT");
@@ -152,7 +165,7 @@ if (! is_file($conf->getConfigFileExt())) {
     $errors = ApplicationUtils::checkResourcePermissions($conf);
 
     if ($errors != array()) {
-        $message = '<p>Insufficient permissions:</p><ul>';
+        $message = '<p>'. t('Insufficient permissions:') .'</p><ul>';
 
         foreach ($errors as $error) {
             $message .= '<li>'.$error.'</li>';
@@ -165,17 +178,11 @@ if (! is_file($conf->getConfigFileExt())) {
     }
 
     // Display the installation form if no existing config is found
-    install($conf);
+    install($conf, $sessionManager);
 }
 
 // a token depending of deployment salt, user password, and the current ip
 define('STAY_SIGNED_IN_TOKEN', sha1($conf->get('credentials.hash') . $_SERVER['REMOTE_ADDR'] . $conf->get('credentials.salt')));
-
-// Sniff browser language and set date format accordingly.
-if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
-    autoLocale($_SERVER['HTTP_ACCEPT_LANGUAGE']);
-}
-header('Content-Type: text/html; charset=utf-8'); // We use UTF-8 for proper international characters handling.
 
 /**
  * Checking session state (i.e. is the user still logged in)
@@ -186,65 +193,44 @@ header('Content-Type: text/html; charset=utf-8'); // We use UTF-8 for proper int
  */
 function setup_login_state($conf)
 {
-	if ($conf->get('security.open_shaarli')) {
-	    return true;
-	}
-	$userIsLoggedIn = false; // By default, we do not consider the user as logged in;
-	$loginFailure = false; // If set to true, every attempt to authenticate the user will fail. This indicates that an important condition isn't met.
-	if (! $conf->exists('credentials.login')) {
-	    $userIsLoggedIn = false;  // Shaarli is not configured yet.
-	    $loginFailure = true;
-	}
-	if (isset($_COOKIE['shaarli_staySignedIn']) &&
-	    $_COOKIE['shaarli_staySignedIn']===STAY_SIGNED_IN_TOKEN &&
-	    !$loginFailure)
-	{
-	    fillSessionInfo($conf);
-	    $userIsLoggedIn = true;
-	}
-	// If session does not exist on server side, or IP address has changed, or session has expired, logout.
-	if (empty($_SESSION['uid'])
-        || ($conf->get('security.session_protection_disabled') == false && $_SESSION['ip'] != allIPs())
+    if ($conf->get('security.open_shaarli')) {
+        return true;
+    }
+    $userIsLoggedIn = false; // By default, we do not consider the user as logged in;
+    $loginFailure = false; // If set to true, every attempt to authenticate the user will fail. This indicates that an important condition isn't met.
+    if (! $conf->exists('credentials.login')) {
+        $userIsLoggedIn = false;  // Shaarli is not configured yet.
+        $loginFailure = true;
+    }
+    if (isset($_COOKIE['shaarli_staySignedIn']) &&
+        $_COOKIE['shaarli_staySignedIn']===STAY_SIGNED_IN_TOKEN &&
+        !$loginFailure)
+    {
+        fillSessionInfo($conf);
+        $userIsLoggedIn = true;
+    }
+    // If session does not exist on server side, or IP address has changed, or session has expired, logout.
+    if (empty($_SESSION['uid'])
+        || ($conf->get('security.session_protection_disabled') === false && $_SESSION['ip'] != allIPs())
         || time() >= $_SESSION['expires_on'])
-	{
-	    logout();
-	    $userIsLoggedIn = false;
-	    $loginFailure = true;
-	}
-	if (!empty($_SESSION['longlastingsession'])) {
-	    $_SESSION['expires_on']=time()+$_SESSION['longlastingsession']; // In case of "Stay signed in" checked.
-	}
-	else {
-	    $_SESSION['expires_on']=time()+INACTIVITY_TIMEOUT; // Standard session expiration date.
-	}
-	if (!$loginFailure) {
-	    $userIsLoggedIn = true;
-	}
+    {
+        logout();
+        $userIsLoggedIn = false;
+        $loginFailure = true;
+    }
+    if (!empty($_SESSION['longlastingsession'])) {
+        $_SESSION['expires_on']=time()+$_SESSION['longlastingsession']; // In case of "Stay signed in" checked.
+    }
+    else {
+        $_SESSION['expires_on']=time()+INACTIVITY_TIMEOUT; // Standard session expiration date.
+    }
+    if (!$loginFailure) {
+        $userIsLoggedIn = true;
+    }
 
-	return $userIsLoggedIn;
+    return $userIsLoggedIn;
 }
 $userIsLoggedIn = setup_login_state($conf);
-
-/**
- * PubSubHubbub protocol support (if enabled)  [UNTESTED]
- * (Source: http://aldarone.fr/les-flux-rss-shaarli-et-pubsubhubbub/ )
- *
- * @param ConfigManager $conf Configuration Manager instance.
- */
-function pubsubhub($conf)
-{
-    $pshUrl = $conf->get('config.PUBSUBHUB_URL');
-    if (!empty($pshUrl))
-    {
-        include_once './publisher.php';
-        $p = new Publisher($pshUrl);
-        $topic_url = array (
-            index_url($_SERVER).'?do=atom',
-            index_url($_SERVER).'?do=rss'
-        );
-        $p->publish_update($topic_url);
-    }
-}
 
 // ------------------------------------------------------------------------------------------
 // Session management
@@ -266,10 +252,10 @@ function allIPs()
  */
 function fillSessionInfo($conf)
 {
-	$_SESSION['uid'] = sha1(uniqid('',true).'_'.mt_rand()); // Generate unique random number (different than phpsessionid)
-	$_SESSION['ip']=allIPs();                // We store IP address(es) of the client to make sure session is not hijacked.
-	$_SESSION['username']= $conf->get('credentials.login');
-	$_SESSION['expires_on']=time()+INACTIVITY_TIMEOUT;  // Set session expiration.
+    $_SESSION['uid'] = sha1(uniqid('',true).'_'.mt_rand()); // Generate unique random number (different than phpsessionid)
+    $_SESSION['ip']=allIPs();                // We store IP address(es) of the client to make sure session is not hijacked.
+    $_SESSION['username']= $conf->get('credentials.login');
+    $_SESSION['expires_on']=time()+INACTIVITY_TIMEOUT;  // Set session expiration.
 }
 
 /**
@@ -286,7 +272,7 @@ function check_auth($login, $password, $conf)
     $hash = sha1($password . $login . $conf->get('credentials.salt'));
     if ($login == $conf->get('credentials.login') && $hash == $conf->get('credentials.hash'))
     {   // Login/password is correct.
-		fillSessionInfo($conf);
+        fillSessionInfo($conf);
         logm($conf->get('resource.log'), $_SERVER['REMOTE_ADDR'], 'Login successful');
         return true;
     }
@@ -308,6 +294,7 @@ function logout() {
         unset($_SESSION['ip']);
         unset($_SESSION['username']);
         unset($_SESSION['privateonly']);
+        unset($_SESSION['untaggedonly']);
     }
     setcookie('shaarli_staySignedIn', FALSE, 0, WEB_PATH);
 }
@@ -405,18 +392,19 @@ function ban_canLogin($conf)
 // Process login form: Check if login/password is correct.
 if (isset($_POST['login']))
 {
-    if (!ban_canLogin($conf)) die('I said: NO. You are banned for the moment. Go away.');
+    if (!ban_canLogin($conf)) die(t('I said: NO. You are banned for the moment. Go away.'));
     if (isset($_POST['password'])
-        && tokenOk($_POST['token'])
+        && $sessionManager->checkToken($_POST['token'])
         && (check_auth($_POST['login'], $_POST['password'], $conf))
     ) {   // Login/password is OK.
         ban_loginOk($conf);
         // If user wants to keep the session cookie even after the browser closes:
         if (!empty($_POST['longlastingsession']))
         {
-			setcookie('shaarli_staySignedIn', STAY_SIGNED_IN_TOKEN, time()+31536000, WEB_PATH);
-            $_SESSION['longlastingsession']=31536000;  // (31536000 seconds = 1 year)
-            $_SESSION['expires_on']=time()+$_SESSION['longlastingsession'];  // Set session expiration on server-side.
+            $_SESSION['longlastingsession'] = 31536000; // (31536000 seconds = 1 year)
+            $expiration = time() + $_SESSION['longlastingsession']; // calculate relative cookie expiration (1 year from now)
+            setcookie('shaarli_staySignedIn', STAY_SIGNED_IN_TOKEN, $expiration, WEB_PATH);
+            $_SESSION['expires_on'] = $expiration;  // Set session expiration on server-side.
 
             $cookiedir = ''; if(dirname($_SERVER['SCRIPT_NAME'])!='/') $cookiedir=dirname($_SERVER["SCRIPT_NAME"]).'/';
             session_set_cookie_params($_SESSION['longlastingsession'],$cookiedir,$_SERVER['SERVER_NAME']); // Set session cookie expiration on client side
@@ -433,7 +421,7 @@ if (isset($_POST['login']))
         // Optional redirect after login:
         if (isset($_GET['post'])) {
             $uri = '?post='. urlencode($_GET['post']);
-            foreach (array('description', 'source', 'title') as $param) {
+            foreach (array('description', 'source', 'title', 'tags') as $param) {
                 if (!empty($_GET[$param])) {
                     $uri .= '&'.$param.'='.urlencode($_GET[$param]);
                 }
@@ -462,75 +450,22 @@ if (isset($_POST['login']))
         $redir = '&username='. urlencode($_POST['login']);
         if (isset($_GET['post'])) {
             $redir .= '&post=' . urlencode($_GET['post']);
-            foreach (array('description', 'source', 'title') as $param) {
+            foreach (array('description', 'source', 'title', 'tags') as $param) {
                 if (!empty($_GET[$param])) {
                     $redir .= '&' . $param . '=' . urlencode($_GET[$param]);
                 }
             }
         }
-        echo '<script>alert("Wrong login/password.");document.location=\'?do=login'.$redir.'\';</script>'; // Redirect to login screen.
+        // Redirect to login screen.
+        echo '<script>alert("'. t("Wrong login/password.") .'");document.location=\'?do=login'.$redir.'\';</script>';
         exit;
     }
-}
-
-// ------------------------------------------------------------------------------------------
-// Misc utility functions:
-
-// Convert post_max_size/upload_max_filesize (e.g. '16M') parameters to bytes.
-function return_bytes($val)
-{
-    $val = trim($val); $last=strtolower($val[strlen($val)-1]);
-    switch($last)
-    {
-        case 'g': $val *= 1024;
-        case 'm': $val *= 1024;
-        case 'k': $val *= 1024;
-    }
-    return $val;
-}
-
-// Try to determine max file size for uploads (POST).
-// Returns an integer (in bytes)
-function getMaxFileSize()
-{
-    $size1 = return_bytes(ini_get('post_max_size'));
-    $size2 = return_bytes(ini_get('upload_max_filesize'));
-    // Return the smaller of two:
-    $maxsize = min($size1,$size2);
-    // FIXME: Then convert back to readable notations ? (e.g. 2M instead of 2000000)
-    return $maxsize;
 }
 
 // ------------------------------------------------------------------------------------------
 // Token management for XSRF protection
 // Token should be used in any form which acts on data (create,update,delete,import...).
 if (!isset($_SESSION['tokens'])) $_SESSION['tokens']=array();  // Token are attached to the session.
-
-/**
- * Returns a token.
- *
- * @param ConfigManager $conf Configuration Manager instance.
- *
- * @return string token.
- */
-function getToken($conf)
-{
-    $rnd = sha1(uniqid('', true) .'_'. mt_rand() . $conf->get('credentials.salt'));  // We generate a random string.
-    $_SESSION['tokens'][$rnd]=1;  // Store it on the server side.
-    return $rnd;
-}
-
-// Tells if a token is OK. Using this function will destroy the token.
-// true=token is OK.
-function tokenOk($token)
-{
-    if (isset($_SESSION['tokens'][$token]))
-    {
-        unset($_SESSION['tokens'][$token]); // Token is used: destroy it.
-        return true; // Token is OK.
-    }
-    return false; // Wrong token, or already used.
-}
 
 /**
  * Daily RSS feed: 1 RSS entry per day giving all the links on that day.
@@ -602,7 +537,11 @@ function showDailyRSS($conf) {
 
         // We pre-format some fields for proper output.
         foreach ($links as &$link) {
-            $link['formatedDescription'] = format_description($link['description'], $conf->get('redirector.url'));
+            $link['formatedDescription'] = format_description(
+                $link['description'],
+                $conf->get('redirector.url'),
+                $conf->get('redirector.encode_url')
+            );
             $link['thumbnail'] = thumbnail($conf, $link['url']);
             $link['timestamp'] = $link['created']->getTimestamp();
             if (startsWith($link['url'], '?')) {
@@ -618,7 +557,7 @@ function showDailyRSS($conf) {
         $tpl->assign('links', $links);
         $tpl->assign('rssdate', escape($dayDate->format(DateTime::RSS)));
         $tpl->assign('hide_timestamps', $conf->get('privacy.hide_timestamps', false));
-        $html = $tpl->draw('dailyrss', $return_string=true);
+        $html = $tpl->draw('dailyrss', true);
 
         echo $html . PHP_EOL;
     }
@@ -639,20 +578,29 @@ function showDailyRSS($conf) {
  */
 function showDaily($pageBuilder, $LINKSDB, $conf, $pluginManager)
 {
-    $day=date('Ymd',strtotime('-1 day')); // Yesterday, in format YYYYMMDD.
-    if (isset($_GET['day'])) $day=$_GET['day'];
-
-    $days = $LINKSDB->days();
-    $i = array_search($day,$days);
-    if ($i===false) { $i=count($days)-1; $day=$days[$i]; }
-    $previousday='';
-    $nextday='';
-    if ($i!==false)
-    {
-        if ($i>=1) $previousday=$days[$i-1];
-        if ($i<count($days)-1) $nextday=$days[$i+1];
+    $day = date('Ymd', strtotime('-1 day')); // Yesterday, in format YYYYMMDD.
+    if (isset($_GET['day'])) {
+      $day = $_GET['day'];
     }
 
+    $days = $LINKSDB->days();
+    $i = array_search($day, $days);
+    if ($i === false && count($days)) {
+        // no links for day, but at least one day with links
+        $i = count($days) - 1;
+        $day = $days[$i];
+    }
+    $previousday = '';
+    $nextday = '';
+
+    if ($i !== false) {
+        if ($i >= 1) {
+             $previousday=$days[$i - 1];
+        }
+        if ($i < count($days) - 1) {
+          $nextday = $days[$i + 1];
+        }
+    }
     try {
         $linksToDisplay = $LINKSDB->filterDay($day);
     } catch (Exception $exc) {
@@ -661,13 +609,15 @@ function showDaily($pageBuilder, $LINKSDB, $conf, $pluginManager)
     }
 
     // We pre-format some fields for proper output.
-    foreach($linksToDisplay as $key=>$link)
-    {
-
+    foreach($linksToDisplay as $key => $link) {
         $taglist = explode(' ',$link['tags']);
         uasort($taglist, 'strcasecmp');
         $linksToDisplay[$key]['taglist']=$taglist;
-        $linksToDisplay[$key]['formatedDescription'] = format_description($link['description'], $conf->get('redirector.url'));
+        $linksToDisplay[$key]['formatedDescription'] = format_description(
+            $link['description'],
+            $conf->get('redirector.url'),
+            $conf->get('redirector.encode_url')
+        );
         $linksToDisplay[$key]['thumbnail'] = thumbnail($conf, $link['url']);
         $linksToDisplay[$key]['timestamp'] =  $link['created']->getTimestamp();
     }
@@ -677,28 +627,31 @@ function showDaily($pageBuilder, $LINKSDB, $conf, $pluginManager)
        so I manually spread entries with a simple method: I roughly evaluate the
        height of a div according to title and description length.
     */
-    $columns=array(array(),array(),array()); // Entries to display, for each column.
-    $fill=array(0,0,0);  // Rough estimate of columns fill.
-    foreach($linksToDisplay as $key=>$link)
-    {
+    $columns = array(array(), array(), array()); // Entries to display, for each column.
+    $fill = array(0, 0, 0);  // Rough estimate of columns fill.
+    foreach($linksToDisplay as $key => $link) {
         // Roughly estimate length of entry (by counting characters)
         // Title: 30 chars = 1 line. 1 line is 30 pixels height.
         // Description: 836 characters gives roughly 342 pixel height.
         // This is not perfect, but it's usually OK.
-        $length=strlen($link['title'])+(342*strlen($link['description']))/836;
-        if ($link['thumbnail']) $length +=100; // 1 thumbnails roughly takes 100 pixels height.
+        $length = strlen($link['title']) + (342 * strlen($link['description'])) / 836;
+        if ($link['thumbnail']) {
+          $length += 100; // 1 thumbnails roughly takes 100 pixels height.
+        }
         // Then put in column which is the less filled:
-        $smallest=min($fill); // find smallest value in array.
-        $index=array_search($smallest,$fill); // find index of this smallest value.
-        array_push($columns[$index],$link); // Put entry in this column.
-        $fill[$index]+=$length;
+        $smallest = min($fill); // find smallest value in array.
+        $index = array_search($smallest, $fill); // find index of this smallest value.
+        array_push($columns[$index], $link); // Put entry in this column.
+        $fill[$index] += $length;
     }
 
     $dayDate = DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, $day.'_000000');
     $data = array(
+        'pagetitle' => $conf->get('general.title') .' - '. format_date($dayDate, false),
         'linksToDisplay' => $linksToDisplay,
         'cols' => $columns,
         'day' => $dayDate->getTimestamp(),
+        'dayDate' => $dayDate,
         'previousday' => $previousday,
         'nextday' => $nextday,
     );
@@ -729,19 +682,14 @@ function showLinkList($PAGE, $LINKSDB, $conf, $pluginManager) {
 /**
  * Render HTML page (according to URL parameters and user rights)
  *
- * @param ConfigManager $conf          Configuration Manager instance.
- * @param PluginManager $pluginManager Plugin Manager instance,
+ * @param ConfigManager  $conf           Configuration Manager instance.
+ * @param PluginManager  $pluginManager  Plugin Manager instance,
+ * @param LinkDB         $LINKSDB
+ * @param History        $history        instance
+ * @param SessionManager $sessionManager SessionManager instance
  */
-function renderPage($conf, $pluginManager)
+function renderPage($conf, $pluginManager, $LINKSDB, $history, $sessionManager)
 {
-    $LINKSDB = new LinkDB(
-        $conf->get('resource.datastore'),
-        isLoggedIn(),
-        $conf->get('privacy.hide_public_links'),
-        $conf->get('redirector.url'),
-        $conf->get('redirector.encode_url')
-    );
-
     $updater = new Updater(
         read_updates_file($conf->get('resource.updates')),
         $LINKSDB,
@@ -761,7 +709,7 @@ function renderPage($conf, $pluginManager)
         die($e->getMessage());
     }
 
-    $PAGE = new PageBuilder($conf);
+    $PAGE = new PageBuilder($conf, $LINKSDB, $sessionManager->generateToken());
     $PAGE->assign('linkcount', count($LINKSDB));
     $PAGE->assign('privateLinkcount', count_private($LINKSDB));
     $PAGE->assign('plugin_errors', $pluginManager->getErrors());
@@ -769,6 +717,23 @@ function renderPage($conf, $pluginManager)
     // Determine which page will be rendered.
     $query = (isset($_SERVER['QUERY_STRING'])) ? $_SERVER['QUERY_STRING'] : '';
     $targetPage = Router::findPage($query, $_GET, isLoggedIn());
+
+    if (
+        // if the user isn't logged in
+        !isLoggedIn() &&
+        // and Shaarli doesn't have public content...
+        $conf->get('privacy.hide_public_links') &&
+        // and is configured to enforce the login
+        $conf->get('privacy.force_login') &&
+        // and the current page isn't already the login page
+        $targetPage !== Router::$PAGE_LOGIN &&
+        // and the user is not requesting a feed (which would lead to a different content-type as expected)
+        $targetPage !== Router::$PAGE_FEED_ATOM &&
+        $targetPage !== Router::$PAGE_FEED_RSS
+    ) {
+        // force current page to be the login page
+        $targetPage = Router::$PAGE_LOGIN;
+    }
 
     // Call plugin hooks for header, footer and includes, specifying which page will be rendered.
     // Then assign generated data to RainTPL.
@@ -797,6 +762,8 @@ function renderPage($conf, $pluginManager)
             $PAGE->assign('username', escape($_GET['username']));
         }
         $PAGE->assign('returnurl',(isset($_SERVER['HTTP_REFERER']) ? escape($_SERVER['HTTP_REFERER']):''));
+        // add default state of the 'remember me' checkbox
+        $PAGE->assign('remember_user_default', $conf->get('privacy.remember_user_default'));
         $PAGE->renderPage('loginform');
         exit;
     }
@@ -844,7 +811,9 @@ function renderPage($conf, $pluginManager)
     // -------- Tag cloud
     if ($targetPage == Router::$PAGE_TAGCLOUD)
     {
-        $tags= $LINKSDB->allTags();
+        $visibility = ! empty($_SESSION['privateonly']) ? 'private' : 'all';
+        $filteringTags = isset($_GET['searchtags']) ? explode(' ', $_GET['searchtags']) : [];
+        $tags = $LINKSDB->linksCountPerTag($filteringTags, $visibility);
 
         // We sort tags alphabetically, then choose a font size according to count.
         // First, find max value.
@@ -853,20 +822,13 @@ function renderPage($conf, $pluginManager)
             $maxcount = max($maxcount, $value);
         }
 
-        // Sort tags alphabetically: case insensitive, support locale if available.
-        uksort($tags, function($a, $b) {
-            // Collator is part of PHP intl.
-            if (class_exists('Collator')) {
-                $c = new Collator(setlocale(LC_COLLATE, 0));
-                if (!intl_is_failure(intl_get_error_code())) {
-                    return $c->compare($a, $b);
-                }
-            }
-            return strcasecmp($a, $b);
-        });
+        alphabetical_sort($tags, false, true);
 
         $tagList = array();
         foreach($tags as $key => $value) {
+            if (in_array($key, $filteringTags)) {
+                continue;
+            }
             // Tag font size scaling:
             //   default 15 and 30 logarithm bases affect scaling,
             //   22 and 6 are arbitrary font sizes for max and min sizes.
@@ -878,6 +840,7 @@ function renderPage($conf, $pluginManager)
         }
 
         $data = array(
+            'search_tags' => implode(' ', escape($filteringTags)),
             'tags' => $tagList,
         );
         $pluginManager->executeHooks('render_tagcloud', $data, array('loggedin' => isLoggedIn()));
@@ -886,7 +849,37 @@ function renderPage($conf, $pluginManager)
             $PAGE->assign($key, $value);
         }
 
-        $PAGE->renderPage('tagcloud');
+        $PAGE->renderPage('tag.cloud');
+        exit;
+    }
+
+    // -------- Tag list
+    if ($targetPage == Router::$PAGE_TAGLIST)
+    {
+        $visibility = ! empty($_SESSION['privateonly']) ? 'private' : 'all';
+        $filteringTags = isset($_GET['searchtags']) ? explode(' ', $_GET['searchtags']) : [];
+        $tags = $LINKSDB->linksCountPerTag($filteringTags, $visibility);
+        foreach ($filteringTags as $tag) {
+            if (array_key_exists($tag, $tags)) {
+                unset($tags[$tag]);
+            }
+        }
+
+        if (! empty($_GET['sort']) && $_GET['sort'] === 'alpha') {
+            alphabetical_sort($tags, false, true);
+        }
+
+        $data = [
+            'search_tags' => implode(' ', escape($filteringTags)),
+            'tags' => $tags,
+        ];
+        $pluginManager->executeHooks('render_taglist', $data, ['loggedin' => isLoggedIn()]);
+
+        foreach ($data as $key => $value) {
+            $PAGE->assign($key, $value);
+        }
+
+        $PAGE->renderPage('tag.list');
         exit;
     }
 
@@ -918,10 +911,6 @@ function renderPage($conf, $pluginManager)
         $feedGenerator->setLocale(strtolower(setlocale(LC_COLLATE, 0)));
         $feedGenerator->setHideDates($conf->get('privacy.hide_timestamps') && !isLoggedIn());
         $feedGenerator->setUsePermalinks(isset($_GET['permalinks']) || !$conf->get('feed.rss_permalinks'));
-        $pshUrl = $conf->get('config.PUBSUBHUB_URL');
-        if (!empty($pshUrl)) {
-            $feedGenerator->setPubsubhubUrl($pshUrl);
-        }
         $data = $feedGenerator->buildData();
 
         // Process plugin hook.
@@ -938,7 +927,7 @@ function renderPage($conf, $pluginManager)
         exit;
     }
 
-    // Display openseach plugin (XML)
+    // Display opensearch plugin (XML)
     if ($targetPage == Router::$PAGE_OPENSEARCH) {
         header('Content-Type: application/xml; charset=utf-8');
         $PAGE->assign('serverurl', index_url($_SERVER));
@@ -1023,7 +1012,12 @@ function renderPage($conf, $pluginManager)
             $_SESSION['LINKS_PER_PAGE']=abs(intval($_GET['linksperpage']));
         }
 
-        header('Location: '. generateLocation($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST'], array('linksperpage')));
+        if (! empty($_SERVER['HTTP_REFERER'])) {
+            $location = generateLocation($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST'], array('linksperpage'));
+        } else {
+            $location = '?';
+        }
+        header('Location: '. $location);
         exit;
     }
 
@@ -1035,7 +1029,25 @@ function renderPage($conf, $pluginManager)
             unset($_SESSION['privateonly']); // See all links
         }
 
-        header('Location: '. generateLocation($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST'], array('privateonly')));
+        if (! empty($_SERVER['HTTP_REFERER'])) {
+            $location = generateLocation($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST'], array('privateonly'));
+        } else {
+            $location = '?';
+        }
+        header('Location: '. $location);
+        exit;
+    }
+
+    // -------- User wants to see only untagged links (toggle)
+    if (isset($_GET['untaggedonly'])) {
+        $_SESSION['untaggedonly'] = empty($_SESSION['untaggedonly']);
+
+        if (! empty($_SERVER['HTTP_REFERER'])) {
+            $location = generateLocation($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST'], array('untaggedonly'));
+        } else {
+            $location = '?';
+        }
+        header('Location: '. $location);
         exit;
     }
 
@@ -1046,7 +1058,13 @@ function renderPage($conf, $pluginManager)
         // Show login screen, then redirect to ?post=...
         if (isset($_GET['post']))
         {
-            header('Location: ?do=login&post='.urlencode($_GET['post']).(!empty($_GET['title'])?'&title='.urlencode($_GET['title']):'').(!empty($_GET['description'])?'&description='.urlencode($_GET['description']):'').(!empty($_GET['source'])?'&source='.urlencode($_GET['source']):'')); // Redirect to login page, then back to post link.
+            header( // Redirect to login page, then back to post link.
+                'Location: ?do=login&post='.urlencode($_GET['post']).
+                (!empty($_GET['title'])?'&title='.urlencode($_GET['title']):'').
+                (!empty($_GET['description'])?'&description='.urlencode($_GET['description']):'').
+                (!empty($_GET['tags'])?'&tags='.urlencode($_GET['tags']):'').
+                (!empty($_GET['source'])?'&source='.urlencode($_GET['source']):'')
+            );
             exit;
         }
 
@@ -1064,10 +1082,10 @@ function renderPage($conf, $pluginManager)
     // -------- Display the Tools menu if requested (import/export/bookmarklet...)
     if ($targetPage == Router::$PAGE_TOOLS)
     {
-        $data = array(
+        $data = [
             'pageabsaddr' => index_url($_SERVER),
-            'sslenabled' => !empty($_SERVER['HTTPS'])
-        );
+            'sslenabled' => is_https($_SERVER),
+        ];
         $pluginManager->executeHooks('render_tools', $data);
 
         foreach ($data as $key => $value) {
@@ -1082,16 +1100,19 @@ function renderPage($conf, $pluginManager)
     if ($targetPage == Router::$PAGE_CHANGEPASSWORD)
     {
         if ($conf->get('security.open_shaarli')) {
-            die('You are not supposed to change a password on an Open Shaarli.');
+            die(t('You are not supposed to change a password on an Open Shaarli.'));
         }
 
         if (!empty($_POST['setpassword']) && !empty($_POST['oldpassword']))
         {
-            if (!tokenOk($_POST['token'])) die('Wrong token.'); // Go away!
+            if (!$sessionManager->checkToken($_POST['token'])) die(t('Wrong token.')); // Go away!
 
             // Make sure old password is correct.
             $oldhash = sha1($_POST['oldpassword'].$conf->get('credentials.login').$conf->get('credentials.salt'));
-            if ($oldhash!= $conf->get('credentials.hash')) { echo '<script>alert("The old password is not correct.");document.location=\'?do=changepasswd\';</script>'; exit; }
+            if ($oldhash!= $conf->get('credentials.hash')) {
+                echo '<script>alert("'. t('The old password is not correct.') .'");document.location=\'?do=changepasswd\';</script>';
+                exit;
+            }
             // Save new password
             // Salt renders rainbow-tables attacks useless.
             $conf->set('credentials.salt', sha1(uniqid('', true) .'_'. mt_rand()));
@@ -1109,7 +1130,7 @@ function renderPage($conf, $pluginManager)
                 echo '<script>alert("'. $e->getMessage() .'");document.location=\'?do=tools\';</script>';
                 exit;
             }
-            echo '<script>alert("Your password has been changed.");document.location=\'?do=tools\';</script>';
+            echo '<script>alert("'. t('Your password has been changed') .'");document.location=\'?do=tools\';</script>';
             exit;
         }
         else // show the change password form.
@@ -1124,8 +1145,8 @@ function renderPage($conf, $pluginManager)
     {
         if (!empty($_POST['title']) )
         {
-            if (!tokenOk($_POST['token'])) {
-                die('Wrong token.'); // Go away!
+            if (!$sessionManager->checkToken($_POST['token'])) {
+                die(t('Wrong token.')); // Go away!
             }
             $tz = 'UTC';
             if (!empty($_POST['continent']) && !empty($_POST['city'])
@@ -1136,14 +1157,21 @@ function renderPage($conf, $pluginManager)
             $conf->set('general.timezone', $tz);
             $conf->set('general.title', escape($_POST['title']));
             $conf->set('general.header_link', escape($_POST['titleLink']));
+            $conf->set('resource.theme', escape($_POST['theme']));
             $conf->set('redirector.url', escape($_POST['redirector']));
             $conf->set('security.session_protection_disabled', !empty($_POST['disablesessionprotection']));
             $conf->set('privacy.default_private_links', !empty($_POST['privateLinkByDefault']));
             $conf->set('feed.rss_permalinks', !empty($_POST['enableRssPermalinks']));
             $conf->set('updates.check_updates', !empty($_POST['updateCheck']));
             $conf->set('privacy.hide_public_links', !empty($_POST['hidePublicLinks']));
+            $conf->set('api.enabled', !empty($_POST['enableApi']));
+            $conf->set('api.secret', escape($_POST['apiSecret']));
+            $conf->set('translation.language', escape($_POST['language']));
+
             try {
                 $conf->write(isLoggedIn());
+                $history->updateSettings();
+                invalidateCaches($conf->get('resource.page_cache'));
             }
             catch(Exception $e) {
                 error_log(
@@ -1155,21 +1183,30 @@ function renderPage($conf, $pluginManager)
                 echo '<script>alert("'. $e->getMessage() .'");document.location=\'?do=configure\';</script>';
                 exit;
             }
-            echo '<script>alert("Configuration was saved.");document.location=\'?do=configure\';</script>';
+            echo '<script>alert("'. t('Configuration was saved.') .'");document.location=\'?do=configure\';</script>';
             exit;
         }
         else // Show the configuration form.
         {
             $PAGE->assign('title', $conf->get('general.title'));
+            $PAGE->assign('theme', $conf->get('resource.theme'));
+            $PAGE->assign('theme_available', ThemeUtils::getThemes($conf->get('resource.raintpl_tpl')));
             $PAGE->assign('redirector', $conf->get('redirector.url'));
-            list($timezone_form, $timezone_js) = generateTimeZoneForm($conf->get('general.timezone'));
-            $PAGE->assign('timezone_form', $timezone_form);
-            $PAGE->assign('timezone_js',$timezone_js);
+            list($continents, $cities) = generateTimeZoneData(
+                timezone_identifiers_list(),
+                $conf->get('general.timezone')
+            );
+            $PAGE->assign('continents', $continents);
+            $PAGE->assign('cities', $cities);
             $PAGE->assign('private_links_default', $conf->get('privacy.default_private_links', false));
             $PAGE->assign('session_protection_disabled', $conf->get('security.session_protection_disabled', false));
             $PAGE->assign('enable_rss_permalinks', $conf->get('feed.rss_permalinks', false));
             $PAGE->assign('enable_update_check', $conf->get('updates.check_updates', true));
             $PAGE->assign('hide_public_links', $conf->get('privacy.hide_public_links', false));
+            $PAGE->assign('api_enabled', $conf->get('api.enabled', true));
+            $PAGE->assign('api_secret', $conf->get('api.secret'));
+            $PAGE->assign('languages', Languages::getAvailableLanguages());
+            $PAGE->assign('language', $conf->get('translation.language'));
             $PAGE->renderPage('configure');
             exit;
         }
@@ -1179,48 +1216,28 @@ function renderPage($conf, $pluginManager)
     if ($targetPage == Router::$PAGE_CHANGETAG)
     {
         if (empty($_POST['fromtag']) || (empty($_POST['totag']) && isset($_POST['renametag']))) {
-            $PAGE->assign('tags', $LINKSDB->allTags());
+            $PAGE->assign('fromtag', ! empty($_GET['fromtag']) ? escape($_GET['fromtag']) : '');
             $PAGE->renderPage('changetag');
             exit;
         }
 
-        if (!tokenOk($_POST['token'])) {
-            die('Wrong token.');
+        if (!$sessionManager->checkToken($_POST['token'])) {
+            die(t('Wrong token.'));
         }
 
-        // Delete a tag:
-        if (isset($_POST['deletetag']) && !empty($_POST['fromtag'])) {
-            $needle = trim($_POST['fromtag']);
-            // True for case-sensitive tag search.
-            $linksToAlter = $LINKSDB->filterSearch(array('searchtags' => $needle), true);
-            foreach($linksToAlter as $key=>$value)
-            {
-                $tags = explode(' ',trim($value['tags']));
-                unset($tags[array_search($needle,$tags)]); // Remove tag.
-                $value['tags']=trim(implode(' ',$tags));
-                $LINKSDB[$key]=$value;
-            }
-            $LINKSDB->save($conf->get('resource.page_cache'));
-            echo '<script>alert("Tag was removed from '.count($linksToAlter).' links.");document.location=\'?\';</script>';
-            exit;
+        $alteredLinks = $LINKSDB->renameTag(escape($_POST['fromtag']), escape($_POST['totag']));
+        $LINKSDB->save($conf->get('resource.page_cache'));
+        foreach ($alteredLinks as $link) {
+            $history->updateLink($link);
         }
-
-        // Rename a tag:
-        if (isset($_POST['renametag']) && !empty($_POST['fromtag']) && !empty($_POST['totag'])) {
-            $needle = trim($_POST['fromtag']);
-            // True for case-sensitive tag search.
-            $linksToAlter = $LINKSDB->filterSearch(array('searchtags' => $needle), true);
-            foreach($linksToAlter as $key=>$value)
-            {
-                $tags = explode(' ',trim($value['tags']));
-                $tags[array_search($needle,$tags)] = trim($_POST['totag']); // Replace tags value.
-                $value['tags']=trim(implode(' ',$tags));
-                $LINKSDB[$key]=$value;
-            }
-            $LINKSDB->save($conf->get('resource.page_cache')); // Save to disk.
-            echo '<script>alert("Tag was renamed in '.count($linksToAlter).' links.");document.location=\'?searchtags='.urlencode($_POST['totag']).'\';</script>';
-            exit;
-        }
+        $delete = empty($_POST['totag']);
+        $redirect = $delete ? 'do=changetag' : 'searchtags='. urlencode(escape($_POST['totag']));
+        $count = count($alteredLinks);
+        $alert = $delete
+            ? sprintf(t('The tag was removed from %d link.', 'The tag was removed from %d links.', $count), $count)
+            : sprintf(t('The tag was renamed in %d link.', 'The tag was renamed in %d links.', $count), $count);
+        echo '<script>alert("'. $alert .'");document.location=\'?'. $redirect .'\';</script>';
+        exit;
     }
 
     // -------- User wants to add a link without using the bookmarklet: Show form.
@@ -1234,27 +1251,29 @@ function renderPage($conf, $pluginManager)
     if (isset($_POST['save_edit']))
     {
         // Go away!
-        if (! tokenOk($_POST['token'])) {
-            die('Wrong token.');
+        if (! $sessionManager->checkToken($_POST['token'])) {
+            die(t('Wrong token.'));
         }
 
         // lf_id should only be present if the link exists.
-        $id = !empty($_POST['lf_id']) ? intval(escape($_POST['lf_id'])) : $LINKSDB->getNextId();
+        $id = isset($_POST['lf_id']) ? intval(escape($_POST['lf_id'])) : $LINKSDB->getNextId();
         // Linkdate is kept here to:
         //   - use the same permalink for notes as they're displayed when creating them
         //   - let users hack creation date of their posts
-        //     See: https://github.com/shaarli/Shaarli/wiki/Datastore-hacks#changing-the-timestamp-for-a-link
+        //     See: https://shaarli.readthedocs.io/en/master/Various-hacks/#changing-the-timestamp-for-a-shaare
         $linkdate = escape($_POST['lf_linkdate']);
         if (isset($LINKSDB[$id])) {
             // Edit
             $created = DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, $linkdate);
             $updated = new DateTime();
             $shortUrl = $LINKSDB[$id]['shorturl'];
+            $new = false;
         } else {
             // New link
             $created = DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, $linkdate);
             $updated = null;
             $shortUrl = link_small_hash($created, $id);
+            $new = true;
         }
 
         // Remove multiple spaces.
@@ -1264,13 +1283,10 @@ function renderPage($conf, $pluginManager)
         // Remove duplicates.
         $tags = implode(' ', array_unique(explode(' ', $tags)));
 
-        $url = trim($_POST['lf_url']);
-        if (! startsWith($url, 'http:') && ! startsWith($url, 'https:')
-            && ! startsWith($url, 'ftp:') && ! startsWith($url, 'magnet:')
-            && ! startsWith($url, '?') && ! startsWith($url, 'javascript:')
-        ) {
-            $url = 'http://' . $url;
+        if (empty(trim($_POST['lf_url']))) {
+            $_POST['lf_url'] = '?' . smallHash($linkdate . $id);
         }
+        $url = whitelist_protocols(trim($_POST['lf_url']), $conf->get('security.allowed_protocols'));
 
         $link = array(
             'id' => $id,
@@ -1293,7 +1309,11 @@ function renderPage($conf, $pluginManager)
 
         $LINKSDB[$id] = $link;
         $LINKSDB->save($conf->get('resource.page_cache'));
-        pubsubhub($conf);
+        if ($new) {
+            $history->addLink($link);
+        } else {
+            $history->updateLink($link);
+        }
 
         // If we are called from the bookmarklet, we must close the popup:
         if (isset($_GET['source']) && ($_GET['source']=='bookmarklet' || $_GET['source']=='firefoxsocialapi')) {
@@ -1313,9 +1333,13 @@ function renderPage($conf, $pluginManager)
     // -------- User clicked the "Cancel" button when editing a link.
     if (isset($_POST['cancel_edit']))
     {
+        $id = isset($_POST['lf_id']) ? (int) escape($_POST['lf_id']) : false;
+        if (! isset($LINKSDB[$id])) {
+            header('Location: ?');
+        }
         // If we are called from the bookmarklet, we must close the popup:
         if (isset($_GET['source']) && ($_GET['source']=='bookmarklet' || $_GET['source']=='firefoxsocialapi')) { echo '<script>self.close();</script>'; exit; }
-        $link = $LINKSDB[(int) escape($_POST['lf_id'])];
+        $link = $LINKSDB[$id];
         $returnurl = ( isset($_POST['returnurl']) ? $_POST['returnurl'] : '?' );
         // Scroll to the link which has been edited.
         $returnurl .= '#'. $link['shorturl'];
@@ -1325,49 +1349,44 @@ function renderPage($conf, $pluginManager)
     }
 
     // -------- User clicked the "Delete" button when editing a link: Delete link from database.
-    if (isset($_POST['delete_link']))
+    if ($targetPage == Router::$PAGE_DELETELINK)
     {
-        if (!tokenOk($_POST['token'])) die('Wrong token.');
+        if (! $sessionManager->checkToken($_GET['token'])) {
+            die(t('Wrong token.'));
+        }
 
-        // We do not need to ask for confirmation:
-        // - confirmation is handled by JavaScript
-        // - we are protected from XSRF by the token.
-
-        // FIXME! We keep `lf_linkdate` for consistency before a proper API. To be removed.
-        $id = isset($_POST['lf_id']) ? intval(escape($_POST['lf_id'])) : intval(escape($_POST['lf_linkdate']));
-
-        $pluginManager->executeHooks('delete_link', $LINKSDB[$id]);
-
-        unset($LINKSDB[$id]);
-        $LINKSDB->save('resource.page_cache'); // save to disk
+        $ids = trim($_GET['lf_linkdate']);
+        if (strpos($ids, ' ') !== false) {
+            // multiple, space-separated ids provided
+            $ids = array_values(array_filter(preg_split('/\s+/', escape($ids))));
+        } else {
+            // only a single id provided
+            $ids = [$ids];
+        }
+        // assert at least one id is given
+        if(!count($ids)){
+            die('no id provided');
+        }
+        foreach ($ids as $id) {
+            $id = (int) escape($id);
+            $link = $LINKSDB[$id];
+            $pluginManager->executeHooks('delete_link', $link);
+            unset($LINKSDB[$id]);
+        }
+        $LINKSDB->save($conf->get('resource.page_cache')); // save to disk
+        $history->deleteLink($link);
 
         // If we are called from the bookmarklet, we must close the popup:
         if (isset($_GET['source']) && ($_GET['source']=='bookmarklet' || $_GET['source']=='firefoxsocialapi')) { echo '<script>self.close();</script>'; exit; }
-        // Pick where we're going to redirect
-        // =============================================================
-        // Basically, we can't redirect to where we were previously if it was a permalink
-        // or an edit_link, because it would 404.
-        // Cases:
-        //    - /             : nothing in $_GET, redirect to self
-        //    - /?page        : redirect to self
-        //    - /?searchterm  : redirect to self (there might be other links)
-        //    - /?searchtags  : redirect to self
-        //    - /permalink    : redirect to / (the link does not exist anymore)
-        //    - /?edit_link   : redirect to / (the link does not exist anymore)
-        // PHP treats the permalink as a $_GET variable, so we need to check if every condition for self
-        // redirect is not satisfied, and only then redirect to /
-        $location = "?";
-        // Self redirection
-        if (count($_GET) == 0
-            || isset($_GET['page'])
-            || isset($_GET['searchterm'])
-            || isset($_GET['searchtags'])
-        ) {
-            if (isset($_POST['returnurl'])) {
-                $location = $_POST['returnurl']; // Handle redirects given by the form
-            } else {
-                $location = generateLocation($_SERVER['HTTP_REFERER'], $_SERVER['HTTP_HOST'], array('delete_link'));
-            }
+
+        $location = '?';
+        if (isset($_SERVER['HTTP_REFERER'])) {
+            // Don't redirect to where we were previously if it was a permalink or an edit_link, because it would 404.
+            $location = generateLocation(
+                    $_SERVER['HTTP_REFERER'],
+                    $_SERVER['HTTP_HOST'],
+                    ['delete_link', 'edit_link', $link['shorturl']]
+            );
         }
 
         header('Location: ' . $location); // After deleting the link, redirect to appropriate location
@@ -1385,7 +1404,7 @@ function renderPage($conf, $pluginManager)
             'link' => $link,
             'link_is_new' => false,
             'http_referer' => (isset($_SERVER['HTTP_REFERER']) ? escape($_SERVER['HTTP_REFERER']) : ''),
-            'tags' => $LINKSDB->allTags(),
+            'tags' => $LINKSDB->linksCountPerTag(),
         );
         $pluginManager->executeHooks('render_editlink', $data);
 
@@ -1417,22 +1436,16 @@ function renderPage($conf, $pluginManager)
             // If this is an HTTP(S) link, we try go get the page to extract the title (otherwise we will to straight to the edit form.)
             if (empty($title) && strpos(get_url_scheme($url), 'http') !== false) {
                 // Short timeout to keep the application responsive
-                list($headers, $content) = get_http_response($url, 4);
-                if (strpos($headers[0], '200 OK') !== false) {
-                    // Retrieve charset.
-                    $charset = get_charset($headers, $content);
-                    // Extract title.
-                    $title = html_extract_title($content);
-                    // Re-encode title in utf-8 if necessary.
-                    if (! empty($title) && strtolower($charset) != 'utf-8') {
-                        $title = mb_convert_encoding($title, 'utf-8', $charset);
-                    }
+                // The callback will fill $charset and $title with data from the downloaded page.
+                get_http_response($url, 25, 4194304, get_curl_download_callback($charset, $title));
+                if (! empty($title) && strtolower($charset) != 'utf-8') {
+                    $title = mb_convert_encoding($title, 'utf-8', $charset);
                 }
             }
 
             if ($url == '') {
                 $url = '?' . smallHash($linkdate . $LINKSDB->getNextId());
-                $title = 'Note: ';
+                $title = $conf->get('general.default_note_title', t('Note: '));
             }
             $url = escape($url);
             $title = escape($title);
@@ -1443,7 +1456,7 @@ function renderPage($conf, $pluginManager)
                 'url' => $url,
                 'description' => $description,
                 'tags' => $tags,
-                'private' => $private
+                'private' => $private,
             );
         } else {
             $link['linkdate'] = $link['created']->format(LinkDB::LINK_DATE_FORMAT);
@@ -1454,7 +1467,7 @@ function renderPage($conf, $pluginManager)
             'link_is_new' => $link_is_new,
             'http_referer' => (isset($_SERVER['HTTP_REFERER']) ? escape($_SERVER['HTTP_REFERER']) : ''),
             'source' => (isset($_GET['source']) ? $_GET['source'] : ''),
-            'tags' => $LINKSDB->allTags(),
+            'tags' => $LINKSDB->linksCountPerTag(),
             'default_private_links' => $conf->get('privacy.default_private_links', false),
         );
         $pluginManager->executeHooks('render_editlink', $data);
@@ -1516,7 +1529,22 @@ function renderPage($conf, $pluginManager)
 
         if (! isset($_POST['token']) || ! isset($_FILES['filetoupload'])) {
             // Show import dialog
-            $PAGE->assign('maxfilesize', getMaxFileSize());
+            $PAGE->assign(
+                'maxfilesize',
+                get_max_upload_size(
+                    ini_get('post_max_size'),
+                    ini_get('upload_max_filesize'),
+                    false
+                )
+            );
+            $PAGE->assign(
+                'maxfilesizeHuman',
+                get_max_upload_size(
+                    ini_get('post_max_size'),
+                    ini_get('upload_max_filesize'),
+                    true
+                )
+            );
             $PAGE->renderPage('import');
             exit;
         }
@@ -1524,21 +1552,25 @@ function renderPage($conf, $pluginManager)
         // Import bookmarks from an uploaded file
         if (isset($_FILES['filetoupload']['size']) && $_FILES['filetoupload']['size'] == 0) {
             // The file is too big or some form field may be missing.
-            echo '<script>alert("The file you are trying to upload is probably'
-                .' bigger than what this webserver can accept ('
-                .getMaxFileSize().' bytes).'
-                .' Please upload in smaller chunks.");document.location=\'?do='
-                .Router::$PAGE_IMPORT .'\';</script>';
+            $msg = sprintf(
+                t(
+                    'The file you are trying to upload is probably bigger than what this webserver can accept'
+                    .' (%s). Please upload in smaller chunks.'
+                ),
+                get_max_upload_size(ini_get('post_max_size'), ini_get('upload_max_filesize'))
+            );
+            echo '<script>alert("'. $msg .'");document.location=\'?do='.Router::$PAGE_IMPORT .'\';</script>';
             exit;
         }
-        if (! tokenOk($_POST['token'])) {
+        if (! $sessionManager->checkToken($_POST['token'])) {
             die('Wrong token.');
         }
         $status = NetscapeBookmarkUtils::import(
             $_POST,
             $_FILES,
             $LINKSDB,
-            $conf->get('resource.page_cache')
+            $conf,
+            $history
         );
         echo '<script>alert("'.$status.'");document.location=\'?do='
              .Router::$PAGE_IMPORT .'\';</script>';
@@ -1578,6 +1610,7 @@ function renderPage($conf, $pluginManager)
                 $conf->set('general.enabled_plugins', save_plugin_config($_POST));
             }
             $conf->write(isLoggedIn());
+            $history->updateSettings();
         }
         catch (Exception $e) {
             error_log(
@@ -1590,6 +1623,13 @@ function renderPage($conf, $pluginManager)
             exit;
         }
         header('Location: ?do='. Router::$PAGE_PLUGINSADMIN);
+        exit;
+    }
+
+    // Get a fresh token
+    if ($targetPage == Router::$GET_TOKEN) {
+        header('Content-Type:text/plain');
+        echo $sessionManager->generateToken($conf);
         exit;
     }
 
@@ -1610,8 +1650,16 @@ function renderPage($conf, $pluginManager)
 function buildLinkList($PAGE,$LINKSDB, $conf, $pluginManager)
 {
     // Used in templates
-    $searchtags = !empty($_GET['searchtags']) ? escape($_GET['searchtags']) : '';
-    $searchterm = !empty($_GET['searchterm']) ? escape($_GET['searchterm']) : '';
+    if (isset($_GET['searchtags'])) {
+        if (! empty($_GET['searchtags'])) {
+            $searchtags = escape(normalize_spaces($_GET['searchtags']));
+        } else {
+            $searchtags = false;
+        }
+    } else {
+        $searchtags = '';
+    }
+    $searchterm = !empty($_GET['searchterm']) ? escape(normalize_spaces($_GET['searchterm'])) : '';
 
     // Smallhash filter
     if (! empty($_SERVER['QUERY_STRING'])
@@ -1624,8 +1672,12 @@ function buildLinkList($PAGE,$LINKSDB, $conf, $pluginManager)
         }
     } else {
         // Filter links according search parameters.
-        $privateonly = !empty($_SESSION['privateonly']);
-        $linksToDisplay = $LINKSDB->filterSearch($_GET, false, $privateonly);
+        $visibility = ! empty($_SESSION['privateonly']) ? 'private' : 'all';
+        $request = [
+            'searchtags' => $searchtags,
+            'searchterm' => $searchterm,
+        ];
+        $linksToDisplay = $LINKSDB->filterSearch($request, false, $visibility, !empty($_SESSION['untaggedonly']));
     }
 
     // ---- Handle paging.
@@ -1649,7 +1701,11 @@ function buildLinkList($PAGE,$LINKSDB, $conf, $pluginManager)
     while ($i<$end && $i<count($keys))
     {
         $link = $linksToDisplay[$keys[$i]];
-        $link['description'] = format_description($link['description'], $conf->get('redirector.url'));
+        $link['description'] = format_description(
+            $link['description'],
+            $conf->get('redirector.url'),
+            $conf->get('redirector.encode_url')
+        );
         $classLi =  ($i % 2) != 0 ? '' : 'publicLinkHightLight';
         $link['class'] = $link['private'] == 0 ? $classLi : 'private';
         $link['timestamp'] = $link['created']->getTimestamp();
@@ -1658,7 +1714,7 @@ function buildLinkList($PAGE,$LINKSDB, $conf, $pluginManager)
         } else {
             $link['updated_timestamp'] = '';
         }
-        $taglist = explode(' ', $link['tags']);
+        $taglist = preg_split('/\s+/', $link['tags'], -1, PREG_SPLIT_NO_EMPTY);
         uasort($taglist, 'strcasecmp');
         $link['taglist'] = $taglist;
         // Check for both signs of a note: starting with ? and 7 chars long.
@@ -1672,7 +1728,7 @@ function buildLinkList($PAGE,$LINKSDB, $conf, $pluginManager)
     }
 
     // Compute paging navigation
-    $searchtagsUrl = empty($searchtags) ? '' : '&searchtags=' . urlencode($searchtags);
+    $searchtagsUrl = $searchtags === '' ? '' : '&searchtags=' . urlencode($searchtags);
     $searchtermUrl = empty($searchterm) ? '' : '&searchterm=' . urlencode($searchterm);
     $previous_page_url = '';
     if ($i != count($keys)) {
@@ -1692,9 +1748,9 @@ function buildLinkList($PAGE,$LINKSDB, $conf, $pluginManager)
         'result_count' => count($linksToDisplay),
         'search_term' => $searchterm,
         'search_tags' => $searchtags,
+        'visibility' => ! empty($_SESSION['privateonly']) ? 'private' : '',
         'redirector' => $conf->get('redirector.url'),  // Optional redirector URL.
         'links' => $linkDisp,
-        'tags' => $LINKSDB->allTags(),
     );
 
     // If there is only a single link, we change on-the-fly the title of the page.
@@ -1903,10 +1959,10 @@ function lazyThumbnail($conf, $url,$href=false)
  * Installation
  * This function should NEVER be called if the file data/config.php exists.
  *
- * @param ConfigManager $conf Configuration Manager instance.
+ * @param ConfigManager  $conf           Configuration Manager instance.
+ * @param SessionManager $sessionManager SessionManager instance
  */
-function install($conf)
-{
+function install($conf, $sessionManager) {
     // On free.fr host, make sure the /sessions directory exists, otherwise login will not work.
     if (endsWith($_SERVER['HTTP_HOST'],'.free.fr') && !is_dir($_SERVER['DOCUMENT_ROOT'].'/sessions')) mkdir($_SERVER['DOCUMENT_ROOT'].'/sessions',0705);
 
@@ -1915,12 +1971,20 @@ function install($conf)
     // (Because on some hosts, session.save_path may not be set correctly,
     // or we may not have write access to it.)
     if (isset($_GET['test_session']) && ( !isset($_SESSION) || !isset($_SESSION['session_tested']) || $_SESSION['session_tested']!='Working'))
-    {   // Step 2: Check if data in session is correct.
-        echo '<pre>Sessions do not seem to work correctly on your server.<br>';
-        echo 'Make sure the variable session.save_path is set correctly in your php config, and that you have write access to it.<br>';
-        echo 'It currently points to '.session_save_path().'<br>';
-        echo 'Check that the hostname used to access Shaarli contains a dot. On some browsers, accessing your server via a hostname like \'localhost\' or any custom hostname without a dot causes cookie storage to fail. We recommend accessing your server via it\'s IP address or Fully Qualified Domain Name.<br>';
-        echo '<br><a href="?">Click to try again.</a></pre>';
+    {
+        // Step 2: Check if data in session is correct.
+        $msg = t(
+            '<pre>Sessions do not seem to work correctly on your server.<br>'.
+            'Make sure the variable "session.save_path" is set correctly in your PHP config, '.
+            'and that you have write access to it.<br>'.
+            'It currently points to %s.<br>'.
+            'On some browsers, accessing your server via a hostname like \'localhost\' '.
+            'or any custom hostname without a dot causes cookie storage to fail. '.
+            'We recommend accessing your server via it\'s IP address or Fully Qualified Domain Name.<br>'
+        );
+        $msg = sprintf($msg, session_save_path());
+        echo $msg;
+        echo '<br><a href="?">'. t('Click to try again.') .'</a></pre>';
         die;
     }
     if (!isset($_SESSION['session_tested']))
@@ -1953,7 +2017,16 @@ function install($conf)
         } else {
             $conf->set('general.title', 'Shared links on '.escape(index_url($_SERVER)));
         }
+        $conf->set('translation.language', escape($_POST['language']));
         $conf->set('updates.check_updates', !empty($_POST['updateCheck']));
+        $conf->set('api.enabled', !empty($_POST['enableApi']));
+        $conf->set(
+            'api.secret',
+            generate_api_secret(
+                $conf->get('credentials.login'),
+                $conf->get('credentials.salt')
+            )
+        );
         try {
             // Everything is ok, let's create config file.
             $conf->write(isLoggedIn());
@@ -1972,16 +2045,11 @@ function install($conf)
         exit;
     }
 
-    // Display config form:
-    list($timezone_form, $timezone_js) = generateTimeZoneForm();
-    $timezone_html = '';
-    if ($timezone_form != '') {
-        $timezone_html = '<tr><td><b>Timezone:</b></td><td>'.$timezone_form.'</td></tr>';
-    }
-
-    $PAGE = new PageBuilder($conf);
-    $PAGE->assign('timezone_html',$timezone_html);
-    $PAGE->assign('timezone_js',$timezone_js);
+    $PAGE = new PageBuilder($conf, null, $sessionManager->generateToken());
+    list($continents, $cities) = generateTimeZoneData(timezone_identifiers_list(), date_default_timezone_get());
+    $PAGE->assign('continents', $continents);
+    $PAGE->assign('cities', $cities);
+    $PAGE->assign('languages', Languages::getAvailableLanguages());
     $PAGE->renderPage('install');
     exit;
 }
@@ -2216,4 +2284,45 @@ if (isset($_SERVER['QUERY_STRING']) && startsWith($_SERVER['QUERY_STRING'], 'do=
 if (!isset($_SESSION['LINKS_PER_PAGE'])) {
     $_SESSION['LINKS_PER_PAGE'] = $conf->get('general.links_per_page', 20);
 }
-renderPage($conf, $pluginManager);
+
+try {
+    $history = new History($conf->get('resource.history'));
+} catch(Exception $e) {
+    die($e->getMessage());
+}
+
+$linkDb = new LinkDB(
+    $conf->get('resource.datastore'),
+    isLoggedIn(),
+    $conf->get('privacy.hide_public_links'),
+    $conf->get('redirector.url'),
+    $conf->get('redirector.encode_url')
+);
+
+$container = new \Slim\Container();
+$container['conf'] = $conf;
+$container['plugins'] = $pluginManager;
+$container['history'] = $history;
+$app = new \Slim\App($container);
+
+// REST API routes
+$app->group('/api/v1', function() {
+    $this->get('/info', '\Shaarli\Api\Controllers\Info:getInfo')->setName('getInfo');
+    $this->get('/links', '\Shaarli\Api\Controllers\Links:getLinks')->setName('getLinks');
+    $this->get('/links/{id:[\d]+}', '\Shaarli\Api\Controllers\Links:getLink')->setName('getLink');
+    $this->post('/links', '\Shaarli\Api\Controllers\Links:postLink')->setName('postLink');
+    $this->put('/links/{id:[\d]+}', '\Shaarli\Api\Controllers\Links:putLink')->setName('putLink');
+    $this->delete('/links/{id:[\d]+}', '\Shaarli\Api\Controllers\Links:deleteLink')->setName('deleteLink');
+    $this->get('/history', '\Shaarli\Api\Controllers\History:getHistory')->setName('getHistory');
+})->add('\Shaarli\Api\ApiMiddleware');
+
+$response = $app->run(true);
+// Hack to make Slim and Shaarli router work together:
+// If a Slim route isn't found and NOT API call, we call renderPage().
+if ($response->getStatusCode() == 404 && strpos($_SERVER['REQUEST_URI'], '/api/v1') === false) {
+    // We use UTF-8 for proper international characters handling.
+    header('Content-Type: text/html; charset=utf-8');
+    renderPage($conf, $pluginManager, $linkDb, $history, $sessionManager);
+} else {
+    $app->respond($response);
+}

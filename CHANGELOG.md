@@ -4,6 +4,179 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.9.7](https://github.com/shaarli/Shaarli/releases/tag/v0.9.7) - 2018-06-20
+### Changed
+- Build the Docker images from the local Git sources
+
+
+## [v0.9.6](https://github.com/shaarli/Shaarli/releases/tag/v0.9.6) - 2018-03-25
+### Changed
+- htaccess: prevent accessing resources not managed by SCM
+- htaccess: always forward the 'Authorization' HTTP header
+
+
+## [v0.9.5](https://github.com/shaarli/Shaarli/releases/tag/v0.9.5) - 2018-02-02
+### Fixed
+- Fix a warning happening when `php-intl` is not installed on the system
+- Fix warnings happening when updating from legacy SebSauvage version
+
+## [v0.9.4](https://github.com/shaarli/Shaarli/releases/tag/v0.9.4) - 2018-01-30
+### Added
+- Enable translations: Shaarli is now also available in French. Other language translations are welcome!
+- Add EditorConfig configuration
+- Add favicons for mobile devices
+- Add Alpine Linux arm32v7 Dockerfiles (master, latest)
+
+### Changed
+- Do not write bookmark edition history during file imports (performance)
+- Migrate Docker images (master, latest) to Alpine Linux
+- Improve unitary tests and code coverage
+- Improve thumbnail display
+- Improve theme ergonomics
+- Improve messages if there is no plugin or parameter available in the admin page
+- Increase buffer size for cURL download
+- Force HTTPS if the original port is 443 behind a reverse proxy (workaround)
+- Improve page title retrieval performances
+
+### Removed
+- Remove redirector setting from Configure page
+
+### Fixed
+- Fix broken links in the documentation
+- Enable access to `data/user.css` (Apache 2.2 & 2.4)
+- Don't URL encode description links if parameter `redirector.encode_url` is set to false
+- Fix an issue preventing the Save button to appear for plugin parameters
+
+
+## [v0.9.3](https://github.com/shaarli/Shaarli/releases/tag/v0.9.3) - 2018-01-04
+**XSS vulnerability fixed. Please update.**
+
+## Security
+- Fix an XSS (cross-site-scripting) vulnerability in `index.php` -
+  [CVE-2018-5249](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-5249)
+
+
+## [v0.9.2](https://github.com/shaarli/Shaarli/releases/tag/v0.9.2) - 2017-10-07
+
+**Major security issue fixed. Please update.**
+
+### Added
+- Tag search now supports wildcards `*`
+- New setting `privacy.force_login` which can be used with `privacy.hide_public_links` to redirect anonymous users to the login page.
+- New setting `general.default_note_title` used to override default `Note:` title prefix for notes.
+- Add a version hash for asset loading to prevent browser's cache issue
+
+### Changed
+- The "Remember me" checkbox is unchecked by default
+- The default value of the "Remember me" checkbox can be configured under `data/config.json.php`
+
+### Removed
+- Remove obsolete PHP magic quote support
+
+### Fixed
+- Generates a permalink URL if the URL is set to blank
+- Replace links to the old GitHub wiki with ReadTheDocs URIs
+- Use single quotes in the note bookmarklet
+- Daily page if there is no link
+- Bulk link deletion with a single link
+- HTTPS detection behind a reverse proxy
+- Travis tests environment and localization
+- Improve template paths robustness (trailing slash)
+- Robustness: safer gzinflate/zlib usage
+- Description links parsing with parenthesis (without Markdown)
+- Templates:
+    - Sort the tag cloud alphabetically
+    - Firefox social title
+    - Improved visited link color
+    - Fix jumpy textarea with long content in post edit
+
+### Security
+
+- Fixed reflected XSS vulnerability introduced in v0.9.1, discovered by @chb9 ([CVE-2017-15215](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2017-15215)).
+
+
+## [v0.9.1](https://github.com/shaarli/Shaarli/releases/tag/v0.9.1) - 2017-08-23
+
+The documentation has been migrated to ReadTheDocs:
+- https://shaarli.readthedocs.io/
+- edits are submitted as pull requests
+
+### Added
+- Allow bulk link deletion
+- Display subtags in the tag cloud
+- Add an endpoint to refresh the token
+- Add a token on every page
+- Add a tag list view for management
+- Add Note bookmarklet
+- Add creation date when editing a link
+
+### Changed
+- Documentation:
+    - Generate static HTML documentation with [mkdocs](http://www.mkdocs.org/)
+    - Host documentation on [ReadTheDocs](http://www.mkdocs.org/)
+    - Update documentation structure
+    - Update Makefile targets to:
+        - Build the docs locally
+        - Include the generated docs in the release archives
+- Theme:
+    - Use the new theme as the default
+    - Rename the tag cloud template to `tag.cloud.html`
+    - Display visited links in grey
+    - Use only one search form in `linklist.html`
+    - Hide the "search links with these tags" option when an empty `searchtags` is passed to `tag.list.html`
+- Improve HTTP header handling when hosting Shaarli with Docker behind a reverse proxy
+- Searching for tags with an empty value returns untagged links only
+- Set Travis environment to `precise` until the new `trusty` environment is ready
+
+### Removed
+- Remove dead Pubsubhubbub code
+- Disable the GitHub wiki (see changed/documentation)
+- Remove Docker `dev` image and resources
+- Theme:
+    - Remove the bottom "Sort by" menu in `tag.list.html`
+
+### Fixed
+- Fix file existence check for `user.css`
+- Limit selection to 2k characters when using the bookmarklet
+- Fix JS error `uncaught type error`
+- Fix Firefox Social button
+- Use pinned PHP dependencies when generating release archives
+- Make sure that the tag exists before altering/removing it
+
+### Security
+- Add a whitelist for protocols for URLs
+
+
+## [v0.9.0](https://github.com/shaarli/Shaarli/releases/tag/v0.9.0) - 2017-05-07
+
+This release introduces the REST API, and requires updating HTTP server
+configuration to enable URL rewriting, see:
+- https://shaarli.github.io/api-documentation/
+- https://shaarli.readthedocs.io/en/master/Server-configuration/
+
+**WARNING**: Shaarli now requires PHP 5.5+.
+
+### Added
+- REST API v1
+    - [Slim](https://www.slimframework.com/) framework
+    - [JSON Web Token](https://jwt.io/introduction/) (JWT) authentication
+    - versioned API endpoints:
+        - `/api/v1/info`: get general information on the Shaarli instance
+        - `/api/v1/links`: get a list of shaared links
+        - `/api/v1/history`: get a list of latest actions
+Theming:
+    - Introduce a new theme
+    - Allow selecting themes/templates from the configuration page
+    - New/Edit link form can be submitted using CTRL+Enter in the textarea
+    - Shaarli version is displayed in the footer when logged in
+- Add plugin placeholders to Atom/RSS feed templates
+- Add OpenSearch to feed templates
+- Add `campaign_` to the URL cleanup pattern list
+- Add an AUTHORS file and Makefile target to list authors from Git commit data
+- Link imports are now logged in `data/` folder, and can be debug using `dev.debug=true` setting.
+- `composer.lock` is now included in git file to allow proper `composer install`
+- History mechanism which logs link addition/modification/deletion
+
 ## [v0.8.7](https://github.com/shaarli/Shaarli/releases/tag/v0.8.7) - 2018-06-20
 ### Changed
 - Build the Docker image from the local Git sources
@@ -11,9 +184,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Removed
 - Disable PHP 5.3 Travis build (unsupported)
 
-
 ## [v0.8.6](https://github.com/shaarli/Shaarli/releases/tag/v0.8.6) - 2018-02-19
 ### Changed
+<<<<<<< HEAD
 - Run version check tests against the 'stable' branch
 
 
@@ -37,14 +210,80 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - PHP 7.1 compatibility: add ConfigManager parameter to anti-bruteforce function call in login template.
 
 ## [v0.8.2](https://github.com/shaarli/Shaarli/releases/tag/v0.8.2) - 2016-12-15
+=======
+- Docker: enable nginx URL rewriting for the REST API
+- Theming:
+    - Move `user.css` to the `data` folder
+    - Move default template files to a subfolder (`default`)
+    - Rename the legacy theme to `vintage`
+    - Private only filter is now displayed as a search parameter
+    - Autocomplete: pre-select the first element
+    - Display daily date in the page title (browser title)
+    - Timezone lists are now passed as an array instead of raw HTML
+- Move PubSubHub to a dedicated plugin
+- Coding style:
+    - explicit method visibility
+    - safe boolean comparisons
+    - remove unused variables
+- The updater now keeps custom theme preferences
+- Simplify the COPYING information
+- Improved client locale detection
+- Improved date time display depending on the locale
+- Partial namespace support for Shaarli classes
+- Shaarli version is now only present in `shaarli_version.php`
+- Human readable maximum file size upload
+>>>>>>> v0.9.7
+
+
+### Removed
+- PHP < 5.5 compatibility
+- ReadItYourself plugin
 
 ### Fixed
+- Ignore generated release tarballs
+- Hide default port when behind a reverse proxy
+- Fix a typo in the Markdown plugin description
+- Fix the presence of empty tags for private tags and in search results
+- Fix a fatal error during the install
+- Fix permalink image alignment in daily page
+- Fix the delete button in `editlink`
+- Fix redirection after link deletion
+- Do not access LinkDB links by ID before the Updater applies migrations
+- Remove extra spaces in the bookmarklet's name
+- Piwik plugin: Piwik URL protocol can now be set (http or https)
+- All inline JS has been moved to dedicated JS files
+- Keep tags after login redirection
 
+### Security
+- Markdown plugin: escape HTML entities by default
+
+
+## [v0.8.5](https://github.com/shaarli/Shaarli/releases/tag/v0.8.5) - 2018-01-04
+**XSS vulnerability fixed. Please update.**
+
+## Security
+- Fix an XSS (cross-site-scripting) vulnerability in `index.php` -
+  [CVE-2018-5249](https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2018-5249)
+
+## [v0.8.4](https://github.com/shaarli/Shaarli/releases/tag/v0.8.4) - 2017-03-04
+### Security
+- Markdown plugin: escape HTML entities by default
+
+## [v0.8.3](https://github.com/shaarli/Shaarli/releases/tag/v0.8.3) - 2017-01-20
+### Fixed
+- PHP 7.1 compatibility: add ConfigManager parameter to anti-bruteforce function call in login template.
+
+<<<<<<< HEAD
+=======
+## [v0.8.2](https://github.com/shaarli/Shaarli/releases/tag/v0.8.2) - 2016-12-15
+### Fixed
+
+>>>>>>> v0.9.7
 - Editing a link created before the new ID system would change its permalink.
 
 ## [v0.8.1](https://github.com/shaarli/Shaarli/releases/tag/v0.8.1) - 2016-12-12
 
-> Note: this version will create an automatic backup of your database if anything goes wrong. 
+> Note: this version will create an automatic backup of your database if anything goes wrong.
 
 ### Added
 - Add CHANGELOG.md to track the whole project's history
@@ -61,7 +300,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Link ID complete refactoring:
     - Links now have a numeric ID instead of dates
     - Short URLs are now created once and can't change over time (previous URL are kept)
-- Templates: 
+- Templates:
     - Changed placeholder behaviour for: `buttons_toolbar`, `fields_toolbar` and `action_plugin`
     - Cleanup `{loop}` declarations in templates
     - Tools: hide Firefox Social button when not in HTTPS
@@ -79,7 +318,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Plugins:
     - Tools: only display parameter description when it exists
     - archive.org: do not propose archival of private notes
-    - Markdown: 
+    - Markdown:
         - render links properly in code blocks
         - bug regarding the `nomarkdown` tag
     - W3C compliance
@@ -126,6 +365,10 @@ Please use our release archives, or follow the
 - Fixed a bug preventing to change password
 - XSRF token now generated each time a page is rendered
 
+
+## [v0.7.1](https://github.com/shaarli/Shaarli/releases/tag/v0.7.1) - 2017-03-08
+### Security
+- Markdown plugin: escape HTML entities by default
 
 ## [v0.7.0](https://github.com/shaarli/Shaarli/releases/tag/v0.7.0) - 2016-05-14
 ### Added
@@ -214,7 +457,7 @@ Please use our release archives, or follow the
 ### Fixed
 - Fix a bug where renaming a tag was causing a 404
 - Fix a bug allowing to search blank terms
-- Fix a bug preventing to remove a tag with special chars when searching 
+- Fix a bug preventing to remove a tag with special chars when searching
 
 
 ## [v0.6.2](https://github.com/shaarli/Shaarli/releases/tag/v0.6.2) - 2015-12-23
@@ -520,7 +763,7 @@ Initial release on GitHub.
 - When you click the key to see only private links, it turns yellow
 
 ### Changed
-- The "Daily" page now automatically skips empty days. 
+- The "Daily" page now automatically skips empty days.
 
 ### Fixed
 - Corrected the tag encoding (there was a bug when selecting a second tag which contains accented characters)
@@ -818,7 +1061,7 @@ Initial release on GitHub.
 - Nicer timezone selection patch by killruana
 
 ### Fixed
-- New lines now appear correctly in the RSS feed descriptions. 
+- New lines now appear correctly in the RSS feed descriptions.
 
 
 ## [v0.0.17beta](http://sebsauvage.net/wiki/doku.php?id=php:shaarli:history)
@@ -872,7 +1115,7 @@ Initial release on GitHub.
 ## [v0.0.14beta](http://sebsauvage.net/wiki/doku.php?id=php:shaarli:history)
 ### Added
 - You no longer need to disable `magic_quotes` on your host.
-  Shaarli will cope with this option beeing activated. 
+  Shaarli will cope with this option beeing activated.
 
 
 ## [v0.0.13beta](http://sebsauvage.net/wiki/doku.php?id=php:shaarli:history)
