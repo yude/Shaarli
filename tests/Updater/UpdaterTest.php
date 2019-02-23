@@ -393,20 +393,32 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
         $this->assertEquals('Naming conventions... #private', $linkDB[0]['description']);
         $this->assertEquals('samba cartoon web', $linkDB[0]['tags']);
         $this->assertTrue($linkDB[0]['private']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_142300'), $linkDB[0]['created']);
+        $this->assertEquals(
+            DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_142300'),
+            $linkDB[0]['created']
+        );
 
         $this->assertTrue(isset($linkDB[1]));
         $this->assertFalse(isset($linkDB[1]['linkdate']));
         $this->assertEquals(1, $linkDB[1]['id']);
         $this->assertEquals('UserFriendly - Samba', $linkDB[1]['title']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_172539'), $linkDB[1]['created']);
+        $this->assertEquals(
+            DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_172539'),
+            $linkDB[1]['created']
+        );
 
         $this->assertTrue(isset($linkDB[2]));
         $this->assertFalse(isset($linkDB[2]['linkdate']));
         $this->assertEquals(2, $linkDB[2]['id']);
         $this->assertEquals('Geek and Poke', $linkDB[2]['title']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_182539'), $linkDB[2]['created']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_190301'), $linkDB[2]['updated']);
+        $this->assertEquals(
+            DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_182539'),
+            $linkDB[2]['created']
+        );
+        $this->assertEquals(
+            DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_190301'),
+            $linkDB[2]['updated']
+        );
     }
 
     /**
@@ -688,6 +700,7 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
     }
 
     /**
+<<<<<<< HEAD
      * Test updateMethodWebThumbnailer with thumbnails enabled.
      */
     public function testUpdateMethodWebThumbnailerEnabled()
@@ -731,5 +744,65 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
         $this->assertEquals(90, $this->conf->get('thumbnails.width'));
         $this->assertEquals(53, $this->conf->get('thumbnails.height'));
         $this->assertTrue(empty($_SESSION['warnings']));
+    }
+
+    /**
+     * Test updateMethodSetSticky().
+     */
+    public function testUpdateStickyValid()
+    {
+        $blank = [
+            'id' => 1,
+            'url' => 'z',
+            'title' => '',
+            'description' => '',
+            'tags' => '',
+            'created' => new DateTime(),
+        ];
+        $links = [
+            1 => ['id' => 1] + $blank,
+            2 => ['id' => 2] + $blank,
+        ];
+        $refDB = new ReferenceLinkDB();
+        $refDB->setLinks($links);
+        $refDB->write(self::$testDatastore);
+        $linkDB = new LinkDB(self::$testDatastore, true, false);
+
+        $updater = new Updater(array(), $linkDB, $this->conf, true);
+        $this->assertTrue($updater->updateMethodSetSticky());
+
+        $linkDB = new LinkDB(self::$testDatastore, true, false);
+        foreach ($linkDB as $link) {
+            $this->assertFalse($link['sticky']);
+        }
+    }
+
+    /**
+     * Test updateMethodSetSticky().
+     */
+    public function testUpdateStickyNothingToDo()
+    {
+        $blank = [
+            'id' => 1,
+            'url' => 'z',
+            'title' => '',
+            'description' => '',
+            'tags' => '',
+            'created' => new DateTime(),
+        ];
+        $links = [
+            1 => ['id' => 1, 'sticky' => true] + $blank,
+            2 => ['id' => 2] + $blank,
+        ];
+        $refDB = new ReferenceLinkDB();
+        $refDB->setLinks($links);
+        $refDB->write(self::$testDatastore);
+        $linkDB = new LinkDB(self::$testDatastore, true, false);
+
+        $updater = new Updater(array(), $linkDB, $this->conf, true);
+        $this->assertTrue($updater->updateMethodSetSticky());
+
+        $linkDB = new LinkDB(self::$testDatastore, true, false);
+        $this->assertTrue($linkDB[1]['sticky']);
     }
 }

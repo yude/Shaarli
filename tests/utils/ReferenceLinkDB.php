@@ -4,7 +4,7 @@
  */
 class ReferenceLinkDB
 {
-    public static $NB_LINKS_TOTAL = 9;
+    public static $NB_LINKS_TOTAL = 11;
 
     private $_links = array();
     private $_publicCount = 0;
@@ -15,6 +15,32 @@ class ReferenceLinkDB
      */
     public function __construct()
     {
+        $this->addLink(
+            11,
+            'Pined older',
+            '?PCRizQ',
+            'This is an older pinned link',
+            0,
+            DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20100309_101010'),
+            '',
+            null,
+            'PCRizQ',
+            true
+        );
+
+        $this->addLink(
+            10,
+            'Pined',
+            '?0gCTjQ',
+            'This is a pinned link',
+            0,
+            DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121207_152312'),
+            '',
+            null,
+            '0gCTjQ',
+            true
+        );
+
         $this->addLink(
             41,
             'Link title: @website',
@@ -114,8 +140,18 @@ class ReferenceLinkDB
     /**
      * Adds a new link
      */
-    protected function addLink($id, $title, $url, $description, $private, $date, $tags, $updated = '', $shorturl = '')
-    {
+    protected function addLink(
+        $id,
+        $title,
+        $url,
+        $description,
+        $private,
+        $date,
+        $tags,
+        $updated = '',
+        $shorturl = '',
+        $pinned = false
+    ) {
         $link = array(
             'id' => $id,
             'title' => $title,
@@ -126,6 +162,7 @@ class ReferenceLinkDB
             'created' => $date,
             'updated' => $updated,
             'shorturl' => $shorturl ? $shorturl : smallHash($date->format(LinkDB::LINK_DATE_FORMAT) . $id),
+            'sticky' => $pinned
         );
         $this->_links[$id] = $link;
 
@@ -164,7 +201,11 @@ class ReferenceLinkDB
 
         $order = $order === 'ASC' ? -1 : 1;
         // Reorder array by dates.
-        usort($this->_links, function($a, $b) use ($order) {
+        usort($this->_links, function ($a, $b) use ($order) {
+            if (isset($a['sticky']) && isset($b['sticky']) && $a['sticky'] !== $b['sticky']) {
+                return $a['sticky'] ? -1 : 1;
+            }
+
             return $a['created'] < $b['created'] ? 1 * $order : -1 * $order;
         });
     }

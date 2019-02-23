@@ -183,7 +183,7 @@ class Updater
             }
         }
 
-        try{
+        try {
             $this->conf->write($this->isLoggedIn);
             return true;
         } catch (IOException $e) {
@@ -514,6 +514,26 @@ class Updater
                 'You have enabled or changed thumbnails mode. <a href="?do=thumbs_update">Please synchronize them</a>.'
             );
         }
+
+        return true;
+    }
+
+    /**
+     * Set sticky = false on all links
+     *
+     * @return bool true if the update is successful, false otherwise.
+     */
+    public function updateMethodSetSticky()
+    {
+        foreach ($this->linkDB as $key => $link) {
+            if (isset($link['sticky'])) {
+                return true;
+            }
+            $link['sticky'] = false;
+            $this->linkDB[$key] = $link;
+        }
+
+        $this->linkDB->save($this->conf->get('resource.page_cache'));
 
         return true;
     }
