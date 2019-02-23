@@ -239,12 +239,12 @@ class LinkDBTest extends PHPUnit_Framework_TestCase
     public function testDays()
     {
         $this->assertEquals(
-            array('20100310', '20121206', '20130614', '20150310'),
+            array('20100309', '20100310', '20121206', '20121207', '20130614', '20150310'),
             self::$publicLinkDB->days()
         );
 
         $this->assertEquals(
-            array('20100310', '20121206', '20130614', '20141125', '20150310'),
+            array('20100309', '20100310', '20121206', '20121207', '20130614', '20141125', '20150310'),
             self::$privateLinkDB->days()
         );
     }
@@ -362,7 +362,7 @@ class LinkDBTest extends PHPUnit_Framework_TestCase
     public function testLinkRealUrlWithoutRedirector()
     {
         $db = new LinkDB(self::$testDatastore, false, false);
-        foreach($db as $link) {
+        foreach ($db as $link) {
             $this->assertEquals($link['url'], $link['real_url']);
         }
     }
@@ -374,13 +374,13 @@ class LinkDBTest extends PHPUnit_Framework_TestCase
     {
         $redirector = 'http://redirector.to?';
         $db = new LinkDB(self::$testDatastore, false, false, $redirector);
-        foreach($db as $link) {
+        foreach ($db as $link) {
             $this->assertStringStartsWith($redirector, $link['real_url']);
             $this->assertNotFalse(strpos($link['real_url'], urlencode('://')));
         }
 
         $db = new LinkDB(self::$testDatastore, false, false, $redirector, false);
-        foreach($db as $link) {
+        foreach ($db as $link) {
             $this->assertStringStartsWith($redirector, $link['real_url']);
             $this->assertFalse(strpos($link['real_url'], urlencode('://')));
         }
@@ -475,13 +475,15 @@ class LinkDBTest extends PHPUnit_Framework_TestCase
     public function testReorderLinksDesc()
     {
         self::$privateLinkDB->reorder('ASC');
-        $linkIds = array(42, 4, 9, 1, 0, 7, 6, 8, 41);
+        $stickyIds = [11, 10];
+        $standardIds = [42, 4, 9, 1, 0, 7, 6, 8, 41];
+        $linkIds = array_merge($stickyIds, $standardIds);
         $cpt = 0;
         foreach (self::$privateLinkDB as $key => $value) {
             $this->assertEquals($linkIds[$cpt++], $key);
         }
         self::$privateLinkDB->reorder('DESC');
-        $linkIds = array_reverse($linkIds);
+        $linkIds = array_merge(array_reverse($stickyIds), array_reverse($standardIds));
         $cpt = 0;
         foreach (self::$privateLinkDB as $key => $value) {
             $this->assertEquals($linkIds[$cpt++], $key);

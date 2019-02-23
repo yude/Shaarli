@@ -18,7 +18,7 @@ Version | Status | Shaarli compatibility
 7.2 | Supported | Yes
 7.1 | Supported | Yes
 7.0 | Supported | Yes
-5.6 | Supported | Yes
+5.6 | EOL: 2018-12-31 | Yes (up to Shaarli 0.10.x)
 5.5 | EOL: 2016-07-10 | Yes
 5.4 | EOL: 2015-09-14 | Yes (up to Shaarli 0.8.x)
 5.3 | EOL: 2014-08-14 | Yes (up to Shaarli 0.8.x)
@@ -397,6 +397,7 @@ http {
 ```
 
 ## Proxies
+
 If Shaarli is served behind a proxy (i.e. there is a proxy server between clients and the web server hosting Shaarli), please refer to the proxy server documentation for proper configuration. In particular, you have to ensure that the following server variables are properly set:
 
 - `X-Forwarded-Proto`
@@ -405,6 +406,12 @@ If Shaarli is served behind a proxy (i.e. there is a proxy server between client
 
 See also [proxy-related](https://github.com/shaarli/Shaarli/issues?utf8=%E2%9C%93&q=label%3Aproxy+) issues.
 
+## Robots and crawlers
+
+Shaarli disallows indexing and crawling of your local documentation pages by search engines, using `<meta name="robots">` HTML tags.
+Your Shaarli instance and other pages you host may still be indexed by various robots on the public Internet.
+You may want to setup a robots.txt file or other crawler control mechanism on your server.
+See [[1]](https://en.wikipedia.org/wiki/Robots_exclusion_standard), [[2]](https://support.google.com/webmasters/answer/6062608?hl=en) and [[3]](https://developers.google.com/search/reference/robots_meta_tag)
 
 ## See also
 

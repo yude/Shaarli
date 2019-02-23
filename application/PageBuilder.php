@@ -78,7 +78,6 @@ class PageBuilder
             );
             $this->tpl->assign('newVersion', escape($version));
             $this->tpl->assign('versionError', '');
-
         } catch (Exception $exc) {
             logm($this->conf->get('resource.log'), $_SERVER['REMOTE_ADDR'], $exc->getMessage());
             $this->tpl->assign('newVersion', '');
@@ -101,7 +100,7 @@ class PageBuilder
             'version_hash',
             ApplicationUtils::getVersionHash(SHAARLI_VERSION, $this->conf->get('credentials.salt'))
         );
-        $this->tpl->assign('scripturl', index_url($_SERVER));
+        $this->tpl->assign('index_url', index_url($_SERVER));
         $visibility = ! empty($_SESSION['visibility']) ? $_SESSION['visibility'] : '';
         $this->tpl->assign('visibility', $visibility);
         $this->tpl->assign('untaggedonly', !empty($_SESSION['untaggedonly']));
@@ -163,7 +162,7 @@ class PageBuilder
             $this->initialize();
         }
 
-        if (empty($data) || !is_array($data)){
+        if (empty($data) || !is_array($data)) {
             return false;
         }
 
