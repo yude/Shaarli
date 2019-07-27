@@ -4,7 +4,7 @@
 
 Once your Shaarli instance is installed, the file `data/config.json.php` is generated:
 * it contains all settings in JSON format, and can be edited to customize values
-* it defines which [plugins](Plugin-System) are enabled[](.html)
+* it defines which [plugins](Plugin-System) are enabled
 * its values override those defined in `index.php`
 * it is wrap in a PHP comment to prevent anyone accessing it, regardless of server configuration
 
@@ -32,13 +32,13 @@ On a Linux distribution:
 - to give it access to Shaarli, either:
     - unzip Shaarli in the default web server location (usually `/var/www/`) and set the web server user as the owner
     - put users in the same group as the web server, and set the appropriate access rights
-- if you have a domain / subdomain to serve Shaarli, [configure the server](Server-configuration) accordingly[](.html)
+- if you have a domain / subdomain to serve Shaarli, [configure the server](Server-configuration) accordingly
 
 ## Configuration
 
 In `data/config.json.php`.
 
-See also [Plugin System](Plugin-System.html).
+See also [Plugin System](Plugin-System).
 
 ### Credentials
  
@@ -56,6 +56,8 @@ _These settings should not be edited_
 - **timezone**: See [the list of supported timezones](http://php.net/manual/en/timezones.php).  
 - **enabled_plugins**: List of enabled plugins.
 - **default_note_title**: Default title of a new note.
+- **retrieve_description** (boolean): If set to true, for every new links Shaarli will try
+to retrieve the description and keywords from the HTML meta tags.
 
 ### Security
 
@@ -120,11 +122,6 @@ Must be an associative array: `translation domain => translation path`.
 - **enable_thumbnails**: Enable or disable thumbnail display.  
 - **enable_localcache**: Enable or disable local cache.
 
-### Redirector
-
-- **url**: Redirector URL, such as `anonym.to`.  
-- **encode_url**: Enable this if the redirector needs encoded URL to work properly.
-
 ## Configuration file example
 
 ```json
@@ -185,8 +182,6 @@ Must be an associative array: `translation domain => translation path`.
         "hide_public_links": false,
         "hide_timestamps": false,
         "open_shaarli": false,
-        "redirector": "http://anonym.to/?",
-        "redirector_encode_url": false
     },
     "general": {
         "header_link": "?",
@@ -217,10 +212,6 @@ Must be an associative array: `translation domain => translation path`.
     "thumbnail": {
         "enable_thumbnails": true,
         "enable_localcache": true
-    },
-    "redirector": {
-        "url": "http://anonym.to/?",
-        "encode_url": false
     },
     "plugins": {
         "WALLABAG_URL": "http://demo.wallabag.org",

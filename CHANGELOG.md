@@ -4,8 +4,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## [v0.10.4](https://github.com/shaarli/Shaarli/releases/tag/v0.10.4) - 2019-04-16
+## [v0.11.0](https://github.com/shaarli/Shaarli/releases/tag/v0.11.0) - 2019-07-27
 
+**Shaarli no longer officially support PHP 5.6 and PHP 7.0 as they've reached end of life.**
+
+**Shaarli classes now use namespace, third party plugins need to update.**
+
+### Added
+- Add optional PHP extension to composer suggestions.
+- composer: enforce PHP security advisories
+- phpDocumentor configuration and make target
+- Run unit tests against PHP 7.3
+- Bunch of accessibility improvements to the default template, thanks to @llune
+- Bulk actions: set visibility
+- Display sticky label in linklist
+- Add print CSS rules to the default template
+- New setting to automatically retrieve description for new bookmarks
+- Plugin to override default template colors
+
+### Changed
+- Shaarli now uses namespaces for its classes.
+- Rewrite IP ban management
+- Default template: slightly lighten visited link color
+- Hide select all button on mobile view
+- Switch from FontAwesome v4.x to ForkAwesome
+- Daily - display the current day instead of the previous one
+
+### Fixed
+- Do not check the IP address with session protection disabled
+- API: update test regexes to comply with PCRE2
+- Optimize and cleanup imports
+- ensure HTML tags are stripped from OpenGraph description
+- Documentation invalid links
+- Thumbnails disabling if PHP GD is not installed
+- Warning if links sticky status isn't set
+- Fix button overlapping on mobile in linklist
+- Do not try to retrieve thumbnails for internal link
+- Update node-sass to fix a vulnerability in node tar dependency
+- armhf Dockerfile
+- Default template: Responsive issue with delete button fix
+- Persist sticky status on bookmark update
+
+### Removed
+- Doxygen configuration
+- redirector setting
+- QRCode link to an external service
+
+## [v0.10.4](https://github.com/shaarli/Shaarli/releases/tag/v0.10.4) - 2019-04-16
 ### Fixed
 - Fix thumbnails disabling if PHP GD is not installed
 - Fix a warning if links sticky status isn't set
@@ -120,6 +165,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Security
 - Update `.htaccess` to prevent accessing Git metadata when using a Git-based installation
+
 
 ## [v0.9.7](https://github.com/shaarli/Shaarli/releases/tag/v0.9.7) - 2018-06-20
 ### Changed
@@ -340,22 +386,6 @@ Theming:
 ### Security
 - Markdown plugin: escape HTML entities by default
 
-## [v0.8.4](https://github.com/shaarli/Shaarli/releases/tag/v0.8.4) - 2017-03-04
-### Security
-- Markdown plugin: escape HTML entities by default
-
-
-## [v0.8.3](https://github.com/shaarli/Shaarli/releases/tag/v0.8.3) - 2017-01-20
-
-### Fixed
-
-- PHP 7.1 compatibility: add ConfigManager parameter to anti-bruteforce function call in login template.
-
-## [v0.8.2](https://github.com/shaarli/Shaarli/releases/tag/v0.8.2) - 2016-12-15
-
-### Fixed
-
-- Editing a link created before the new ID system would change its permalink.
 
 ## [v0.8.7](https://github.com/shaarli/Shaarli/releases/tag/v0.8.7) - 2018-06-20
 ### Changed

@@ -1,11 +1,13 @@
 <div class="shaarli-menu pure-g" id="shaarli-menu">
   <div class="pure-u-lg-0 pure-u-1">
     <div class="pure-menu">
+     <header role="banner">
       <a href="{$titleLink}" class="pure-menu-link shaarli-title" id="shaarli-title-mobile">
-        <img src="img/icon.png" width="16" height="16" class="head-logo" alt="" />
+        <i class="fa fa-shaarli" aria-hidden="true"></i>
         {$shaarlititle}
       </a>
-      <a href="#" class="menu-toggle" id="menu-toggle"><s class="bar"></s><s class="bar"></s></a>
+      </header>
+      <a href="#" class="menu-toggle" id="menu-toggle" aria-label="Menu"><s class="bar" aria-hidden="true"></s><s class="bar" aria-hidden="true"></s></a>
     </div>
   </div>
   <div class="pure-u-1">
@@ -13,14 +15,14 @@
       <ul class="pure-menu-list pure-u-lg-5-6 pure-u-1">
         <li class="pure-menu-item pure-u-0 pure-u-lg-visible">
           <a href="{$titleLink}" class="pure-menu-link shaarli-title" id="shaarli-title-desktop">
-            <img src="img/icon.png" width="16" height="16" class="head-logo" alt="" />
+            <i class="fa fa-shaarli" aria-hidden="true"></i>
             {$shaarlititle}
           </a>
         </li>
         {if="$is_logged_in || $openshaarli"}
           <li class="pure-menu-item">
             <a href="?do=addlink" class="pure-menu-link" id="shaarli-menu-shaare">
-              <i class="fa fa-plus" ></i> {'Shaare'|t}
+              <i class="fa fa-plus" aria-hidden="true"></i> {'Shaare'|t}
             </a>
           </li>
           <li class="pure-menu-item" id="shaarli-menu-tools">
@@ -67,27 +69,27 @@
           <li class="pure-menu-item" id="shaarli-menu-desktop-search">
             <a href="#" class="pure-menu-link subheader-opener"
                data-open-id="search"
-               id="search-button" title="{'Search'|t}">
-              <i class="fa fa-search"></i>
+               id="search-button" aria-label="{'Search'|t}" title="{'Search'|t}">
+              <i class="fa fa-search" aria-hidden="true"></i>
             </a>
           </li>
           <li class="pure-menu-item" id="shaarli-menu-desktop-rss">
-            <a href="?do={$feed_type}{$searchcrits}" class="pure-menu-link" title="{'RSS Feed'|t}">
-              <i class="fa fa-rss"></i>
+            <a href="?do={$feed_type}{$searchcrits}" class="pure-menu-link" title="{'RSS Feed'|t}" aria-label="{'RSS Feed'|t}">
+              <i class="fa fa-rss" aria-hidden="true"></i>
             </a>
           </li>
           {if="!$is_logged_in"}
             <li class="pure-menu-item" id="shaarli-menu-desktop-login">
               <a href="?do=login" class="pure-menu-link"
                  data-open-id="header-login-form"
-                 id="login-button" title="{'Login'|t}">
-                <i class="fa fa-user"></i>
+                 id="login-button" aria-label="{'Login'|t}" title="{'Login'|t}">
+                <i class="fa fa-user" aria-hidden="true"></i>
               </a>
             </li>
           {else}
             <li class="pure-menu-item" id="shaarli-menu-desktop-logout">
-              <a href="?do=logout" class="pure-menu-link" title="{'Logout'|t}">
-                <i class="fa fa-sign-out"></i>
+              <a href="?do=logout" class="pure-menu-link" aria-label="{'Logout'|t}" title="{'Logout'|t}">
+                <i class="fa fa-sign-out" aria-hidden="true"></i>
               </a>
             </li>
           {/if}
@@ -118,7 +120,18 @@
   <div id="actions" class="subheader-form">
     <div class="pure-g">
       <div class="pure-u-1">
-        <a href="" id="actions-delete" class="button">{'Delete'|t}</a>
+        <a href="" id="actions-delete" class="button">
+          <i class="fa fa-trash"></i>
+          {'Delete'|t}
+        </a>&nbsp;
+        <a href="" class="actions-change-visibility button" data-visibility="public">
+          <i class="fa fa-globe"></i>
+          {'Set public'|t}
+        </a>&nbsp;
+        <a href="" class="actions-change-visibility button" data-visibility="private">
+          <i class="fa fa-user-secret"></i>
+          {'Set private'|t}
+        </a>
       </div>
     </div>
   </div>

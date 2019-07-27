@@ -1,4 +1,5 @@
 <?php
+namespace Shaarli;
 
 /**
  * Class Router
@@ -36,6 +37,8 @@ class Router
     public static $PAGE_EDITLINK = 'edit_link';
 
     public static $PAGE_DELETELINK = 'delete_link';
+
+    public static $PAGE_CHANGE_VISIBILITY = 'change_visibility';
 
     public static $PAGE_PINLINK = 'pin';
 
@@ -75,43 +78,43 @@ class Router
             return self::$PAGE_LINKLIST;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_LOGIN) && $loggedIn === false) {
+        if (startsWith($query, 'do=' . self::$PAGE_LOGIN) && $loggedIn === false) {
             return self::$PAGE_LOGIN;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_PICWALL)) {
+        if (startsWith($query, 'do=' . self::$PAGE_PICWALL)) {
             return self::$PAGE_PICWALL;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_TAGCLOUD)) {
+        if (startsWith($query, 'do=' . self::$PAGE_TAGCLOUD)) {
             return self::$PAGE_TAGCLOUD;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_TAGLIST)) {
+        if (startsWith($query, 'do=' . self::$PAGE_TAGLIST)) {
             return self::$PAGE_TAGLIST;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_OPENSEARCH)) {
+        if (startsWith($query, 'do=' . self::$PAGE_OPENSEARCH)) {
             return self::$PAGE_OPENSEARCH;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_DAILY)) {
+        if (startsWith($query, 'do=' . self::$PAGE_DAILY)) {
             return self::$PAGE_DAILY;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_FEED_ATOM)) {
+        if (startsWith($query, 'do=' . self::$PAGE_FEED_ATOM)) {
             return self::$PAGE_FEED_ATOM;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_FEED_RSS)) {
+        if (startsWith($query, 'do=' . self::$PAGE_FEED_RSS)) {
             return self::$PAGE_FEED_RSS;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_THUMBS_UPDATE)) {
+        if (startsWith($query, 'do=' . self::$PAGE_THUMBS_UPDATE)) {
             return self::$PAGE_THUMBS_UPDATE;
         }
 
-        if (startsWith($query, 'do='. self::$AJAX_THUMB_UPDATE)) {
+        if (startsWith($query, 'do=' . self::$AJAX_THUMB_UPDATE)) {
             return self::$AJAX_THUMB_UPDATE;
         }
 
@@ -120,23 +123,23 @@ class Router
             return self::$PAGE_LINKLIST;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_TOOLS)) {
+        if (startsWith($query, 'do=' . self::$PAGE_TOOLS)) {
             return self::$PAGE_TOOLS;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_CHANGEPASSWORD)) {
+        if (startsWith($query, 'do=' . self::$PAGE_CHANGEPASSWORD)) {
             return self::$PAGE_CHANGEPASSWORD;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_CONFIGURE)) {
+        if (startsWith($query, 'do=' . self::$PAGE_CONFIGURE)) {
             return self::$PAGE_CONFIGURE;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_CHANGETAG)) {
+        if (startsWith($query, 'do=' . self::$PAGE_CHANGETAG)) {
             return self::$PAGE_CHANGETAG;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_ADDLINK)) {
+        if (startsWith($query, 'do=' . self::$PAGE_ADDLINK)) {
             return self::$PAGE_ADDLINK;
         }
 
@@ -148,27 +151,31 @@ class Router
             return self::$PAGE_DELETELINK;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_PINLINK)) {
+        if (isset($get[self::$PAGE_CHANGE_VISIBILITY])) {
+            return self::$PAGE_CHANGE_VISIBILITY;
+        }
+
+        if (startsWith($query, 'do=' . self::$PAGE_PINLINK)) {
             return self::$PAGE_PINLINK;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_EXPORT)) {
+        if (startsWith($query, 'do=' . self::$PAGE_EXPORT)) {
             return self::$PAGE_EXPORT;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_IMPORT)) {
+        if (startsWith($query, 'do=' . self::$PAGE_IMPORT)) {
             return self::$PAGE_IMPORT;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_PLUGINSADMIN)) {
+        if (startsWith($query, 'do=' . self::$PAGE_PLUGINSADMIN)) {
             return self::$PAGE_PLUGINSADMIN;
         }
 
-        if (startsWith($query, 'do='. self::$PAGE_SAVE_PLUGINSADMIN)) {
+        if (startsWith($query, 'do=' . self::$PAGE_SAVE_PLUGINSADMIN)) {
             return self::$PAGE_SAVE_PLUGINSADMIN;
         }
 
-        if (startsWith($query, 'do='. self::$GET_TOKEN)) {
+        if (startsWith($query, 'do=' . self::$GET_TOKEN)) {
             return self::$GET_TOKEN;
         }
 
