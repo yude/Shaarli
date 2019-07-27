@@ -2,6 +2,7 @@
 use Shaarli\Config\ConfigJson;
 use Shaarli\Config\ConfigManager;
 use Shaarli\Config\ConfigPhp;
+use Shaarli\Thumbnailer;
 
 require_once 'tests/Updater/DummyUpdater.php';
 require_once 'inc/rain.tpl.class.php';
@@ -20,7 +21,7 @@ class UpdaterTest extends PHPUnit_Framework_TestCase
     /**
      * @var string Config file path (without extension).
      */
-    protected static $configFile = 'tests/utils/config/configJson';
+    protected static $configFile = 'sandbox/config';
 
     /**
      * @var ConfigManager
@@ -32,6 +33,7 @@ class UpdaterTest extends PHPUnit_Framework_TestCase
      */
     public function setUp()
     {
+        copy('tests/utils/config/configJson.json.php', self::$configFile .'.json.php');
         $this->conf = new ConfigManager(self::$configFile);
     }
 
@@ -391,20 +393,32 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
         $this->assertEquals('Naming conventions... #private', $linkDB[0]['description']);
         $this->assertEquals('samba cartoon web', $linkDB[0]['tags']);
         $this->assertTrue($linkDB[0]['private']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_142300'), $linkDB[0]['created']);
+        $this->assertEquals(
+            DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_142300'),
+            $linkDB[0]['created']
+        );
 
         $this->assertTrue(isset($linkDB[1]));
         $this->assertFalse(isset($linkDB[1]['linkdate']));
         $this->assertEquals(1, $linkDB[1]['id']);
         $this->assertEquals('UserFriendly - Samba', $linkDB[1]['title']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_172539'), $linkDB[1]['created']);
+        $this->assertEquals(
+            DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_172539'),
+            $linkDB[1]['created']
+        );
 
         $this->assertTrue(isset($linkDB[2]));
         $this->assertFalse(isset($linkDB[2]['linkdate']));
         $this->assertEquals(2, $linkDB[2]['id']);
         $this->assertEquals('Geek and Poke', $linkDB[2]['title']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_182539'), $linkDB[2]['created']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_190301'), $linkDB[2]['updated']);
+        $this->assertEquals(
+            DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_182539'),
+            $linkDB[2]['created']
+        );
+        $this->assertEquals(
+            DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20121206_190301'),
+            $linkDB[2]['updated']
+        );
     }
 
     /**
@@ -618,5 +632,176 @@ $GLOBALS[\'privateLinkByDefault\'] = true;';
         $updater = new Updater([], [], $this->conf, true);
         $this->assertTrue($updater->updateMethodAtomDefault());
         $this->assertTrue($this->conf->get('feed.show_atom'));
+    }
+
+    /**
+     * Test updateMethodDownloadSizeAndTimeoutConf, it should be set if none is already defined.
+     */
+    public function testUpdateMethodDownloadSizeAndTimeoutConf()
+    {
+        $sandboxConf = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
+        $this->conf = new ConfigManager($sandboxConf);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodDownloadSizeAndTimeoutConf());
+        $this->assertEquals(4194304, $this->conf->get('general.download_max_size'));
+        $this->assertEquals(30, $this->conf->get('general.download_timeout'));
+
+        $this->conf = new ConfigManager($sandboxConf);
+        $this->assertEquals(4194304, $this->conf->get('general.download_max_size'));
+        $this->assertEquals(30, $this->conf->get('general.download_timeout'));
+    }
+
+    /**
+     * Test updateMethodDownloadSizeAndTimeoutConf, it shouldn't be set if it is already defined.
+     */
+    public function testUpdateMethodDownloadSizeAndTimeoutConfIgnore()
+    {
+        $sandboxConf = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
+        $this->conf = new ConfigManager($sandboxConf);
+        $this->conf->set('general.download_max_size', 38);
+        $this->conf->set('general.download_timeout', 70);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodDownloadSizeAndTimeoutConf());
+        $this->assertEquals(38, $this->conf->get('general.download_max_size'));
+        $this->assertEquals(70, $this->conf->get('general.download_timeout'));
+    }
+
+    /**
+     * Test updateMethodDownloadSizeAndTimeoutConf, only the maz size should be set here.
+     */
+    public function testUpdateMethodDownloadSizeAndTimeoutConfOnlySize()
+    {
+        $sandboxConf = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
+        $this->conf = new ConfigManager($sandboxConf);
+        $this->conf->set('general.download_max_size', 38);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodDownloadSizeAndTimeoutConf());
+        $this->assertEquals(38, $this->conf->get('general.download_max_size'));
+        $this->assertEquals(30, $this->conf->get('general.download_timeout'));
+    }
+
+    /**
+     * Test updateMethodDownloadSizeAndTimeoutConf, only the time out should be set here.
+     */
+    public function testUpdateMethodDownloadSizeAndTimeoutConfOnlyTimeout()
+    {
+        $sandboxConf = 'sandbox/config';
+        copy(self::$configFile . '.json.php', $sandboxConf . '.json.php');
+        $this->conf = new ConfigManager($sandboxConf);
+        $this->conf->set('general.download_timeout', 3);
+        $updater = new Updater([], [], $this->conf, true);
+        $this->assertTrue($updater->updateMethodDownloadSizeAndTimeoutConf());
+        $this->assertEquals(4194304, $this->conf->get('general.download_max_size'));
+        $this->assertEquals(3, $this->conf->get('general.download_timeout'));
+    }
+
+    /**
+<<<<<<< HEAD
+     * Test updateMethodWebThumbnailer with thumbnails enabled.
+     */
+    public function testUpdateMethodWebThumbnailerEnabled()
+    {
+        $this->conf->remove('thumbnails');
+        $this->conf->set('thumbnail.enable_thumbnails', true);
+        $updater = new Updater([], [], $this->conf, true, $_SESSION);
+        $this->assertTrue($updater->updateMethodWebThumbnailer());
+        $this->assertFalse($this->conf->exists('thumbnail'));
+        $this->assertEquals(\Shaarli\Thumbnailer::MODE_ALL, $this->conf->get('thumbnails.mode'));
+        $this->assertEquals(125, $this->conf->get('thumbnails.width'));
+        $this->assertEquals(90, $this->conf->get('thumbnails.height'));
+        $this->assertContains('You have enabled or changed thumbnails', $_SESSION['warnings'][0]);
+    }
+
+    /**
+     * Test updateMethodWebThumbnailer with thumbnails disabled.
+     */
+    public function testUpdateMethodWebThumbnailerDisabled()
+    {
+        $this->conf->remove('thumbnails');
+        $this->conf->set('thumbnail.enable_thumbnails', false);
+        $updater = new Updater([], [], $this->conf, true, $_SESSION);
+        $this->assertTrue($updater->updateMethodWebThumbnailer());
+        $this->assertFalse($this->conf->exists('thumbnail'));
+        $this->assertEquals(Thumbnailer::MODE_NONE, $this->conf->get('thumbnails.mode'));
+        $this->assertEquals(125, $this->conf->get('thumbnails.width'));
+        $this->assertEquals(90, $this->conf->get('thumbnails.height'));
+        $this->assertTrue(empty($_SESSION['warnings']));
+    }
+
+    /**
+     * Test updateMethodWebThumbnailer with thumbnails disabled.
+     */
+    public function testUpdateMethodWebThumbnailerNothingToDo()
+    {
+        $updater = new Updater([], [], $this->conf, true, $_SESSION);
+        $this->assertTrue($updater->updateMethodWebThumbnailer());
+        $this->assertFalse($this->conf->exists('thumbnail'));
+        $this->assertEquals(Thumbnailer::MODE_COMMON, $this->conf->get('thumbnails.mode'));
+        $this->assertEquals(90, $this->conf->get('thumbnails.width'));
+        $this->assertEquals(53, $this->conf->get('thumbnails.height'));
+        $this->assertTrue(empty($_SESSION['warnings']));
+    }
+
+    /**
+     * Test updateMethodSetSticky().
+     */
+    public function testUpdateStickyValid()
+    {
+        $blank = [
+            'id' => 1,
+            'url' => 'z',
+            'title' => '',
+            'description' => '',
+            'tags' => '',
+            'created' => new DateTime(),
+        ];
+        $links = [
+            1 => ['id' => 1] + $blank,
+            2 => ['id' => 2] + $blank,
+        ];
+        $refDB = new ReferenceLinkDB();
+        $refDB->setLinks($links);
+        $refDB->write(self::$testDatastore);
+        $linkDB = new LinkDB(self::$testDatastore, true, false);
+
+        $updater = new Updater(array(), $linkDB, $this->conf, true);
+        $this->assertTrue($updater->updateMethodSetSticky());
+
+        $linkDB = new LinkDB(self::$testDatastore, true, false);
+        foreach ($linkDB as $link) {
+            $this->assertFalse($link['sticky']);
+        }
+    }
+
+    /**
+     * Test updateMethodSetSticky().
+     */
+    public function testUpdateStickyNothingToDo()
+    {
+        $blank = [
+            'id' => 1,
+            'url' => 'z',
+            'title' => '',
+            'description' => '',
+            'tags' => '',
+            'created' => new DateTime(),
+        ];
+        $links = [
+            1 => ['id' => 1, 'sticky' => true] + $blank,
+            2 => ['id' => 2] + $blank,
+        ];
+        $refDB = new ReferenceLinkDB();
+        $refDB->setLinks($links);
+        $refDB->write(self::$testDatastore);
+        $linkDB = new LinkDB(self::$testDatastore, true, false);
+
+        $updater = new Updater(array(), $linkDB, $this->conf, true);
+        $this->assertTrue($updater->updateMethodSetSticky());
+
+        $linkDB = new LinkDB(self::$testDatastore, true, false);
+        $this->assertTrue($linkDB[1]['sticky']);
     }
 }

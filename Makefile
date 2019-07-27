@@ -2,8 +2,6 @@
 # Makefile for PHP code analysis & testing, documentation and release generation
 
 BIN = vendor/bin
-PHP_SOURCE = index.php application tests plugins
-PHP_COMMA_SOURCE = index.php,application,tests,plugins
 
 all: static_analysis_summary check_permissions test
 
@@ -18,84 +16,32 @@ docker_%:
 	cd ~/shaarli && make $*
 
 ##
-# Concise status of the project
-# These targets are non-blocking: || exit 0
-##
-
-static_analysis_summary: code_sniffer_source copy_paste mess_detector_summary
-	@echo
-
-##
 # PHP_CodeSniffer
 # Detects PHP syntax errors
 # Documentation (usage, output formatting):
 # - http://pear.php.net/manual/en/package.php.php-codesniffer.usage.php
 # - http://pear.php.net/manual/en/package.php.php-codesniffer.reporting.php
 ##
+PHPCS := $(BIN)/phpcs
 
-code_sniffer: code_sniffer_full
+code_sniffer:
+	@$(PHPCS)
 
 ### - errors filtered by coding standard: PEAR, PSR1, PSR2, Zend...
 PHPCS_%:
-	@$(BIN)/phpcs $(PHP_SOURCE) --report-full --report-width=200 --standard=$*
+	@$(PHPCS) --report-full --report-width=200 --standard=$*
 
 ### - errors by Git author
 code_sniffer_blame:
-	@$(BIN)/phpcs $(PHP_SOURCE) --report-gitblame
+	@$(PHPCS) --report-gitblame
 
 ### - all errors/warnings
 code_sniffer_full:
-	@$(BIN)/phpcs $(PHP_SOURCE) --report-full --report-width=200
+	@$(PHPCS) --report-full --report-width=200
 
 ### - errors grouped by kind
 code_sniffer_source:
-	@$(BIN)/phpcs $(PHP_SOURCE) --report-source || exit 0
-
-##
-# PHP Copy/Paste Detector
-# Detects code redundancy
-# Documentation: https://github.com/sebastianbergmann/phpcpd
-##
-
-copy_paste:
-	@echo "-----------------------"
-	@echo "PHP COPY/PASTE DETECTOR"
-	@echo "-----------------------"
-	@$(BIN)/phpcpd $(PHP_SOURCE) || exit 0
-	@echo
-
-##
-# PHP Mess Detector
-# Detects PHP syntax errors, sorted by category
-# Rules documentation: http://phpmd.org/rules/index.html
-##
-MESS_DETECTOR_RULES = cleancode,codesize,controversial,design,naming,unusedcode
-
-mess_title:
-	@echo "-----------------"
-	@echo "PHP MESS DETECTOR"
-	@echo "-----------------"
-
-###  - all warnings
-mess_detector: mess_title
-	@$(BIN)/phpmd $(PHP_COMMA_SOURCE) text $(MESS_DETECTOR_RULES) | sed 's_.*\/__'
-
-### - all warnings + HTML output contains links to PHPMD's documentation
-mess_detector_html:
-	@$(BIN)/phpmd $(PHP_COMMA_SOURCE) html $(MESS_DETECTOR_RULES) \
-	--reportfile phpmd.html || exit 0
-
-### - warnings grouped by message, sorted by descending frequency order
-mess_detector_grouped: mess_title
-	@$(BIN)/phpmd $(PHP_SOURCE) text $(MESS_DETECTOR_RULES) \
-	| cut -f 2 | sort | uniq -c | sort -nr
-
-### - summary: number of warnings by rule set
-mess_detector_summary: mess_title
-	@for rule in $$(echo $(MESS_DETECTOR_RULES) | tr ',' ' '); do \
-		warnings=$$($(BIN)/phpmd $(PHP_COMMA_SOURCE) text $$rule | wc -l); \
-		printf "$$warnings\t$$rule\n"; \
-	done;
+	@$(PHPCS) --report-source || exit 0
 
 ##
 # Checks source file & script permissions
@@ -157,21 +103,32 @@ composer_dependencies: clean
 	composer install --no-dev --prefer-dist
 	find vendor/ -name ".git" -type d -exec rm -rf {} +
 
+### download 3rd-party frontend libraries
+frontend_dependencies:
+	yarn install
+
+### Build frontend dependencies
+build_frontend: frontend_dependencies
+	yarn run build
+
 ### generate a release tarball and include 3rd-party dependencies and translations
-release_tar: composer_dependencies htmldoc translate
+release_tar: composer_dependencies htmldoc translate build_frontend
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).tar HEAD
 	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^vendor|$(ARCHIVE_PREFIX)vendor|" vendor/
 	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^doc/html|$(ARCHIVE_PREFIX)doc/html|" doc/html/
+	tar rvf $(ARCHIVE_VERSION).tar --transform "s|^tpl|$(ARCHIVE_PREFIX)tpl|" tpl/
 	gzip $(ARCHIVE_VERSION).tar
 
 ### generate a release zip and include 3rd-party dependencies and translations
-release_zip: composer_dependencies htmldoc translate
+release_zip: composer_dependencies htmldoc translate build_frontend
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).zip -9 HEAD
 	mkdir -p $(ARCHIVE_PREFIX)/{doc,vendor}
 	rsync -a doc/html/ $(ARCHIVE_PREFIX)doc/html/
 	zip -r $(ARCHIVE_VERSION).zip $(ARCHIVE_PREFIX)doc/
 	rsync -a vendor/ $(ARCHIVE_PREFIX)vendor/
 	zip -r $(ARCHIVE_VERSION).zip $(ARCHIVE_PREFIX)vendor/
+	rsync -a tpl/ $(ARCHIVE_PREFIX)tpl/
+	zip -r $(ARCHIVE_VERSION).zip $(ARCHIVE_PREFIX)tpl/
 	rm -rf $(ARCHIVE_PREFIX)
 
 ##
@@ -192,17 +149,27 @@ authors:
 ### generate Doxygen documentation
 doxygen: clean
 	@rm -rf doxygen
-	@( cat Doxyfile ; echo "PROJECT_NUMBER=`git describe`" ) | doxygen -
+	@doxygen Doxyfile
 
 ### generate HTML documentation from Markdown pages with MkDocs
 htmldoc:
 	python3 -m venv venv/
 	bash -c 'source venv/bin/activate; \
 	pip install mkdocs; \
-	mkdocs build'
+	mkdocs build --clean'
 	find doc/html/ -type f -exec chmod a-x '{}' \;
 	rm -r venv
+
 
 ### Generate Shaarli's translation compiled file (.mo)
 translate:
 	@find inc/languages/ -name shaarli.po -execdir msgfmt shaarli.po -o shaarli.mo \;
+
+### Run ESLint check against Shaarli's JS files
+eslint:
+	@yarn run eslint -c .dev/.eslintrc.js assets/vintage/js/
+	@yarn run eslint -c .dev/.eslintrc.js assets/default/js/
+
+### Run CSSLint check against Shaarli's SCSS files
+sasslint:
+	@yarn run sass-lint -c .dev/.sasslintrc 'assets/default/scss/*.scss' -v -q

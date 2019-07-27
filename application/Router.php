@@ -7,6 +7,8 @@
  */
 class Router
 {
+    public static $AJAX_THUMB_UPDATE = 'ajax_thumb_update';
+
     public static $PAGE_LOGIN = 'login';
 
     public static $PAGE_PICWALL = 'picwall';
@@ -35,6 +37,8 @@ class Router
 
     public static $PAGE_DELETELINK = 'delete_link';
 
+    public static $PAGE_PINLINK = 'pin';
+
     public static $PAGE_EXPORT = 'export';
 
     public static $PAGE_IMPORT = 'import';
@@ -46,6 +50,8 @@ class Router
     public static $PAGE_PLUGINSADMIN = 'pluginadmin';
 
     public static $PAGE_SAVE_PLUGINSADMIN = 'save_pluginadmin';
+
+    public static $PAGE_THUMBS_UPDATE = 'thumbs_update';
 
     public static $GET_TOKEN = 'token';
 
@@ -101,6 +107,14 @@ class Router
             return self::$PAGE_FEED_RSS;
         }
 
+        if (startsWith($query, 'do='. self::$PAGE_THUMBS_UPDATE)) {
+            return self::$PAGE_THUMBS_UPDATE;
+        }
+
+        if (startsWith($query, 'do='. self::$AJAX_THUMB_UPDATE)) {
+            return self::$AJAX_THUMB_UPDATE;
+        }
+
         // At this point, only loggedin pages.
         if (!$loggedIn) {
             return self::$PAGE_LINKLIST;
@@ -132,6 +146,10 @@ class Router
 
         if (isset($get['delete_link'])) {
             return self::$PAGE_DELETELINK;
+        }
+
+        if (startsWith($query, 'do='. self::$PAGE_PINLINK)) {
+            return self::$PAGE_PINLINK;
         }
 
         if (startsWith($query, 'do='. self::$PAGE_EXPORT)) {

@@ -1,13 +1,14 @@
 <?php
 /**
  * GET an HTTP URL to retrieve its content
- * Uses the cURL library or a fallback method 
+ * Uses the cURL library or a fallback method
  *
  * @param string          $url               URL to get (http://...)
  * @param int             $timeout           network timeout (in seconds)
  * @param int             $maxBytes          maximum downloaded bytes (default: 4 MiB)
  * @param callable|string $curlWriteFunction Optional callback called during the download (cURL CURLOPT_WRITEFUNCTION).
- *                                           Can be used to add download conditions on the headers (response code, content type, etc.).
+ *                                           Can be used to add download conditions on the
+ *                                           headers (response code, content type, etc.).
  *
  * @return array HTTP response headers, downloaded content
  *
@@ -64,29 +65,30 @@ function get_http_response($url, $timeout = 30, $maxBytes = 4194304, $curlWriteF
     }
 
     // General cURL settings
-    curl_setopt($ch, CURLOPT_AUTOREFERER,       true);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION,    true);
-    curl_setopt($ch, CURLOPT_HEADER,            true);
+    curl_setopt($ch, CURLOPT_AUTOREFERER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_HEADER, true);
     curl_setopt(
         $ch,
         CURLOPT_HTTPHEADER,
         array('Accept-Language: ' . $acceptLanguage)
     );
-    curl_setopt($ch, CURLOPT_MAXREDIRS,         $maxRedirs);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER,    true);
-    curl_setopt($ch, CURLOPT_TIMEOUT,           $timeout);
-    curl_setopt($ch, CURLOPT_USERAGENT,         $userAgent);
+    curl_setopt($ch, CURLOPT_MAXREDIRS, $maxRedirs);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+    curl_setopt($ch, CURLOPT_USERAGENT, $userAgent);
 
     if (is_callable($curlWriteFunction)) {
         curl_setopt($ch, CURLOPT_WRITEFUNCTION, $curlWriteFunction);
     }
 
     // Max download size management
-    curl_setopt($ch, CURLOPT_BUFFERSIZE,        1024*16);
-    curl_setopt($ch, CURLOPT_NOPROGRESS,        false);
-    curl_setopt($ch, CURLOPT_PROGRESSFUNCTION,
-        function($arg0, $arg1, $arg2, $arg3, $arg4 = 0) use ($maxBytes)
-        {
+    curl_setopt($ch, CURLOPT_BUFFERSIZE, 1024*16);
+    curl_setopt($ch, CURLOPT_NOPROGRESS, false);
+    curl_setopt(
+        $ch,
+        CURLOPT_PROGRESSFUNCTION,
+        function ($arg0, $arg1, $arg2, $arg3, $arg4 = 0) use ($maxBytes) {
             if (version_compare(phpversion(), '5.5', '<')) {
                 // PHP version lower than 5.5
                 // Callback has 4 arguments
@@ -232,7 +234,6 @@ function get_redirected_headers($url, $redirectionLimit = 3)
         && !empty($headers)
         && (strpos($headers[0], '301') !== false || strpos($headers[0], '302') !== false)
         && !empty($headers['Location'])) {
-
         $redirection = is_array($headers['Location']) ? end($headers['Location']) : $headers['Location'];
         if ($redirection != $url) {
             $redirection = getAbsoluteUrl($url, $redirection);
@@ -414,6 +415,37 @@ function getIpAddressFromProxy($server, $trustedIps)
 
     return array_pop($ips);
 }
+
+
+/**
+ * Return an identifier based on the advertised client IP address(es)
+ *
+ * This aims at preventing session hijacking from users behind the same proxy
+ * by relying on HTTP headers.
+ *
+ * See:
+ * - https://secure.php.net/manual/en/reserved.variables.server.php
+ * - https://stackoverflow.com/questions/3003145/how-to-get-the-client-ip-address-in-php
+ * - https://stackoverflow.com/questions/12233406/preventing-session-hijacking
+ * - https://stackoverflow.com/questions/21354859/trusting-x-forwarded-for-to-identify-a-visitor
+ *
+ * @param array $server The $_SERVER array
+ *
+ * @return string An identifier based on client IP address information
+ */
+function client_ip_id($server)
+{
+    $ip = $server['REMOTE_ADDR'];
+
+    if (isset($server['HTTP_X_FORWARDED_FOR'])) {
+        $ip = $ip . '_' . $server['HTTP_X_FORWARDED_FOR'];
+    }
+    if (isset($server['HTTP_CLIENT_IP'])) {
+        $ip = $ip . '_' . $server['HTTP_CLIENT_IP'];
+    }
+    return $ip;
+}
+
 
 /**
  * Returns true if Shaarli's currently browsed in HTTPS.

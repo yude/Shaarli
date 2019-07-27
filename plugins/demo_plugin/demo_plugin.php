@@ -73,7 +73,6 @@ function hook_demo_plugin_render_header($data)
 {
     // Only execute when linklist is rendered.
     if ($data['_PAGE_'] == Router::$PAGE_LINKLIST) {
-
         // If loggedin
         if ($data['_LOGGEDIN_'] === true) {
             /*
@@ -109,10 +108,10 @@ function hook_demo_plugin_render_header($data)
          *      ],
          *  ]
          * This example renders as:
-         *      <form form-attribute-1="form attribute 1 value" form-attribute-2="form attribute 2 value">
-         *          <input input-1-attribute-1="input 1 attribute 1 value" input-1-attribute-2="input 1 attribute 2 value">
-         *          <input input-2-attribute-1="input 2 attribute 1 value">
-         *      </form>
+         * <form form-attribute-1="form attribute 1 value" form-attribute-2="form attribute 2 value">
+         *   <input input-1-attribute-1="input 1 attribute 1 value" input-1-attribute-2="input 1 attribute 2 value">
+         *   <input input-2-attribute-1="input 2 attribute 1 value">
+         * </form>
          */
         $form = array(
             'attr' => array(
@@ -378,17 +377,13 @@ function hook_demo_plugin_render_daily($data)
 
 
     // Manipulate columns data
-    foreach ($data['cols'] as &$value) {
-        foreach ($value as &$value2) {
-            $value2['formatedDescription'] .= ' ಠ_ಠ';
-        }
+    foreach ($data['linksToDisplay'] as &$value) {
+        $value['formatedDescription'] .= ' ಠ_ಠ';
     }
 
     // Add plugin content at the end of each link
-    foreach ($data['cols'] as &$value) {
-        foreach ($value as &$value2) {
-            $value2['link_plugin'][] = 'DEMO';
-        }
+    foreach ($data['linksToDisplay'] as &$value) {
+        $value['link_plugin'][] = 'DEMO';
     }
 
     return $data;
@@ -452,8 +447,7 @@ function hook_demo_plugin_render_feed($data)
     foreach ($data['links'] as &$link) {
         if ($data['_PAGE_'] == Router::$PAGE_FEED_ATOM) {
             $link['description'] .= ' - ATOM Feed' ;
-        }
-        elseif ($data['_PAGE_'] == Router::$PAGE_FEED_RSS) {
+        } elseif ($data['_PAGE_'] == Router::$PAGE_FEED_RSS) {
             $link['description'] .= ' - RSS Feed';
         }
     }

@@ -3,8 +3,9 @@
 See the [REST API documentation](http://shaarli.github.io/api-documentation/)
 for a list of available endpoints and parameters.
 
-Please ensure that your server meets the [requirements](Server-requirements)
-and is properly [configured](Server-configuration):
+Please ensure that your server meets the
+[requirements](Server-configuration#prerequisites) and is properly
+[configured](Server-configuration):
 
 - URL rewriting is enabled (see specific Apache and Nginx sections)
 - the server's timezone is properly defined
@@ -151,3 +152,22 @@ See the reference API client:
 
 - [Documentation](http://python-shaarli-client.readthedocs.io/en/latest/) on ReadTheDocs
 - [python-shaarli-client](https://github.com/shaarli/python-shaarli-client) on Github
+
+## Troubleshooting
+
+### Debug mode
+
+> This should never be used in a production environment.
+
+For security reasons, authentication issues will always return an `HTTP 401` error code without any detail.
+
+It is possible to enable the debug mode in `config.json.php` 
+to get the actual error message in the HTTP response body with:
+
+```json
+{
+  "dev": {
+    "debug": true
+  }
+}
+```

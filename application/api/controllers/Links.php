@@ -59,25 +59,25 @@ class Links extends ApiController
         $limit = $request->getParam('limit');
         if (empty($limit)) {
             $limit = self::$DEFAULT_LIMIT;
-        } else if (ctype_digit($limit)) {
+        } elseif (ctype_digit($limit)) {
             $limit = intval($limit);
-        } else if ($limit === 'all') {
+        } elseif ($limit === 'all') {
             $limit = count($links);
         } else {
             throw new ApiBadParametersException('Invalid limit');
         }
 
         // 'environment' is set by Slim and encapsulate $_SERVER.
-        $index = index_url($this->ci['environment']);
+        $indexUrl = index_url($this->ci['environment']);
 
         $out = [];
-        $cpt = 0;
+        $index = 0;
         foreach ($links as $link) {
             if (count($out) >= $limit) {
                 break;
             }
-            if ($cpt++ >= $offset) {
-                $out[] = ApiUtils::formatLink($link, $index);
+            if ($index++ >= $offset) {
+                $out[] = ApiUtils::formatLink($link, $indexUrl);
             }
         }
 

@@ -4,6 +4,9 @@
 .github
 tests
 
+# Docker Compose resources
+docker-compose.yml
+
 # Shaarli runtime resources
 cache/*
 data/*
@@ -35,10 +38,17 @@ phpmd.html
 # User plugin configuration
 plugins/*/config.php
 
-# HTML documentation
-doc/html/
-
 # 3rd party themes
 tpl/*
 !tpl/default
 !tpl/vintage
+
+# Front end
+node_modules
+tpl/default/js
+tpl/default/css
+tpl/default/fonts
+tpl/default/img
+tpl/vintage/js
+tpl/vintage/css
+tpl/vintage/img

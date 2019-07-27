@@ -8,9 +8,9 @@ The images can be found in the [`shaarli/shaarli`](https://hub.docker.com/r/shaa
 repository.
 
 ### Available image tags
-- `latest`: latest branch (tarball release)
-- `master`: master branch (tarball release)
-- `stable`: stable branch (tarball release)
+- `latest`: latest branch
+- `master`: master branch
+- `stable`: stable branch
 
 The `latest` and `master` images rely on:
 
@@ -24,11 +24,18 @@ The `stable` image relies on:
 - [PHP5-FPM](http://php-fpm.org/)
 - [Nginx](http://nginx.org/)
 
-Additional [Dockerfiles](https://github.com/shaarli/Shaarli/tree/master/docker) are provided for the `arm32v7` platform, relying on [Linuxserver.io Alpine armhf images](https://hub.docker.com/r/lsiobase/alpine.armhf/). These images must be built using [`docker build`](https://docs.docker.com/engine/reference/commandline/build/) on an `arm32v7` machine or using an emulator such as [qemu](https://resin.io/blog/building-arm-containers-on-any-x86-machine-even-dockerhub/).
+Additional Dockerfiles are provided for the `arm32v7` platform, relying on
+[Linuxserver.io Alpine armhf
+images](https://hub.docker.com/r/lsiobase/alpine.armhf/). These images must be
+built using [`docker
+build`](https://docs.docker.com/engine/reference/commandline/build/) on an
+`arm32v7` machine or using an emulator such as
+[qemu](https://resin.io/blog/building-arm-containers-on-any-x86-machine-even-dockerhub/).
 
-### Download from DockerHub
-```bash
+### Download from Docker Hub
+```shell
 $ docker pull shaarli/shaarli
+
 latest: Pulling from shaarli/shaarli
 32716d9fcddb: Pull complete
 84899d045435: Pull complete
@@ -46,7 +53,7 @@ Status: Downloaded newer image for shaarli/shaarli:latest
 ```
 
 ### Create and start a new container from the image
-```bash
+```shell
 # map the host's :8000 port to the container's :80 port
 $ docker create -p 8000:80 shaarli/shaarli
 d40b7af693d678958adedfb88f87d6ea0237186c23de5c4102a55a8fcb499101
@@ -62,7 +69,7 @@ d40b7af693d6  shaarli/shaarli  /usr/bin/supervisor  15 seconds ago  Up 4 seconds
 ```
 
 ### Stop and destroy a container
-```bash
+```shell
 $ docker stop backstabbing_galileo  # those docker guys are really rude to physicists!
 backstabbing_galileo
 
@@ -84,12 +91,34 @@ CONTAINER ID  IMAGE            COMMAND               CREATED         STATUS     
 ```
 
 ### Automatic builds
+Docker users can start a personal instance from an
+[autobuild image](https://hub.docker.com/r/shaarli/shaarli/).
+For example to start a temporary Shaarli at ``localhost:8000``, and keep session
+data (config, storage):
 
-Docker users can start a personal instance from an [autobuild image](https://hub.docker.com/r/shaarli/shaarli/). For example to start a temporary Shaarli at ``localhost:8000``, and keep session data (config, storage):
-```
+```shell
 MY_SHAARLI_VOLUME=$(cd /path/to/shaarli/data/ && pwd -P)
 docker run -ti --rm \
          -p 8000:80 \
          -v $MY_SHAARLI_VOLUME:/var/www/shaarli/data \
          shaarli/shaarli
+```
+
+### Volumes and data persistence
+Data can be persisted by [using volumes](https://docs.docker.com/storage/volumes/).
+Volumes allow to keep your data when renewing and/or updating container images:
+
+```shell
+# Create data volumes
+$ docker volume create shaarli-data
+$ docker volume create shaarli-cache
+
+# Create and start a Shaarli container using these volumes to persist data
+$ docker create \
+    --name shaarli \
+    -v shaarli-cache:/var/www/shaarli/cache \
+    -v shaarli-data:/var/www/shaarli/data \
+    -p 8000:80 \
+    shaarli/shaarli:master
+$ docker start shaarli
 ```

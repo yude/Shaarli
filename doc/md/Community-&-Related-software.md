@@ -32,15 +32,18 @@ See [Theming](Theming) for a list of community-contributed themes, and an instal
 - [tt-rss-shaarli](https://github.com/jcsaaddupuy/tt-rss-shaarli) - [Tiny-Tiny RSS](http://tt-rss.org/) plugin that adds support for sharing articles with Shaarli
 - [octopress-shaarli](https://github.com/ahmet2mir/octopress-shaarli) - Octopress plugin to retrieve Shaarli links on the sidebar
 - [Scuttle to Shaarli](https://github.com/q2apro/scuttle-to-shaarli) - Import bookmarks from Scuttle
-
+- [Shaarli app for Cloudron](https://git.cloudron.io/cloudron/shaarli-app) - Effortlessly run Shaarli with the help of [Cloudron](https://cloudron.io/) [![Install](https://cloudron.io/img/button.svg)](https://cloudron.io/button.html?app=com.github.shaarli)
+- [Shaarli_ynh](https://github.com/YunoHost-Apps/shaarli_ynh) - Shaarli is available as a [Yunohost](https://yunohost.org) app [![Install Shaarli with YunoHost](https://install-app.yunohost.org/install-with-yunohost.png)](https://install-app.yunohost.org/?app=shaarli)
 
 ### Mobile Apps
 - [ShaarliOS](https://github.com/mro/ShaarliOS) - Apple iOS share extension.
 - [Shaarli for Android](http://sebsauvage.net/links/?ZAyDzg) - Android application that adds Shaarli as a sharing provider
 - [Shaarlier for Android](https://github.com/dimtion/Shaarlier) - Android application to simply add links directly into your Shaarli
+- [Stakali for Android](https://stakali.toneiv.eu) - Stakali is a personal bookmark manager which synchronizes with Shaarli 
 
 ### Browser addons
- * [Shaarli Web Extension](https://github.com/ikipatang/shaarli-web-extension) - toolbar button to share your current tab with Shaarli.
+- [Shaarli Firefox Extension](https://github.com/ikipatang/shaarli-web-extension) - toolbar button to share your current tab with Shaarli.
+- [Shaarli Chrome Extension](https://github.com/octplane/Shiny-Shaarli) - toolbar button to share your current tab with Shaarli.
 
 ### Server apps
 - [shaarchiver](https://github.com/nodiscc/shaarchiver) - Archive your Shaarli bookmarks and their content
@@ -48,7 +51,7 @@ See [Theming](Theming) for a list of community-contributed themes, and an instal
 - [Shaarlo](https://github.com/DMeloni/shaarlo) - An aggregator for shaarlis with many features (a very popular running instance among French shaarliers: [shaarli.fr](http://shaarli.fr/))
 - [Shaarlimages](https://github.com/BoboTiG/shaarlimages) - An image-oriented aggregator for Shaarlis
 - [mknexen/shaarli-api](https://github.com/mknexen/shaarli-api) - A REST API for Shaarli
-- [Self dead link](https://github.com/qwertygc/shaarli-dev-code/blob/master/self-dead-link.php) - Detect dead links on shaarli. This version use the database of shaarli. [Another version](https://github.com/qwertygc/shaarli-dev-code/blob/master/dead-link.php), can be used for other shaarli instances (but is more resource consuming).
+- [Self dead link](https://framagit.org/qwertygc/shaarli-dev-code/blob/master/self-dead-link.php) - Detect dead links on shaarli. This version use the database of shaarli. [Another version](https://framagit.org/qwertygc/shaarli-dev-code/blob/master/dead-link.php), can be used for other shaarli instances (but is more resource consuming).
 - [Bookmark Archiver](https://github.com/pirate/bookmark-archiver) - Save an archived copy of all websites starred using browser bookmarks/Shaarli/Delicious/Instapaper/Unmark.it/Pocket/Pinboard. Outputs browseable html. 
 
 ## Alternatives to Shaarli

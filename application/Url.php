@@ -34,8 +34,8 @@ function unparse_url($parsedUrl)
  */
 function cleanup_url($url)
 {
-  $obj_url = new Url($url);
-  return $obj_url->cleanup();
+    $obj_url = new Url($url);
+    return $obj_url->cleanup();
 }
 
 /**
@@ -47,8 +47,8 @@ function cleanup_url($url)
  */
 function get_url_scheme($url)
 {
-  $obj_url = new Url($url);
-  return $obj_url->getScheme();
+    $obj_url = new Url($url);
+    return $obj_url->getScheme();
 }
 
 /**
@@ -81,7 +81,7 @@ function whitelist_protocols($url, $protocols)
     // Protocol not allowed: we remove it and replace it with http
     if ($protocol === 1 && ! in_array($match[1], $protocols)) {
         $url = str_replace($match[0], 'http://', $url);
-    } else if ($protocol !== 1) {
+    } elseif ($protocol !== 1) {
         $url = 'http://' . $url;
     }
     return $url;
@@ -217,7 +217,7 @@ class Url
         }
 
         $this->parts['query'] = implode('&', $queryParams);
-    }    
+    }
 
     /**
      * Removes undesired fragments
@@ -260,7 +260,7 @@ class Url
         if (! function_exists('idn_to_ascii') || ! isset($this->parts['host'])) {
             return $out;
         }
-        $asciiHost = idn_to_ascii($this->parts['host']);
+        $asciiHost = idn_to_ascii($this->parts['host'], 0, INTL_IDNA_VARIANT_UTS46);
         return str_replace($this->parts['host'], $asciiHost, $out);
     }
 
@@ -269,7 +269,8 @@ class Url
      *
      * @return string the URL scheme or false if none is provided.
      */
-    public function getScheme() {
+    public function getScheme()
+    {
         if (!isset($this->parts['scheme'])) {
             return false;
         }
@@ -281,7 +282,8 @@ class Url
      *
      * @return string the URL host or false if none is provided.
      */
-    public function getHost() {
+    public function getHost()
+    {
         if (empty($this->parts['host'])) {
             return false;
         }
@@ -293,7 +295,8 @@ class Url
      *
      * @return true is HTTP, false otherwise.
      */
-    public function isHttp() {
+    public function isHttp()
+    {
         return strpos(strtolower($this->parts['scheme']), 'http') !== false;
     }
 }

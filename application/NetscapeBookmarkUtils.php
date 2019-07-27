@@ -72,18 +72,20 @@ class NetscapeBookmarkUtils
     private static function importStatus(
         $filename,
         $filesize,
-        $importCount=0,
-        $overwriteCount=0,
-        $skipCount=0,
-        $duration=0
-    )
-    {
+        $importCount = 0,
+        $overwriteCount = 0,
+        $skipCount = 0,
+        $duration = 0
+    ) {
         $status = sprintf(t('File %s (%d bytes) '), $filename, $filesize);
         if ($importCount == 0 && $overwriteCount == 0 && $skipCount == 0) {
             $status .= t('has an unknown file format. Nothing was imported.');
         } else {
             $status .= vsprintf(
-                t('was successfully processed in %d seconds: %d links imported, %d links overwritten, %d links skipped.'),
+                t(
+                    'was successfully processed in %d seconds: '
+                    .'%d links imported, %d links overwritten, %d links skipped.'
+                ),
                 [$duration, $importCount, $overwriteCount, $skipCount]
             );
         }
@@ -108,7 +110,7 @@ class NetscapeBookmarkUtils
         $filesize = $files['filetoupload']['size'];
         $data = file_get_contents($files['filetoupload']['tmp_name']);
 
-        if (strpos($data, '<!DOCTYPE NETSCAPE-Bookmark-file-1>') === false) {
+        if (preg_match('/<!DOCTYPE NETSCAPE-Bookmark-file-1>/i', $data) === 0) {
             return self::importStatus($filename, $filesize);
         }
 
@@ -154,13 +156,13 @@ class NetscapeBookmarkUtils
             if (empty($post['privacy']) || $post['privacy'] == 'default') {
                 // use value from the imported file
                 $private = $bkm['pub'] == '1' ? 0 : 1;
-            } else if ($post['privacy'] == 'private') {
+            } elseif ($post['privacy'] == 'private') {
                 // all imported links are private
                 $private = 1;
-            } else if ($post['privacy'] == 'public') {
+            } elseif ($post['privacy'] == 'public') {
                 // all imported links are public
                 $private = 0;
-            }                
+            }
 
             $newLink = array(
                 'title' => $bkm['title'],

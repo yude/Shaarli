@@ -4,6 +4,124 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.10.4](https://github.com/shaarli/Shaarli/releases/tag/v0.10.4) - 2019-04-16
+
+### Fixed
+- Fix thumbnails disabling if PHP GD is not installed
+- Fix a warning if links sticky status isn't set
+
+## [v0.10.3](https://github.com/shaarli/Shaarli/releases/tag/v0.10.3) - 2019-02-23
+### Added
+- Add OpenGraph metadata tags on permalink page
+- Add CORS headers to REST API reponses
+- Add a button to toggle checkboxes of displayed links
+- Add an icon to the link list when the Isso plugin is enabled
+- Add noindex, nofollow to documentation pages
+- Document usage of robots.txt
+- Add a button to set links as sticky
+
+### Changed
+- Update French translation
+- Refactor the documentation homepage
+- Bump netscape-bookmark-parser
+- Update session_start condition
+- Improve accessibility
+- Cleanup and refactor lint tooling
+
+### Fixed
+- Fix input size for dropdown search form
+- Fix history for bulk link deletion
+- Fix thumbnail requests
+- Fix hashtag rendering when markdown escaping is enabled
+- Fix AJAX tag deletion
+- Fix lint errors and improve PSR-1 and PSR-2 compliance
+
+### Removed
+- Remove Firefox Share documentation
+
+## [v0.10.2](https://github.com/shaarli/Shaarli/releases/tag/v0.10.2) - 2018-08-11
+
+### Fixed
+
+- Docker build
+
+## [v0.10.1](https://github.com/shaarli/Shaarli/releases/tag/v0.10.1) - 2018-08-11
+
+### Changed
+
+- Accessibility:
+    - Remove alt text on the logo
+    - Remove redundant title in tools page
+
+### Fixed
+
+- Fixed an error on the daily page and daily RSS
+- Fixed an issue causing 'You are not authorized to add a link' error while logged out
+- Fixed thumbnail path when Shaarli's path uses symbolic links
+- Add a `mod_version` check in Shaarli's root `.htaccess` file for Apache 2.2 syntax
+- Include assets in the release Makefile target
+
+### Removed
+
+- Firefox Social API shaare has been removed
+
+## [v0.10.0](https://github.com/shaarli/Shaarli/releases/tag/v0.10.0) - 2018-07-28
+**PHP 5.5 compatibility has been dropped.** Shaarli now requires at least PHP 5.6.
+
+### Added
+- Add a filter to display public links only
+- Add PHP 7.2 support
+- Add German translation
+- Resolve front-end dependencies from NPM
+- Build front-end bundles with Yarn and Webpack
+- Lint Javascript code with ESLint
+- Lint SASS code with SASSLint
+- Support redirection in cURL download callback
+- Introduce multi-stage builds for Docker images
+- Use Travis matrix and stages to run Javascript tests in a dedicated environment
+- Add tag endpoint in the REST API
+- Build the documentation in Travis builds
+- Provide a Docker Compose example
+
+### Changed
+- Use web-thumbnailer to retrieve thumbnails (see #687)
+- Use a specific page title in all pages
+- Daily: run hooks before creating the columns
+- Load theme translations files automatically
+- Make max download size and timeout configurable
+- Make Nginx logs accessible as stdout/stderr for Docker images
+- Update buttons used to toggle link visibility filters
+- Rewrite Javascript code for ES6 compliance
+- Refactor IP ban management
+- Refactor user login management
+- Refactor server-side session management
+- Update Doxygen configuration
+- Update Parsedown
+- Improve documentation
+- Docker: build the images from the local sources
+- Docker: bump alpine version to 3.7
+- Docker: expose a volume for the thumbnail cache
+
+### Removed
+- Drop support for PHP 5.5
+- Remove vendored front-end libraries
+- Remove environment specific .gitignore entries
+
+### Fixed
+- Ignore the case while checking DOCTYPE during the file import
+- Fix removal of on=... attributes from html generated from Markdown
+- httpd: always forward the 'Authorization' header
+- Ensure user-specific CSS file is loaded
+- Fix feed permalink rendering when Markdown escaping is enabled
+- Fix order of tags with the same number of occurrences
+- Fixed the referrer meta tag in default template
+- Disable MkDocs' strict mode for ReadTheDocs builds to pass
+- fix and simplify Dockerfile for armhf
+
+### Security
+- Update `.htaccess` to prevent accessing Git metadata when using a Git-based installation
+
+
 ## [v0.9.7](https://github.com/shaarli/Shaarli/releases/tag/v0.9.7) - 2018-06-20
 ### Changed
 - Build the Docker images from the local Git sources
@@ -177,40 +295,7 @@ Theming:
 - `composer.lock` is now included in git file to allow proper `composer install`
 - History mechanism which logs link addition/modification/deletion
 
-## [v0.8.7](https://github.com/shaarli/Shaarli/releases/tag/v0.8.7) - 2018-06-20
 ### Changed
-- Build the Docker image from the local Git sources
-
-### Removed
-- Disable PHP 5.3 Travis build (unsupported)
-
-## [v0.8.6](https://github.com/shaarli/Shaarli/releases/tag/v0.8.6) - 2018-02-19
-### Changed
-<<<<<<< HEAD
-- Run version check tests against the 'stable' branch
-
-
-## [v0.8.5](https://github.com/shaarli/Shaarli/releases/tag/v0.8.5) - 2018-01-04
-
- **XSS vulnerability fixed. Please update.**
-
-### Security
-- Fix an XSS (cross-site-scripting) vulnerability in `index.php`
-
-
-## [v0.8.4](https://github.com/shaarli/Shaarli/releases/tag/v0.8.4) - 2017-03-04
-### Security
-- Markdown plugin: escape HTML entities by default
-
-
-## [v0.8.3](https://github.com/shaarli/Shaarli/releases/tag/v0.8.3) - 2017-01-20
-
-### Fixed
-
-- PHP 7.1 compatibility: add ConfigManager parameter to anti-bruteforce function call in login template.
-
-## [v0.8.2](https://github.com/shaarli/Shaarli/releases/tag/v0.8.2) - 2016-12-15
-=======
 - Docker: enable nginx URL rewriting for the REST API
 - Theming:
     - Move `user.css` to the `data` folder
@@ -232,7 +317,6 @@ Theming:
 - Partial namespace support for Shaarli classes
 - Shaarli version is now only present in `shaarli_version.php`
 - Human readable maximum file size upload
->>>>>>> v0.9.7
 
 
 ### Removed
@@ -258,6 +342,19 @@ Theming:
 - Markdown plugin: escape HTML entities by default
 
 
+## [v0.8.7](https://github.com/shaarli/Shaarli/releases/tag/v0.8.7) - 2018-06-20
+### Changed
+- Build the Docker image from the local Git sources
+
+### Removed
+- Disable PHP 5.3 Travis build (unsupported)
+
+
+## [v0.8.6](https://github.com/shaarli/Shaarli/releases/tag/v0.8.6) - 2018-02-19
+### Changed
+- Run version check tests against the 'stable' branch
+
+
 ## [v0.8.5](https://github.com/shaarli/Shaarli/releases/tag/v0.8.5) - 2018-01-04
 **XSS vulnerability fixed. Please update.**
 
@@ -273,12 +370,9 @@ Theming:
 ### Fixed
 - PHP 7.1 compatibility: add ConfigManager parameter to anti-bruteforce function call in login template.
 
-<<<<<<< HEAD
-=======
 ## [v0.8.2](https://github.com/shaarli/Shaarli/releases/tag/v0.8.2) - 2016-12-15
 ### Fixed
 
->>>>>>> v0.9.7
 - Editing a link created before the new ID system would change its permalink.
 
 ## [v0.8.1](https://github.com/shaarli/Shaarli/releases/tag/v0.8.1) - 2016-12-12

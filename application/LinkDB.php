@@ -107,8 +107,7 @@ class LinkDB implements Iterator, Countable, ArrayAccess
         $hidePublicLinks,
         $redirector = '',
         $redirectorEncode = true
-    )
-    {
+    ) {
         $this->datastore = $datastore;
         $this->loggedIn = $isLoggedIn;
         $this->hidePublicLinks = $hidePublicLinks;
@@ -250,14 +249,18 @@ class LinkDB implements Iterator, Countable, ArrayAccess
             'id' => 1,
             'title'=> t('The personal, minimalist, super-fast, database free, bookmarking service'),
             'url'=>'https://shaarli.readthedocs.io',
-            'description'=>t('Welcome to Shaarli! This is your first public bookmark. To edit or delete me, you must first login.
+            'description'=>t(
+                'Welcome to Shaarli! This is your first public bookmark. '
+                .'To edit or delete me, you must first login.
 
 To learn how to use Shaarli, consult the link "Documentation" at the bottom of this page.
 
-You use the community supported version of the original Shaarli project, by Sebastien Sauvage.'),
+You use the community supported version of the original Shaarli project, by Sebastien Sauvage.'
+            ),
             'private'=>0,
             'created'=> new DateTime(),
-            'tags'=>'opensource software'
+            'tags'=>'opensource software',
+            'sticky' => false,
         );
         $link['shorturl'] = link_small_hash($link['created'], $link['id']);
         $this->links[1] = $link;
@@ -270,6 +273,7 @@ You use the community supported version of the original Shaarli project, by Seba
             'private'=>1,
             'created'=> new DateTime('1 minute ago'),
             'tags'=>'secretstuff',
+            'sticky' => false,
         );
         $link['shorturl'] = link_small_hash($link['created'], $link['id']);
         $this->links[0] = $link;
@@ -317,10 +321,11 @@ You use the community supported version of the original Shaarli project, by Seba
                 } else {
                     $link['real_url'] .= $link['url'];
                 }
-            }
-            else {
+            } else {
                 $link['real_url'] = $link['url'];
             }
+
+            $link['sticky'] = isset($link['sticky']) ? $link['sticky'] : false;
 
             // To be able to load links before running the update, and prepare the update
             if (! isset($link['created'])) {
@@ -403,7 +408,8 @@ You use the community supported version of the original Shaarli project, by Seba
      *
      * @return array list of shaare found.
      */
-    public function filterDay($request) {
+    public function filterDay($request)
+    {
         $linkFilter = new LinkFilter($this->links);
         return $linkFilter->filter(LinkFilter::$FILTER_DAY, $request);
     }
@@ -420,8 +426,12 @@ You use the community supported version of the original Shaarli project, by Seba
      *
      * @return array filtered links, all links if no suitable filter was provided.
      */
-    public function filterSearch($filterRequest = array(), $casesensitive = false, $visibility = 'all', $untaggedonly = false)
-    {
+    public function filterSearch(
+        $filterRequest = array(),
+        $casesensitive = false,
+        $visibility = 'all',
+        $untaggedonly = false
+    ) {
         // Filter link database according to parameters.
         $searchtags = isset($filterRequest['searchtags']) ? escape($filterRequest['searchtags']) : '';
         $searchterm = isset($filterRequest['searchterm']) ? escape($filterRequest['searchterm']) : '';
@@ -436,15 +446,17 @@ You use the community supported version of the original Shaarli project, by Seba
 
     /**
      * Returns the list tags appearing in the links with the given tags
-     * @param $filteringTags: tags selecting the links to consider
-     * @param $visibility: process only all/private/public links
-     * @return: a tag=>linksCount array
+     *
+     * @param array $filteringTags tags selecting the links to consider
+     * @param string $visibility   process only all/private/public links
+     *
+     * @return array tag => linksCount
      */
     public function linksCountPerTag($filteringTags = [], $visibility = 'all')
     {
-        $links = empty($filteringTags) ? $this->links : $this->filterSearch(['searchtags' => $filteringTags], false, $visibility);
-        $tags = array();
-        $caseMapping = array();
+        $links = $this->filterSearch(['searchtags' => $filteringTags], false, $visibility);
+        $tags = [];
+        $caseMapping = [];
         foreach ($links as $link) {
             foreach (preg_split('/\s+/', $link['tags'], 0, PREG_SPLIT_NO_EMPTY) as $tag) {
                 if (empty($tag)) {
@@ -458,8 +470,19 @@ You use the community supported version of the original Shaarli project, by Seba
                 $tags[$caseMapping[strtolower($tag)]]++;
             }
         }
-        // Sort tags by usage (most used tag first)
-        arsort($tags);
+
+        /*
+         * Formerly used arsort(), which doesn't define the sort behaviour for equal values.
+         * Also, this function doesn't produce the same result between PHP 5.6 and 7.
+         *
+         * So we now use array_multisort() to sort tags by DESC occurrences,
+         * then ASC alphabetically for equal values.
+         *
+         * @see https://github.com/shaarli/Shaarli/issues/1142
+         */
+        $keys = array_keys($tags);
+        $tmpTags = array_combine($keys, $keys);
+        array_multisort($tags, SORT_DESC, $tmpTags, SORT_ASC, $tags);
         return $tags;
     }
 
@@ -479,8 +502,7 @@ You use the community supported version of the original Shaarli project, by Seba
         $delete = empty($to);
         // True for case-sensitive tag search.
         $linksToAlter = $this->filterSearch(['searchtags' => $from], true);
-        foreach($linksToAlter as $key => &$value)
-        {
+        foreach ($linksToAlter as $key => &$value) {
             $tags = preg_split('/\s+/', trim($value['tags']));
             if (($pos = array_search($from, $tags)) !== false) {
                 if ($delete) {
@@ -523,7 +545,10 @@ You use the community supported version of the original Shaarli project, by Seba
     {
         $order = $order === 'ASC' ? -1 : 1;
         // Reorder array by dates.
-        usort($this->links, function($a, $b) use ($order) {
+        usort($this->links, function ($a, $b) use ($order) {
+            if (isset($a['sticky']) && isset($b['sticky']) && $a['sticky'] !== $b['sticky']) {
+                return $a['sticky'] ? -1 : 1;
+            }
             return $a['created'] < $b['created'] ? 1 * $order : -1 * $order;
         });
 
