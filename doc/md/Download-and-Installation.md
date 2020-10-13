@@ -1,7 +1,7 @@
 To install Shaarli, simply place the files in a directory under your webserver's
 Document Root (or directly at the document root).
 
-Also, please make sure your server is properly [configured](Server-configuration).
+Also, please make sure your server is properly [configured](Server-configuration.md).
 
 Multiple releases branches are available:
 
@@ -24,11 +24,11 @@ Using one of the following methods:
 
 In most cases, you should download the latest Shaarli release from the [releases](https://github.com/shaarli/Shaarli/releases) page. Download our **shaarli-full** archive to include dependencies.
 
-The current latest released version is `v0.9.7`
+The current latest released version is `v0.10.4`
 
 ```bash
-$ wget https://github.com/shaarli/Shaarli/releases/download/v0.9.7/shaarli-v0.9.7-full.zip
-$ unzip shaarli-v0.9.7-full.zip
+$ wget https://github.com/shaarli/Shaarli/releases/download/v0.10.4/shaarli-v0.10.4-full.zip
+$ unzip shaarli-v0.10.4-full.zip
 $ mv Shaarli /path/to/shaarli/
 ```
 

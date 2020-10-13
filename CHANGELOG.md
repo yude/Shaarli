@@ -4,8 +4,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## [v0.10.4](https://github.com/shaarli/Shaarli/releases/tag/v0.10.4) - 2019-04-16
+## [v0.11.1](https://github.com/shaarli/Shaarli/releases/tag/v0.11.1) - 2019-08-03
 
+Release to fix broken Docker build on the latest version.
+
+### Fixed
+- Fixed Docker build
+- Fixed a few documentation broken links
+- Fixed broken label in configuration page
+
+### Added
+- More accessibility improvements
+
+## [v0.11.0](https://github.com/shaarli/Shaarli/releases/tag/v0.11.0) - 2019-07-27
+
+**Shaarli no longer officially support PHP 5.6 and PHP 7.0 as they've reached end of life.**
+
+**Shaarli classes now use namespace, third party plugins need to update.**
+
+### Added
+- Add optional PHP extension to composer suggestions.
+- composer: enforce PHP security advisories
+- phpDocumentor configuration and make target
+- Run unit tests against PHP 7.3
+- Bunch of accessibility improvements to the default template, thanks to @llune
+- Bulk actions: set visibility
+- Display sticky label in linklist
+- Add print CSS rules to the default template
+- New setting to automatically retrieve description for new bookmarks
+- Plugin to override default template colors
+
+### Changed
+- Shaarli now uses namespaces for its classes.
+- Rewrite IP ban management
+- Default template: slightly lighten visited link color
+- Hide select all button on mobile view
+- Switch from FontAwesome v4.x to ForkAwesome
+- Daily - display the current day instead of the previous one
+
+### Fixed
+- Do not check the IP address with session protection disabled
+- API: update test regexes to comply with PCRE2
+- Optimize and cleanup imports
+- ensure HTML tags are stripped from OpenGraph description
+- Documentation invalid links
+- Thumbnails disabling if PHP GD is not installed
+- Warning if links sticky status isn't set
+- Fix button overlapping on mobile in linklist
+- Do not try to retrieve thumbnails for internal link
+- Update node-sass to fix a vulnerability in node tar dependency
+- armhf Dockerfile
+- Default template: Responsive issue with delete button fix
+- Persist sticky status on bookmark update
+
+### Removed
+- Doxygen configuration
+- redirector setting
+- QRCode link to an external service
+
+## [v0.10.4](https://github.com/shaarli/Shaarli/releases/tag/v0.10.4) - 2019-04-16
 ### Fixed
 - Fix thumbnails disabling if PHP GD is not installed
 - Fix a warning if links sticky status isn't set
@@ -282,7 +339,7 @@ configuration to enable URL rewriting, see:
         - `/api/v1/info`: get general information on the Shaarli instance
         - `/api/v1/links`: get a list of shaared links
         - `/api/v1/history`: get a list of latest actions
-Theming:
+          Theming:
     - Introduce a new theme
     - Allow selecting themes/templates from the configuration page
     - New/Edit link form can be submitted using CTRL+Enter in the textarea
@@ -580,12 +637,12 @@ Please use our release archives, or follow the
 - Cleanup: introduce an `ApplicationUtils` class
 
 ### Removed
- - Cleanup: remove `json_encode()` function (built-in since PHP 5.2)
+- Cleanup: remove `json_encode()` function (built-in since PHP 5.2)
 
 ### Fixed
- - Auto-complete more than one tag
- - Bookmarklet: support titles containing quotes
- - URL encode links when setting a redirector
+- Auto-complete more than one tag
+- Bookmarklet: support titles containing quotes
+- URL encode links when setting a redirector
 
 
 ## [v0.6.0](https://github.com/shaarli/Shaarli/releases/tag/v0.6.0) - 2015-11-18
@@ -1222,8 +1279,8 @@ Initial release on GitHub.
 - In tag autocomplete, tags are presented in use order
   (most used tags first, instead of alphabetical order)
 - RSS Feed can now be filtered by tags or fulltext search. Just add to the feed url:
-  - `&searchtags=minecraft+video` for tag filtering
-  - `&searchterm=portal` for fulltext search to the feed url
+    - `&searchtags=minecraft+video` for tag filtering
+    - `&searchterm=portal` for fulltext search to the feed url
 
 
 ## [v0.0.12beta](http://sebsauvage.net/wiki/doku.php?id=php:shaarli:history)

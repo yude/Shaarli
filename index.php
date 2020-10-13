@@ -62,31 +62,33 @@ require_once 'inc/rain.tpl.class.php';
 require_once __DIR__ . '/vendor/autoload.php';
 
 // Shaarli library
-require_once 'application/ApplicationUtils.php';
-require_once 'application/Cache.php';
-require_once 'application/CachedPage.php';
+require_once 'application/bookmark/LinkUtils.php';
 require_once 'application/config/ConfigPlugin.php';
-require_once 'application/FeedBuilder.php';
+require_once 'application/feed/Cache.php';
+require_once 'application/http/HttpUtils.php';
+require_once 'application/http/UrlUtils.php';
+require_once 'application/updater/UpdaterUtils.php';
 require_once 'application/FileUtils.php';
-require_once 'application/History.php';
-require_once 'application/HttpUtils.php';
-require_once 'application/LinkDB.php';
-require_once 'application/LinkFilter.php';
-require_once 'application/LinkUtils.php';
-require_once 'application/NetscapeBookmarkUtils.php';
-require_once 'application/PageBuilder.php';
 require_once 'application/TimeZone.php';
-require_once 'application/Url.php';
 require_once 'application/Utils.php';
-require_once 'application/PluginManager.php';
-require_once 'application/Router.php';
-require_once 'application/Updater.php';
+
+use \Shaarli\ApplicationUtils;
+use \Shaarli\Bookmark\Exception\LinkNotFoundException;
+use \Shaarli\Bookmark\LinkDB;
 use \Shaarli\Config\ConfigManager;
+use \Shaarli\Feed\CachedPage;
+use \Shaarli\Feed\FeedBuilder;
+use \Shaarli\History;
 use \Shaarli\Languages;
+use \Shaarli\Netscape\NetscapeBookmarkUtils;
+use \Shaarli\Plugin\PluginManager;
+use \Shaarli\Render\PageBuilder;
+use \Shaarli\Render\ThemeUtils;
+use \Shaarli\Router;
 use \Shaarli\Security\LoginManager;
 use \Shaarli\Security\SessionManager;
-use \Shaarli\ThemeUtils;
 use \Shaarli\Thumbnailer;
+use \Shaarli\Updater\Updater;
 
 // Ensure the PHP version is supported
 try {
@@ -129,7 +131,7 @@ if (isset($_COOKIE['shaarli']) && !SessionManager::checkId($_COOKIE['shaarli']))
 
 $conf = new ConfigManager();
 $sessionManager = new SessionManager($_SESSION, $conf);
-$loginManager = new LoginManager($GLOBALS, $conf, $sessionManager);
+$loginManager = new LoginManager($conf, $sessionManager);
 $loginManager->generateStaySignedInToken($_SERVER['REMOTE_ADDR']);
 $clientIpId = client_ip_id($_SERVER);
 
@@ -316,9 +318,7 @@ function showDailyRSS($conf, $loginManager)
     $LINKSDB = new LinkDB(
         $conf->get('resource.datastore'),
         $loginManager->isLoggedIn(),
-        $conf->get('privacy.hide_public_links'),
-        $conf->get('redirector.url'),
-        $conf->get('redirector.encode_url')
+        $conf->get('privacy.hide_public_links')
     );
 
     /* Some Shaarlies may have very few links, so we need to look
@@ -360,13 +360,9 @@ function showDailyRSS($conf, $loginManager)
 
         // We pre-format some fields for proper output.
         foreach ($links as &$link) {
-            $link['formatedDescription'] = format_description(
-                $link['description'],
-                $conf->get('redirector.url'),
-                $conf->get('redirector.encode_url')
-            );
+            $link['formatedDescription'] = format_description($link['description']);
             $link['timestamp'] = $link['created']->getTimestamp();
-            if (startsWith($link['url'], '?')) {
+            if (is_note($link['url'])) {
                 $link['url'] = index_url($_SERVER) . $link['url'];  // make permalink URL absolute
             }
         }
@@ -402,9 +398,16 @@ function showDailyRSS($conf, $loginManager)
  */
 function showDaily($pageBuilder, $LINKSDB, $conf, $pluginManager, $loginManager)
 {
-    $day = date('Ymd', strtotime('-1 day')); // Yesterday, in format YYYYMMDD.
     if (isset($_GET['day'])) {
         $day = $_GET['day'];
+        if ($day === date('Ymd', strtotime('now'))) {
+            $pageBuilder->assign('dayDesc', t('Today'));
+        } elseif ($day === date('Ymd', strtotime('-1 days'))) {
+            $pageBuilder->assign('dayDesc', t('Yesterday'));
+        }
+    } else {
+        $day = date('Ymd', strtotime('now')); // Today, in format YYYYMMDD.
+        $pageBuilder->assign('dayDesc', t('Today'));
     }
 
     $days = $LINKSDB->days();
@@ -437,11 +440,7 @@ function showDaily($pageBuilder, $LINKSDB, $conf, $pluginManager, $loginManager)
         $taglist = explode(' ', $link['tags']);
         uasort($taglist, 'strcasecmp');
         $linksToDisplay[$key]['taglist']=$taglist;
-        $linksToDisplay[$key]['formatedDescription'] = format_description(
-            $link['description'],
-            $conf->get('redirector.url'),
-            $conf->get('redirector.encode_url')
-        );
+        $linksToDisplay[$key]['formatedDescription'] = format_description($link['description']);
         $linksToDisplay[$key]['timestamp'] =  $link['created']->getTimestamp();
     }
 
@@ -1022,6 +1021,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history, $sessionManager, 
             $conf->set('general.timezone', $tz);
             $conf->set('general.title', escape($_POST['title']));
             $conf->set('general.header_link', escape($_POST['titleLink']));
+            $conf->set('general.retrieve_description', !empty($_POST['retrieveDescription']));
             $conf->set('resource.theme', escape($_POST['theme']));
             $conf->set('security.session_protection_disabled', !empty($_POST['disablesessionprotection']));
             $conf->set('privacy.default_private_links', !empty($_POST['privateLinkByDefault']));
@@ -1070,6 +1070,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history, $sessionManager, 
             );
             $PAGE->assign('continents', $continents);
             $PAGE->assign('cities', $cities);
+            $PAGE->assign('retrieve_description', $conf->get('general.retrieve_description'));
             $PAGE->assign('private_links_default', $conf->get('privacy.default_private_links', false));
             $PAGE->assign('session_protection_disabled', $conf->get('security.session_protection_disabled', false));
             $PAGE->assign('enable_rss_permalinks', $conf->get('feed.rss_permalinks', false));
@@ -1078,7 +1079,6 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history, $sessionManager, 
             $PAGE->assign('api_enabled', $conf->get('api.enabled', true));
             $PAGE->assign('api_secret', $conf->get('api.secret'));
             $PAGE->assign('languages', Languages::getAvailableLanguages());
-            $PAGE->assign('language', $conf->get('translation.language'));
             $PAGE->assign('gd_enabled', extension_loaded('gd'));
             $PAGE->assign('thumbnails_mode', $conf->get('thumbnails.mode', Thumbnailer::MODE_NONE));
             $PAGE->assign('pagetitle', t('Configure') .' - '. $conf->get('general.title', 'Shaarli'));
@@ -1132,22 +1132,24 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history, $sessionManager, 
 
         // lf_id should only be present if the link exists.
         $id = isset($_POST['lf_id']) ? intval(escape($_POST['lf_id'])) : $LINKSDB->getNextId();
+        $link['id'] = $id;
         // Linkdate is kept here to:
         //   - use the same permalink for notes as they're displayed when creating them
         //   - let users hack creation date of their posts
         //     See: https://shaarli.readthedocs.io/en/master/guides/various-hacks/#changing-the-timestamp-for-a-shaare
         $linkdate = escape($_POST['lf_linkdate']);
+        $link['created'] = DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, $linkdate);
         if (isset($LINKSDB[$id])) {
             // Edit
-            $created = DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, $linkdate);
-            $updated = new DateTime();
-            $shortUrl = $LINKSDB[$id]['shorturl'];
+            $link['updated'] = new DateTime();
+            $link['shorturl'] = $LINKSDB[$id]['shorturl'];
+            $link['sticky'] = isset($LINKSDB[$id]['sticky']) ? $LINKSDB[$id]['sticky'] : false;
             $new = false;
         } else {
             // New link
-            $created = DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, $linkdate);
-            $updated = null;
-            $shortUrl = link_small_hash($created, $id);
+            $link['updated'] = null;
+            $link['shorturl'] = link_small_hash($link['created'], $id);
+            $link['sticky'] = false;
             $new = true;
         }
 
@@ -1163,24 +1165,22 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history, $sessionManager, 
         }
         $url = whitelist_protocols(trim($_POST['lf_url']), $conf->get('security.allowed_protocols'));
 
-        $link = array(
-            'id' => $id,
+        $link = array_merge($link, [
             'title' => trim($_POST['lf_title']),
             'url' => $url,
             'description' => $_POST['lf_description'],
             'private' => (isset($_POST['lf_private']) ? 1 : 0),
-            'created' => $created,
-            'updated' => $updated,
             'tags' => str_replace(',', ' ', $tags),
-            'shorturl' => $shortUrl,
-        );
+        ]);
 
         // If title is empty, use the URL as title.
         if ($link['title'] == '') {
             $link['title'] = $link['url'];
         }
 
-        if ($conf->get('thumbnails.mode', Thumbnailer::MODE_NONE) !== Thumbnailer::MODE_NONE) {
+        if ($conf->get('thumbnails.mode', Thumbnailer::MODE_NONE) !== Thumbnailer::MODE_NONE
+            && ! is_note($link['url'])
+        ) {
             $thumbnailer = new Thumbnailer($conf);
             $link['thumbnail'] = $thumbnailer->get($url);
         }
@@ -1279,6 +1279,51 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history, $sessionManager, 
         exit;
     }
 
+    // -------- User clicked either "Set public" or "Set private" bulk operation
+    if ($targetPage == Router::$PAGE_CHANGE_VISIBILITY) {
+        if (! $sessionManager->checkToken($_GET['token'])) {
+            die(t('Wrong token.'));
+        }
+
+        $ids = trim($_GET['ids']);
+        if (strpos($ids, ' ') !== false) {
+            // multiple, space-separated ids provided
+            $ids = array_values(array_filter(preg_split('/\s+/', escape($ids))));
+        } else {
+            // only a single id provided
+            $ids = [$ids];
+        }
+
+        // assert at least one id is given
+        if (!count($ids)) {
+            die('no id provided');
+        }
+        // assert that the visibility is valid
+        if (!isset($_GET['newVisibility']) || !in_array($_GET['newVisibility'], ['public', 'private'])) {
+            die('invalid visibility');
+        } else {
+            $private = $_GET['newVisibility'] === 'private';
+        }
+        foreach ($ids as $id) {
+            $id = (int) escape($id);
+            $link = $LINKSDB[$id];
+            $link['private'] = $private;
+            $pluginManager->executeHooks('save_link', $link);
+            $LINKSDB[$id] = $link;
+        }
+        $LINKSDB->save($conf->get('resource.page_cache')); // save to disk
+
+        $location = '?';
+        if (isset($_SERVER['HTTP_REFERER'])) {
+            $location = generateLocation(
+                $_SERVER['HTTP_REFERER'],
+                $_SERVER['HTTP_HOST']
+            );
+        }
+        header('Location: ' . $location); // After deleting the link, redirect to appropriate location
+        exit;
+    }
+
     // -------- User clicked the "EDIT" button on a link: Display link edit form.
     if (isset($_GET['edit_link'])) {
         $id = (int) escape($_GET['edit_link']);
@@ -1325,13 +1370,14 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history, $sessionManager, 
             // If this is an HTTP(S) link, we try go get the page to extract
             // the title (otherwise we will to straight to the edit form.)
             if (empty($title) && strpos(get_url_scheme($url), 'http') !== false) {
+                $retrieveDescription = $conf->get('general.retrieve_description');
                 // Short timeout to keep the application responsive
                 // The callback will fill $charset and $title with data from the downloaded page.
                 get_http_response(
                     $url,
                     $conf->get('general.download_timeout', 30),
                     $conf->get('general.download_max_size', 4194304),
-                    get_curl_download_callback($charset, $title)
+                    get_curl_download_callback($charset, $title, $description, $tags, $retrieveDescription)
                 );
                 if (! empty($title) && strtolower($charset) != 'utf-8') {
                     $title = mb_convert_encoding($title, 'utf-8', $charset);
@@ -1525,6 +1571,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history, $sessionManager, 
     if ($targetPage == Router::$PAGE_SAVE_PLUGINSADMIN) {
         try {
             if (isset($_POST['parameters_form'])) {
+                $pluginManager->executeHooks('save_plugin_parameters', $_POST);
                 unset($_POST['parameters_form']);
                 foreach ($_POST as $param => $value) {
                     $conf->set('plugins.'. $param, escape($value));
@@ -1564,7 +1611,7 @@ function renderPage($conf, $pluginManager, $LINKSDB, $history, $sessionManager, 
         $ids = [];
         foreach ($LINKSDB as $link) {
             // A note or not HTTP(S)
-            if ($link['url'][0] === '?' || ! startsWith(strtolower($link['url']), 'http')) {
+            if (is_note($link['url']) || ! startsWith(strtolower($link['url']), 'http')) {
                 continue;
             }
             $ids[] = $link['id'];
@@ -1668,11 +1715,7 @@ function buildLinkList($PAGE, $LINKSDB, $conf, $pluginManager, $loginManager)
     $linkDisp = array();
     while ($i<$end && $i<count($keys)) {
         $link = $linksToDisplay[$keys[$i]];
-        $link['description'] = format_description(
-            $link['description'],
-            $conf->get('redirector.url'),
-            $conf->get('redirector.encode_url')
-        );
+        $link['description'] = format_description($link['description']);
         $classLi =  ($i % 2) != 0 ? '' : 'publicLinkHightLight';
         $link['class'] = $link['private'] == 0 ? $classLi : 'private';
         $link['timestamp'] = $link['created']->getTimestamp();
@@ -1733,7 +1776,6 @@ function buildLinkList($PAGE, $LINKSDB, $conf, $pluginManager, $loginManager)
         'search_term' => $searchterm,
         'search_tags' => $searchtags,
         'visibility' => ! empty($_SESSION['visibility']) ? $_SESSION['visibility'] : '',
-        'redirector' => $conf->get('redirector.url'),  // Optional redirector URL.
         'links' => $linkDisp,
     );
 
@@ -1883,9 +1925,7 @@ try {
 $linkDb = new LinkDB(
     $conf->get('resource.datastore'),
     $loginManager->isLoggedIn(),
-    $conf->get('privacy.hide_public_links'),
-    $conf->get('redirector.url'),
-    $conf->get('redirector.encode_url')
+    $conf->get('privacy.hide_public_links')
 );
 
 $container = new \Slim\Container();
@@ -1908,7 +1948,7 @@ $app->group('/api/v1', function () {
     $this->put('/tags/{tagName:[\w]+}', '\Shaarli\Api\Controllers\Tags:putTag')->setName('putTag');
     $this->delete('/tags/{tagName:[\w]+}', '\Shaarli\Api\Controllers\Tags:deleteTag')->setName('deleteTag');
 
-    $this->get('/history', '\Shaarli\Api\Controllers\History:getHistory')->setName('getHistory');
+    $this->get('/history', '\Shaarli\Api\Controllers\HistoryController:getHistory')->setName('getHistory');
 })->add('\Shaarli\Api\ApiMiddleware');
 
 $response = $app->run(true);
