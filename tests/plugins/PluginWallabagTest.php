@@ -10,12 +10,12 @@ require_once 'plugins/wallabag/wallabag.php';
  * Class PluginWallabagTest
  * Unit test for the Wallabag plugin
  */
-class PluginWallabagTest extends \PHPUnit\Framework\TestCase
+class PluginWallabagTest extends \Shaarli\TestCase
 {
     /**
      * Reset plugin path
      */
-    public function setUp()
+    protected function setUp(): void
     {
         PluginManager::$PLUGINS_PATH = 'plugins';
     }

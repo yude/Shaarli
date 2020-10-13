@@ -2,9 +2,7 @@
 
 namespace Shaarli\Bookmark;
 
-use PHPUnit\Framework\TestCase;
-use ReferenceLinkDB;
-use Shaarli\Config\ConfigManager;
+use Shaarli\TestCase;
 
 require_once 'tests/utils/CurlUtils.php';
 
@@ -41,6 +39,19 @@ class LinkUtilsTest extends TestCase
     {
         $charset = 'x-MacCroatian';
         $headers = 'text/html; charset=' . $charset;
+        $this->assertEquals(strtolower($charset), header_extract_charset($headers));
+    }
+
+    /**
+     * Test headers_extract_charset() when the charset is found with odd quotes.
+     */
+    public function testHeadersExtractExistentCharsetWithQuotes()
+    {
+        $charset = 'x-MacCroatian';
+        $headers = 'text/html; charset="' . $charset . '"otherstuff="test"';
+        $this->assertEquals(strtolower($charset), header_extract_charset($headers));
+
+        $headers = 'text/html; charset=\'' . $charset . '\'otherstuff="test"';
         $this->assertEquals(strtolower($charset), header_extract_charset($headers));
     }
 
@@ -389,15 +400,6 @@ class LinkUtilsTest extends TestCase
     }
 
     /**
-     * Test count_private.
-     */
-    public function testCountPrivateLinks()
-    {
-        $refDB = new ReferenceLinkDB();
-        $this->assertEquals($refDB->countPrivateLinks(), count_private($refDB->getLinks()));
-    }
-
-    /**
      * Test text2clickable.
      */
     public function testText2clickable()
@@ -448,13 +450,13 @@ class LinkUtilsTest extends TestCase
             カタカナ #カタカナ」カタカナ\n';
         $autolinkedDescription = hashtag_autolink($rawDescription, $index);
 
-        $this->assertContains($this->getHashtagLink('hashtag', $index), $autolinkedDescription);
-        $this->assertNotContains(' #hashtag', $autolinkedDescription);
-        $this->assertNotContains('>#nothashtag', $autolinkedDescription);
-        $this->assertContains($this->getHashtagLink('ашок', $index), $autolinkedDescription);
-        $this->assertContains($this->getHashtagLink('カタカナ', $index), $autolinkedDescription);
-        $this->assertContains($this->getHashtagLink('hashtag_hashtag', $index), $autolinkedDescription);
-        $this->assertNotContains($this->getHashtagLink('hashtag-nothashtag', $index), $autolinkedDescription);
+        $this->assertContainsPolyfill($this->getHashtagLink('hashtag', $index), $autolinkedDescription);
+        $this->assertNotContainsPolyfill(' #hashtag', $autolinkedDescription);
+        $this->assertNotContainsPolyfill('>#nothashtag', $autolinkedDescription);
+        $this->assertContainsPolyfill($this->getHashtagLink('ашок', $index), $autolinkedDescription);
+        $this->assertContainsPolyfill($this->getHashtagLink('カタカナ', $index), $autolinkedDescription);
+        $this->assertContainsPolyfill($this->getHashtagLink('hashtag_hashtag', $index), $autolinkedDescription);
+        $this->assertNotContainsPolyfill($this->getHashtagLink('hashtag-nothashtag', $index), $autolinkedDescription);
     }
 
     /**
@@ -465,9 +467,9 @@ class LinkUtilsTest extends TestCase
         $rawDescription = 'blabla #hashtag x#nothashtag';
         $autolinkedDescription = hashtag_autolink($rawDescription);
 
-        $this->assertContains($this->getHashtagLink('hashtag'), $autolinkedDescription);
-        $this->assertNotContains(' #hashtag', $autolinkedDescription);
-        $this->assertNotContains('>#nothashtag', $autolinkedDescription);
+        $this->assertContainsPolyfill($this->getHashtagLink('hashtag'), $autolinkedDescription);
+        $this->assertNotContainsPolyfill(' #hashtag', $autolinkedDescription);
+        $this->assertNotContainsPolyfill('>#nothashtag', $autolinkedDescription);
     }
 
     /**
@@ -500,7 +502,7 @@ class LinkUtilsTest extends TestCase
      */
     private function getHashtagLink($hashtag, $index = '')
     {
-        $hashtagLink = '<a href="' . $index . '?addtag=$1" title="Hashtag $1">#$1</a>';
+        $hashtagLink = '<a href="' . $index . './add-tag/$1" title="Hashtag $1">#$1</a>';
         return str_replace('$1', $hashtag, $hashtagLink);
     }
 }

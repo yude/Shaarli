@@ -3,6 +3,7 @@ namespace Shaarli\Api;
 
 use Shaarli\Api\Exceptions\ApiAuthorizationException;
 use Shaarli\Api\Exceptions\ApiException;
+use Shaarli\Bookmark\BookmarkFileService;
 use Shaarli\Config\ConfigManager;
 use Slim\Container;
 use Slim\Http\Request;
@@ -70,7 +71,14 @@ class ApiMiddleware
             $response = $e->getApiResponse();
         }
 
-        return $response;
+        return $response
+            ->withHeader('Access-Control-Allow-Origin', '*')
+            ->withHeader(
+                'Access-Control-Allow-Headers',
+                'X-Requested-With, Content-Type, Accept, Origin, Authorization'
+            )
+            ->withHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        ;
     }
 
     /**
@@ -99,7 +107,9 @@ class ApiMiddleware
      */
     protected function checkToken($request)
     {
-        if (! $request->hasHeader('Authorization')) {
+        if (!$request->hasHeader('Authorization')
+            && !isset($this->container->environment['REDIRECT_HTTP_AUTHORIZATION'])
+        ) {
             throw new ApiAuthorizationException('JWT token not provided');
         }
 
@@ -107,7 +117,11 @@ class ApiMiddleware
             throw new ApiAuthorizationException('Token secret must be set in Shaarli\'s administration');
         }
 
-        $authorization = $request->getHeaderLine('Authorization');
+        if (isset($this->container->environment['REDIRECT_HTTP_AUTHORIZATION'])) {
+            $authorization = $this->container->environment['REDIRECT_HTTP_AUTHORIZATION'];
+        } else {
+            $authorization = $request->getHeaderLine('Authorization');
+        }
 
         if (! preg_match('/^Bearer (.*)/i', $authorization, $matches)) {
             throw new ApiAuthorizationException('Invalid JWT header');
@@ -117,7 +131,7 @@ class ApiMiddleware
     }
 
     /**
-     * Instantiate a new LinkDB including private links,
+     * Instantiate a new LinkDB including private bookmarks,
      * and load in the Slim container.
      *
      * FIXME! LinkDB could use a refactoring to avoid this trick.
@@ -126,10 +140,10 @@ class ApiMiddleware
      */
     protected function setLinkDb($conf)
     {
-        $linkDb = new \Shaarli\Bookmark\LinkDB(
-            $conf->get('resource.datastore'),
-            true,
-            $conf->get('privacy.hide_public_links')
+        $linkDb = new BookmarkFileService(
+            $conf,
+            $this->container->get('history'),
+            true
         );
         $this->container['db'] = $linkDb;
     }

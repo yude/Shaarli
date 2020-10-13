@@ -3,8 +3,8 @@
 
 namespace Shaarli\Security;
 
-use PHPUnit\Framework\TestCase;
 use Shaarli\FileUtils;
+use Shaarli\TestCase;
 
 /**
  * Test coverage for BanManager
@@ -32,7 +32,7 @@ class BanManagerTest extends TestCase
     /**
      * Prepare or reset test resources
      */
-    public function setUp()
+    protected function setUp(): void
     {
         if (file_exists($this->banFile)) {
             unlink($this->banFile);

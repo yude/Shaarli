@@ -3,10 +3,12 @@
 namespace Shaarli\Render;
 
 use Exception;
+use exceptions\MissingBasePathException;
 use RainTPL;
 use Shaarli\ApplicationUtils;
-use Shaarli\Bookmark\LinkDB;
+use Shaarli\Bookmark\BookmarkServiceInterface;
 use Shaarli\Config\ConfigManager;
+use Shaarli\Security\SessionManager;
 use Shaarli\Thumbnailer;
 
 /**
@@ -34,9 +36,9 @@ class PageBuilder
     protected $session;
 
     /**
-     * @var LinkDB $linkDB instance.
+     * @var BookmarkServiceInterface $bookmarkService instance.
      */
-    protected $linkDB;
+    protected $bookmarkService;
 
     /**
      * @var null|string XSRF token
@@ -52,20 +54,29 @@ class PageBuilder
      * PageBuilder constructor.
      * $tpl is initialized at false for lazy loading.
      *
-     * @param ConfigManager $conf       Configuration Manager instance (reference).
-     * @param array         $session    $_SESSION array
-     * @param LinkDB        $linkDB     instance.
-     * @param string        $token      Session token
-     * @param bool          $isLoggedIn
+     * @param ConfigManager            $conf    Configuration Manager instance (reference).
+     * @param array                    $session $_SESSION array
+     * @param BookmarkServiceInterface $linkDB  instance.
+     * @param string                   $token   Session token
+     * @param bool                     $isLoggedIn
      */
     public function __construct(&$conf, $session, $linkDB = null, $token = null, $isLoggedIn = false)
     {
         $this->tpl = false;
         $this->conf = $conf;
         $this->session = $session;
-        $this->linkDB = $linkDB;
+        $this->bookmarkService = $linkDB;
         $this->token = $token;
         $this->isLoggedIn = $isLoggedIn;
+    }
+
+    /**
+     * Reset current state of template rendering.
+     * Mostly useful for error handling. We remove everything, and display the error template.
+     */
+    public function reset(): void
+    {
+        $this->tpl = false;
     }
 
     /**
@@ -125,8 +136,8 @@ class PageBuilder
 
         $this->tpl->assign('language', $this->conf->get('translation.language'));
 
-        if ($this->linkDB !== null) {
-            $this->tpl->assign('tags', $this->linkDB->linksCountPerTag());
+        if ($this->bookmarkService !== null) {
+            $this->tpl->assign('tags', escape($this->bookmarkService->bookmarksCountPerTag()));
         }
 
         $this->tpl->assign(
@@ -136,13 +147,40 @@ class PageBuilder
         $this->tpl->assign('thumbnails_width', $this->conf->get('thumbnails.width'));
         $this->tpl->assign('thumbnails_height', $this->conf->get('thumbnails.height'));
 
-        if (!empty($_SESSION['warnings'])) {
-            $this->tpl->assign('global_warnings', $_SESSION['warnings']);
-            unset($_SESSION['warnings']);
-        }
+        $this->tpl->assign('formatter', $this->conf->get('formatter', 'default'));
+
+        $this->tpl->assign('links_per_page', $this->session['LINKS_PER_PAGE']);
 
         // To be removed with a proper theme configuration.
         $this->tpl->assign('conf', $this->conf);
+    }
+
+    /**
+     * Affect variable after controller processing.
+     * Used for alert messages.
+     */
+    protected function finalize(string $basePath): void
+    {
+        // TODO: use the SessionManager
+        $messageKeys = [
+            SessionManager::KEY_SUCCESS_MESSAGES,
+            SessionManager::KEY_WARNING_MESSAGES,
+            SessionManager::KEY_ERROR_MESSAGES
+        ];
+        foreach ($messageKeys as $messageKey) {
+            if (!empty($_SESSION[$messageKey])) {
+                $this->tpl->assign('global_' . $messageKey, $_SESSION[$messageKey]);
+                unset($_SESSION[$messageKey]);
+            }
+        }
+
+        $this->assign('base_path', $basePath);
+        $this->assign(
+            'asset_path',
+            $basePath . '/' .
+            rtrim($this->conf->get('resource.raintpl_tpl', 'tpl'), '/') . '/' .
+            $this->conf->get('resource.theme', 'default')
+        );
     }
 
     /**
@@ -183,33 +221,21 @@ class PageBuilder
     }
 
     /**
-     * Render a specific page (using a template file).
-     * e.g. $pb->renderPage('picwall');
+     * Render a specific page as string (using a template file).
+     * e.g. $pb->render('picwall');
      *
      * @param string $page Template filename (without extension).
+     *
+     * @return string Processed template content
      */
-    public function renderPage($page)
+    public function render(string $page, string $basePath): string
     {
         if ($this->tpl === false) {
             $this->initialize();
         }
 
-        $this->tpl->draw($page);
-    }
+        $this->finalize($basePath);
 
-    /**
-     * Render a 404 page (uses the template : tpl/404.tpl)
-     * usage: $PAGE->render404('The link was deleted')
-     *
-     * @param string $message A message to display what is not found
-     */
-    public function render404($message = '')
-    {
-        if (empty($message)) {
-            $message = t('The page you are trying to reach does not exist or has been deleted.');
-        }
-        header($_SERVER['SERVER_PROTOCOL'] . ' ' . t('404 Not Found'));
-        $this->tpl->assign('error_message', $message);
-        $this->renderPage('404');
+        return $this->tpl->draw($page, true);
     }
 }

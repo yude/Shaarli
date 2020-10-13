@@ -8,7 +8,7 @@ require_once 'tests/utils/FakeApplicationUtils.php';
 /**
  * Unitary tests for Shaarli utilities
  */
-class ApplicationUtilsTest extends \PHPUnit\Framework\TestCase
+class ApplicationUtilsTest extends \Shaarli\TestCase
 {
     protected static $testUpdateFile = 'sandbox/update.txt';
     protected static $testVersion = '0.5.0';
@@ -17,7 +17,7 @@ class ApplicationUtilsTest extends \PHPUnit\Framework\TestCase
     /**
      * Reset test data for each test
      */
-    public function setUp()
+    protected function setUp(): void
     {
         FakeApplicationUtils::$VERSION_CODE = '';
         if (file_exists(self::$testUpdateFile)) {
@@ -28,7 +28,7 @@ class ApplicationUtilsTest extends \PHPUnit\Framework\TestCase
     /**
      * Remove test version file if it exists
      */
-    public function tearDown()
+    protected function tearDown(): void
     {
         if (is_file('sandbox/version.php')) {
             unlink('sandbox/version.php');
@@ -144,11 +144,12 @@ class ApplicationUtilsTest extends \PHPUnit\Framework\TestCase
 
     /**
      * Test update checks - invalid Git branch
-     * @expectedException              Exception
-     * @expectedExceptionMessageRegExp /Invalid branch selected for updates/
      */
     public function testCheckUpdateInvalidGitBranch()
     {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageRegExp('/Invalid branch selected for updates/');
+
         ApplicationUtils::checkUpdate('', 'null', 0, true, true, 'unstable');
     }
 
@@ -253,29 +254,31 @@ class ApplicationUtilsTest extends \PHPUnit\Framework\TestCase
     public function testCheckSupportedPHPVersion()
     {
         $minVersion = '5.3';
-        ApplicationUtils::checkPHPVersion($minVersion, '5.4.32');
-        ApplicationUtils::checkPHPVersion($minVersion, '5.5');
-        ApplicationUtils::checkPHPVersion($minVersion, '5.6.10');
+        $this->assertTrue(ApplicationUtils::checkPHPVersion($minVersion, '5.4.32'));
+        $this->assertTrue(ApplicationUtils::checkPHPVersion($minVersion, '5.5'));
+        $this->assertTrue(ApplicationUtils::checkPHPVersion($minVersion, '5.6.10'));
     }
 
     /**
      * Check a unsupported PHP version
-     * @expectedException              Exception
-     * @expectedExceptionMessageRegExp /Your PHP version is obsolete/
      */
     public function testCheckSupportedPHPVersion51()
     {
-        ApplicationUtils::checkPHPVersion('5.3', '5.1.0');
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageRegExp('/Your PHP version is obsolete/');
+
+        $this->assertTrue(ApplicationUtils::checkPHPVersion('5.3', '5.1.0'));
     }
 
     /**
      * Check another unsupported PHP version
-     * @expectedException              Exception
-     * @expectedExceptionMessageRegExp /Your PHP version is obsolete/
      */
     public function testCheckSupportedPHPVersion52()
     {
-        ApplicationUtils::checkPHPVersion('5.3', '5.2');
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageRegExp('/Your PHP version is obsolete/');
+
+        $this->assertTrue(ApplicationUtils::checkPHPVersion('5.3', '5.2'));
     }
 
     /**

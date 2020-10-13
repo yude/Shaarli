@@ -3,6 +3,7 @@
 namespace Shaarli\Api\Controllers;
 
 use Shaarli\Api\Exceptions\ApiBadParametersException;
+use Shaarli\Bookmark\BookmarkFileService;
 use Shaarli\Bookmark\LinkDB;
 use Shaarli\Config\ConfigManager;
 use Shaarli\History;
@@ -11,7 +12,7 @@ use Slim\Http\Environment;
 use Slim\Http\Request;
 use Slim\Http\Response;
 
-class PutTagTest extends \PHPUnit\Framework\TestCase
+class PutTagTest extends \Shaarli\TestCase
 {
     /**
      * @var string datastore to test write operations
@@ -44,9 +45,9 @@ class PutTagTest extends \PHPUnit\Framework\TestCase
     protected $container;
 
     /**
-     * @var LinkDB instance.
+     * @var BookmarkFileService instance.
      */
-    protected $linkDB;
+    protected $bookmarkService;
 
     /**
      * @var Tags controller instance.
@@ -59,22 +60,22 @@ class PutTagTest extends \PHPUnit\Framework\TestCase
     const NB_FIELDS_TAG = 2;
 
     /**
-     * Before every test, instantiate a new Api with its config, plugins and links.
+     * Before every test, instantiate a new Api with its config, plugins and bookmarks.
      */
-    public function setUp()
+    protected function setUp(): void
     {
-        $this->conf = new ConfigManager('tests/utils/config/configJson.json.php');
+        $this->conf = new ConfigManager('tests/utils/config/configJson');
+        $this->conf->set('resource.datastore', self::$testDatastore);
         $this->refDB = new \ReferenceLinkDB();
         $this->refDB->write(self::$testDatastore);
-
         $refHistory = new \ReferenceHistory();
         $refHistory->write(self::$testHistory);
         $this->history = new History(self::$testHistory);
+        $this->bookmarkService = new BookmarkFileService($this->conf, $this->history, true);
 
         $this->container = new Container();
         $this->container['conf'] = $this->conf;
-        $this->linkDB = new LinkDB(self::$testDatastore, true, false);
-        $this->container['db'] = $this->linkDB;
+        $this->container['db'] = $this->bookmarkService;
         $this->container['history'] = $this->history;
 
         $this->controller = new Tags($this->container);
@@ -83,7 +84,7 @@ class PutTagTest extends \PHPUnit\Framework\TestCase
     /**
      * After every test, remove the test datastore.
      */
-    public function tearDown()
+    protected function tearDown(): void
     {
         @unlink(self::$testDatastore);
         @unlink(self::$testHistory);
@@ -109,7 +110,7 @@ class PutTagTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals($newName, $data['name']);
         $this->assertEquals(2, $data['occurrences']);
 
-        $tags = $this->linkDB->linksCountPerTag();
+        $tags = $this->bookmarkService->bookmarksCountPerTag();
         $this->assertNotTrue(isset($tags[$tagName]));
         $this->assertEquals(2, $tags[$newName]);
 
@@ -133,7 +134,7 @@ class PutTagTest extends \PHPUnit\Framework\TestCase
         $tagName = 'gnu';
         $newName = 'w3c';
 
-        $tags = $this->linkDB->linksCountPerTag();
+        $tags = $this->bookmarkService->bookmarksCountPerTag();
         $this->assertEquals(1, $tags[$newName]);
         $this->assertEquals(2, $tags[$tagName]);
 
@@ -151,23 +152,23 @@ class PutTagTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals($newName, $data['name']);
         $this->assertEquals(3, $data['occurrences']);
 
-        $tags = $this->linkDB->linksCountPerTag();
+        $tags = $this->bookmarkService->bookmarksCountPerTag();
         $this->assertNotTrue(isset($tags[$tagName]));
         $this->assertEquals(3, $tags[$newName]);
     }
 
     /**
      * Test tag update with an empty new tag name => ApiBadParametersException
-     *
-     * @expectedException Shaarli\Api\Exceptions\ApiBadParametersException
-     * @expectedExceptionMessage New tag name is required in the request body
      */
     public function testPutTagEmpty()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiBadParametersException::class);
+        $this->expectExceptionMessage('New tag name is required in the request body');
+
         $tagName = 'gnu';
         $newName = '';
 
-        $tags = $this->linkDB->linksCountPerTag();
+        $tags = $this->bookmarkService->bookmarksCountPerTag();
         $this->assertEquals(2, $tags[$tagName]);
 
         $env = Environment::mock([
@@ -185,7 +186,7 @@ class PutTagTest extends \PHPUnit\Framework\TestCase
         try {
             $this->controller->putTag($request, new Response(), ['tagName' => $tagName]);
         } catch (ApiBadParametersException $e) {
-            $tags = $this->linkDB->linksCountPerTag();
+            $tags = $this->bookmarkService->bookmarksCountPerTag();
             $this->assertEquals(2, $tags[$tagName]);
             throw $e;
         }
@@ -193,12 +194,12 @@ class PutTagTest extends \PHPUnit\Framework\TestCase
 
     /**
      * Test tag update on non existent tag => ApiTagNotFoundException.
-     *
-     * @expectedException Shaarli\Api\Exceptions\ApiTagNotFoundException
-     * @expectedExceptionMessage Tag not found
      */
     public function testPutTag404()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiTagNotFoundException::class);
+        $this->expectExceptionMessage('Tag not found');
+
         $env = Environment::mock([
             'REQUEST_METHOD' => 'PUT',
         ]);

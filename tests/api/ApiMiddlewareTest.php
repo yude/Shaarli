@@ -2,6 +2,7 @@
 namespace Shaarli\Api;
 
 use Shaarli\Config\ConfigManager;
+use Shaarli\History;
 use Slim\Container;
 use Slim\Http\Environment;
 use Slim\Http\Request;
@@ -17,7 +18,7 @@ use Slim\Http\Response;
  *
  * @package Api
  */
-class ApiMiddlewareTest extends \PHPUnit\Framework\TestCase
+class ApiMiddlewareTest extends \Shaarli\TestCase
 {
     /**
      * @var string datastore to test write operations
@@ -25,7 +26,7 @@ class ApiMiddlewareTest extends \PHPUnit\Framework\TestCase
     protected static $testDatastore = 'sandbox/datastore.php';
 
     /**
-     * @var \ConfigManager instance
+     * @var ConfigManager instance
      */
     protected $conf;
 
@@ -40,26 +41,76 @@ class ApiMiddlewareTest extends \PHPUnit\Framework\TestCase
     protected $container;
 
     /**
-     * Before every test, instantiate a new Api with its config, plugins and links.
+     * Before every test, instantiate a new Api with its config, plugins and bookmarks.
      */
-    public function setUp()
+    protected function setUp(): void
     {
-        $this->conf = new ConfigManager('tests/utils/config/configJson.json.php');
+        $this->conf = new ConfigManager('tests/utils/config/configJson');
         $this->conf->set('api.secret', 'NapoleonWasALizard');
 
         $this->refDB = new \ReferenceLinkDB();
         $this->refDB->write(self::$testDatastore);
 
+        $history = new History('sandbox/history.php');
+
         $this->container = new Container();
         $this->container['conf'] = $this->conf;
+        $this->container['history'] = $history;
     }
 
     /**
      * After every test, remove the test datastore.
      */
-    public function tearDown()
+    protected function tearDown(): void
     {
         @unlink(self::$testDatastore);
+    }
+
+    /**
+     * Invoke the middleware with a valid token
+     */
+    public function testInvokeMiddlewareWithValidToken(): void
+    {
+        $next = function (Request $request, Response $response): Response {
+            return $response;
+        };
+        $mw = new ApiMiddleware($this->container);
+        $env = Environment::mock([
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/echo',
+            'HTTP_AUTHORIZATION'=> 'Bearer ' . ApiUtilsTest::generateValidJwtToken('NapoleonWasALizard'),
+        ]);
+        $request = Request::createFromEnvironment($env);
+        $response = new Response();
+        /** @var Response $response */
+        $response = $mw($request, $response, $next);
+
+        $this->assertEquals(200, $response->getStatusCode());
+    }
+
+    /**
+     * Invoke the middleware with a valid token
+     * Using specific Apache CGI redirected authorization.
+     */
+    public function testInvokeMiddlewareWithValidTokenFromRedirectedHeader(): void
+    {
+        $next = function (Request $request, Response $response): Response {
+            return $response;
+        };
+
+        $token = 'Bearer ' . ApiUtilsTest::generateValidJwtToken('NapoleonWasALizard');
+        $this->container->environment['REDIRECT_HTTP_AUTHORIZATION'] = $token;
+        $mw = new ApiMiddleware($this->container);
+        $env = Environment::mock([
+            'REQUEST_METHOD' => 'GET',
+            'REQUEST_URI' => '/echo',
+        ]);
+        $request = Request::createFromEnvironment($env);
+        $response = new Response();
+        /** @var Response $response */
+        $response = $mw($request, $response, $next);
+
+        $this->assertEquals(200, $response->getStatusCode());
     }
 
     /**
@@ -105,7 +156,7 @@ class ApiMiddlewareTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals(401, $response->getStatusCode());
         $body = json_decode((string) $response->getBody());
         $this->assertEquals('Not authorized: API is disabled', $body->message);
-        $this->assertContains('ApiAuthorizationException', $body->stacktrace);
+        $this->assertContainsPolyfill('ApiAuthorizationException', $body->stacktrace);
     }
 
     /**
@@ -128,7 +179,7 @@ class ApiMiddlewareTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals(401, $response->getStatusCode());
         $body = json_decode((string) $response->getBody());
         $this->assertEquals('Not authorized: JWT token not provided', $body->message);
-        $this->assertContains('ApiAuthorizationException', $body->stacktrace);
+        $this->assertContainsPolyfill('ApiAuthorizationException', $body->stacktrace);
     }
 
     /**
@@ -153,7 +204,7 @@ class ApiMiddlewareTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals(401, $response->getStatusCode());
         $body = json_decode((string) $response->getBody());
         $this->assertEquals('Not authorized: Token secret must be set in Shaarli\'s administration', $body->message);
-        $this->assertContains('ApiAuthorizationException', $body->stacktrace);
+        $this->assertContainsPolyfill('ApiAuthorizationException', $body->stacktrace);
     }
 
     /**
@@ -176,7 +227,7 @@ class ApiMiddlewareTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals(401, $response->getStatusCode());
         $body = json_decode((string) $response->getBody());
         $this->assertEquals('Not authorized: Invalid JWT header', $body->message);
-        $this->assertContains('ApiAuthorizationException', $body->stacktrace);
+        $this->assertContainsPolyfill('ApiAuthorizationException', $body->stacktrace);
     }
 
     /**
@@ -202,6 +253,6 @@ class ApiMiddlewareTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals(401, $response->getStatusCode());
         $body = json_decode((string) $response->getBody());
         $this->assertEquals('Not authorized: Malformed JWT token', $body->message);
-        $this->assertContains('ApiAuthorizationException', $body->stacktrace);
+        $this->assertContainsPolyfill('ApiAuthorizationException', $body->stacktrace);
     }
 }

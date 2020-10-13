@@ -10,7 +10,7 @@ require_once 'application/Languages.php';
 /**
  * Unitary tests for Shaarli utilities
  */
-class UtilsTest extends PHPUnit\Framework\TestCase
+class UtilsTest extends \Shaarli\TestCase
 {
     // Log file
     protected static $testLogFile = 'tests.log';
@@ -26,7 +26,7 @@ class UtilsTest extends PHPUnit\Framework\TestCase
     /**
      * Assign reference data
      */
-    public static function setUpBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         self::$defaultTimeZone = date_default_timezone_get();
         // Timezone without DST for test consistency
@@ -36,7 +36,7 @@ class UtilsTest extends PHPUnit\Framework\TestCase
     /**
      * Reset the timezone
      */
-    public static function tearDownAfterClass()
+    public static function tearDownAfterClass(): void
     {
         date_default_timezone_set(self::$defaultTimeZone);
     }
@@ -44,7 +44,7 @@ class UtilsTest extends PHPUnit\Framework\TestCase
     /**
      * Resets test data before each test
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         if (file_exists(self::$testLogFile)) {
             unlink(self::$testLogFile);
@@ -203,7 +203,7 @@ class UtilsTest extends PHPUnit\Framework\TestCase
     public function testGenerateLocationLoop()
     {
         $ref = 'http://localhost/?test';
-        $this->assertEquals('?', generateLocation($ref, 'localhost', array('test')));
+        $this->assertEquals('./?', generateLocation($ref, 'localhost', array('test')));
     }
 
     /**
@@ -212,7 +212,7 @@ class UtilsTest extends PHPUnit\Framework\TestCase
     public function testGenerateLocationOut()
     {
         $ref = 'http://somewebsite.com/?test';
-        $this->assertEquals('?', generateLocation($ref, 'localhost'));
+        $this->assertEquals('./?', generateLocation($ref, 'localhost'));
     }
 
 

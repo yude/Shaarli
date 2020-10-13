@@ -1,4 +1,5 @@
 <?php
+
 namespace Shaarli\Plugin\Archiveorg;
 
 /**
@@ -6,6 +7,7 @@ namespace Shaarli\Plugin\Archiveorg;
  */
 
 use Shaarli\Plugin\PluginManager;
+use Shaarli\TestCase;
 
 require_once 'plugins/archiveorg/archiveorg.php';
 
@@ -13,20 +15,35 @@ require_once 'plugins/archiveorg/archiveorg.php';
  * Class PluginArchiveorgTest
  * Unit test for the archiveorg plugin
  */
-class PluginArchiveorgTest extends \PHPUnit\Framework\TestCase
+class PluginArchiveorgTest extends TestCase
 {
+    protected $savedScriptName;
+
     /**
      * Reset plugin path
      */
-    public function setUp()
+    public function setUp(): void
     {
         PluginManager::$PLUGINS_PATH = 'plugins';
+
+        // plugins manipulate global vars
+        $_SERVER['SERVER_PORT'] = '80';
+        $_SERVER['SERVER_NAME'] = 'shaarli.shaarli';
+        $this->savedScriptName = $_SERVER['SCRIPT_NAME'] ?? null;
+        $_SERVER['SCRIPT_NAME'] = '/index.php';
+    }
+
+    public function tearDown(): void
+    {
+        unset($_SERVER['SERVER_PORT']);
+        unset($_SERVER['SERVER_NAME']);
+        $_SERVER['SCRIPT_NAME'] = $this->savedScriptName;
     }
 
     /**
-     * Test render_linklist hook on external links.
+     * Test render_linklist hook on external bookmarks.
      */
-    public function testArchiveorgLinklistOnExternalLinks()
+    public function testArchiveorgLinklistOnExternalLinks(): void
     {
         $str = 'http://randomstr.com/test';
 
@@ -54,18 +71,18 @@ class PluginArchiveorgTest extends \PHPUnit\Framework\TestCase
     }
 
     /**
-     * Test render_linklist hook on internal links.
+     * Test render_linklist hook on internal bookmarks.
      */
-    public function testArchiveorgLinklistOnInternalLinks()
+    public function testArchiveorgLinklistOnInternalLinks(): void
     {
-        $internalLink1 = 'http://shaarli.shaarli/?qvMAqg';
-        $internalLinkRealURL1 = '?qvMAqg';
+        $internalLink1 = 'http://shaarli.shaarli/shaare/qvMAqg';
+        $internalLinkRealURL1 = '/shaare/qvMAqg';
 
-        $internalLink2 = 'http://shaarli.shaarli/?2_7zww';
-        $internalLinkRealURL2 = '?2_7zww';
+        $internalLink2 = 'http://shaarli.shaarli/shaare/2_7zww';
+        $internalLinkRealURL2 = '/shaare/2_7zww';
 
-        $internalLink3 = 'http://shaarli.shaarli/?z7u-_Q';
-        $internalLinkRealURL3 = '?z7u-_Q';
+        $internalLink3 = 'http://shaarli.shaarli/shaare/z7u-_Q';
+        $internalLinkRealURL3 = '/shaare/z7u-_Q';
 
         $data = array(
             'title' => $internalLink1,

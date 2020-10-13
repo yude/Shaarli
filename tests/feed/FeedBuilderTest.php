@@ -4,14 +4,20 @@ namespace Shaarli\Feed;
 
 use DateTime;
 use ReferenceLinkDB;
+use Shaarli\Bookmark\Bookmark;
+use Shaarli\Bookmark\BookmarkFileService;
 use Shaarli\Bookmark\LinkDB;
+use Shaarli\Config\ConfigManager;
+use Shaarli\Formatter\FormatterFactory;
+use Shaarli\History;
+use Shaarli\TestCase;
 
 /**
  * FeedBuilderTest class.
  *
  * Unit tests for FeedBuilder.
  */
-class FeedBuilderTest extends \PHPUnit\Framework\TestCase
+class FeedBuilderTest extends TestCase
 {
     /**
      * @var string locale Basque (Spain).
@@ -30,42 +36,33 @@ class FeedBuilderTest extends \PHPUnit\Framework\TestCase
 
     protected static $testDatastore = 'sandbox/datastore.php';
 
-    public static $linkDB;
+    public static $bookmarkService;
+
+    public static $formatter;
 
     public static $serverInfo;
 
     /**
      * Called before every test method.
      */
-    public static function setUpBeforeClass()
+    public static function setUpBeforeClass(): void
     {
-        $refLinkDB = new ReferenceLinkDB();
+        $conf = new ConfigManager('tests/utils/config/configJson');
+        $conf->set('resource.datastore', self::$testDatastore);
+        $refLinkDB = new \ReferenceLinkDB();
         $refLinkDB->write(self::$testDatastore);
-        self::$linkDB = new LinkDB(self::$testDatastore, true, false);
+        $history = new History('sandbox/history.php');
+        $factory = new FormatterFactory($conf, true);
+        self::$formatter = $factory->getFormatter();
+        self::$bookmarkService = new BookmarkFileService($conf, $history, true);
+
         self::$serverInfo = array(
             'HTTPS' => 'Off',
             'SERVER_NAME' => 'host.tld',
             'SERVER_PORT' => '80',
             'SCRIPT_NAME' => '/index.php',
-            'REQUEST_URI' => '/index.php?do=feed',
+            'REQUEST_URI' => '/feed/atom',
         );
-    }
-
-    /**
-     * Test GetTypeLanguage().
-     */
-    public function testGetTypeLanguage()
-    {
-        $feedBuilder = new FeedBuilder(null, FeedBuilder::$FEED_ATOM, null, null, false);
-        $feedBuilder->setLocale(self::$LOCALE);
-        $this->assertEquals(self::$ATOM_LANGUAGUE, $feedBuilder->getTypeLanguage());
-        $feedBuilder = new FeedBuilder(null, FeedBuilder::$FEED_RSS, null, null, false);
-        $feedBuilder->setLocale(self::$LOCALE);
-        $this->assertEquals(self::$RSS_LANGUAGE, $feedBuilder->getTypeLanguage());
-        $feedBuilder = new FeedBuilder(null, FeedBuilder::$FEED_ATOM, null, null, false);
-        $this->assertEquals('en', $feedBuilder->getTypeLanguage());
-        $feedBuilder = new FeedBuilder(null, FeedBuilder::$FEED_RSS, null, null, false);
-        $this->assertEquals('en-en', $feedBuilder->getTypeLanguage());
     }
 
     /**
@@ -73,31 +70,36 @@ class FeedBuilderTest extends \PHPUnit\Framework\TestCase
      */
     public function testRSSBuildData()
     {
-        $feedBuilder = new FeedBuilder(self::$linkDB, FeedBuilder::$FEED_RSS, self::$serverInfo, null, false);
+        $feedBuilder = new FeedBuilder(
+            self::$bookmarkService,
+            self::$formatter,
+            static::$serverInfo,
+            false
+        );
         $feedBuilder->setLocale(self::$LOCALE);
-        $data = $feedBuilder->buildData();
+        $data = $feedBuilder->buildData(FeedBuilder::$FEED_RSS, null);
         // Test headers (RSS)
         $this->assertEquals(self::$RSS_LANGUAGE, $data['language']);
         $this->assertRegExp('/Wed, 03 Aug 2016 09:30:33 \+\d{4}/', $data['last_update']);
         $this->assertEquals(true, $data['show_dates']);
-        $this->assertEquals('http://host.tld/index.php?do=feed', $data['self_link']);
+        $this->assertEquals('http://host.tld/feed/atom', $data['self_link']);
         $this->assertEquals('http://host.tld/', $data['index_url']);
         $this->assertFalse($data['usepermalinks']);
         $this->assertEquals(ReferenceLinkDB::$NB_LINKS_TOTAL, count($data['links']));
 
         // Test first not pinned link (note link)
-        $link = $data['links'][array_keys($data['links'])[2]];
+        $link = $data['links'][array_keys($data['links'])[0]];
         $this->assertEquals(41, $link['id']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20150310_114651'), $link['created']);
-        $this->assertEquals('http://host.tld/?WDWyig', $link['guid']);
-        $this->assertEquals('http://host.tld/?WDWyig', $link['url']);
+        $this->assertEquals(DateTime::createFromFormat(Bookmark::LINK_DATE_FORMAT, '20150310_114651'), $link['created']);
+        $this->assertEquals('http://host.tld/shaare/WDWyig', $link['guid']);
+        $this->assertEquals('http://host.tld/shaare/WDWyig', $link['url']);
         $this->assertRegExp('/Tue, 10 Mar 2015 11:46:51 \+\d{4}/', $link['pub_iso_date']);
         $pub = DateTime::createFromFormat(DateTime::RSS, $link['pub_iso_date']);
         $up = DateTime::createFromFormat(DateTime::ATOM, $link['up_iso_date']);
         $this->assertEquals($pub, $up);
-        $this->assertContains('Stallman has a beard', $link['description']);
-        $this->assertContains('Permalink', $link['description']);
-        $this->assertContains('http://host.tld/?WDWyig', $link['description']);
+        $this->assertContainsPolyfill('Stallman has a beard', $link['description']);
+        $this->assertContainsPolyfill('Permalink', $link['description']);
+        $this->assertContainsPolyfill('http://host.tld/shaare/WDWyig', $link['description']);
         $this->assertEquals(1, count($link['taglist']));
         $this->assertEquals('sTuff', $link['taglist'][0]);
 
@@ -117,12 +119,17 @@ class FeedBuilderTest extends \PHPUnit\Framework\TestCase
      */
     public function testAtomBuildData()
     {
-        $feedBuilder = new FeedBuilder(self::$linkDB, FeedBuilder::$FEED_ATOM, self::$serverInfo, null, false);
+        $feedBuilder = new FeedBuilder(
+            self::$bookmarkService,
+            self::$formatter,
+            static::$serverInfo,
+            false
+        );
         $feedBuilder->setLocale(self::$LOCALE);
-        $data = $feedBuilder->buildData();
+        $data = $feedBuilder->buildData(FeedBuilder::$FEED_ATOM, null);
         $this->assertEquals(ReferenceLinkDB::$NB_LINKS_TOTAL, count($data['links']));
         $this->assertRegExp('/2016-08-03T09:30:33\+\d{2}:\d{2}/', $data['last_update']);
-        $link = $data['links'][array_keys($data['links'])[2]];
+        $link = $data['links'][array_keys($data['links'])[0]];
         $this->assertRegExp('/2015-03-10T11:46:51\+\d{2}:\d{2}/', $link['pub_iso_date']);
         $this->assertRegExp('/2016-08-03T09:30:33\+\d{2}:\d{2}/', $data['links'][8]['up_iso_date']);
     }
@@ -136,13 +143,18 @@ class FeedBuilderTest extends \PHPUnit\Framework\TestCase
             'searchtags' => 'stuff',
             'searchterm' => 'beard',
         );
-        $feedBuilder = new FeedBuilder(self::$linkDB, FeedBuilder::$FEED_ATOM, self::$serverInfo, $criteria, false);
+        $feedBuilder = new FeedBuilder(
+            self::$bookmarkService,
+            self::$formatter,
+            static::$serverInfo,
+            false
+        );
         $feedBuilder->setLocale(self::$LOCALE);
-        $data = $feedBuilder->buildData();
+        $data = $feedBuilder->buildData(FeedBuilder::$FEED_ATOM, $criteria);
         $this->assertEquals(1, count($data['links']));
         $link = array_shift($data['links']);
         $this->assertEquals(41, $link['id']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20150310_114651'), $link['created']);
+        $this->assertEquals(DateTime::createFromFormat(Bookmark::LINK_DATE_FORMAT, '20150310_114651'), $link['created']);
     }
 
     /**
@@ -153,13 +165,18 @@ class FeedBuilderTest extends \PHPUnit\Framework\TestCase
         $criteria = array(
             'nb' => '3',
         );
-        $feedBuilder = new FeedBuilder(self::$linkDB, FeedBuilder::$FEED_ATOM, self::$serverInfo, $criteria, false);
+        $feedBuilder = new FeedBuilder(
+            self::$bookmarkService,
+            self::$formatter,
+            static::$serverInfo,
+            false
+        );
         $feedBuilder->setLocale(self::$LOCALE);
-        $data = $feedBuilder->buildData();
+        $data = $feedBuilder->buildData(FeedBuilder::$FEED_ATOM, $criteria);
         $this->assertEquals(3, count($data['links']));
-        $link = $data['links'][array_keys($data['links'])[2]];
+        $link = $data['links'][array_keys($data['links'])[0]];
         $this->assertEquals(41, $link['id']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20150310_114651'), $link['created']);
+        $this->assertEquals(DateTime::createFromFormat(Bookmark::LINK_DATE_FORMAT, '20150310_114651'), $link['created']);
     }
 
     /**
@@ -167,28 +184,33 @@ class FeedBuilderTest extends \PHPUnit\Framework\TestCase
      */
     public function testBuildDataPermalinks()
     {
-        $feedBuilder = new FeedBuilder(self::$linkDB, FeedBuilder::$FEED_ATOM, self::$serverInfo, null, false);
+        $feedBuilder = new FeedBuilder(
+            self::$bookmarkService,
+            self::$formatter,
+            static::$serverInfo,
+            false
+        );
         $feedBuilder->setLocale(self::$LOCALE);
         $feedBuilder->setUsePermalinks(true);
-        $data = $feedBuilder->buildData();
+        $data = $feedBuilder->buildData(FeedBuilder::$FEED_ATOM, null);
         $this->assertEquals(ReferenceLinkDB::$NB_LINKS_TOTAL, count($data['links']));
         $this->assertTrue($data['usepermalinks']);
         // First link is a permalink
-        $link = $data['links'][array_keys($data['links'])[2]];
+        $link = $data['links'][array_keys($data['links'])[0]];
         $this->assertEquals(41, $link['id']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20150310_114651'), $link['created']);
-        $this->assertEquals('http://host.tld/?WDWyig', $link['guid']);
-        $this->assertEquals('http://host.tld/?WDWyig', $link['url']);
-        $this->assertContains('Direct link', $link['description']);
-        $this->assertContains('http://host.tld/?WDWyig', $link['description']);
+        $this->assertEquals(DateTime::createFromFormat(Bookmark::LINK_DATE_FORMAT, '20150310_114651'), $link['created']);
+        $this->assertEquals('http://host.tld/shaare/WDWyig', $link['guid']);
+        $this->assertEquals('http://host.tld/shaare/WDWyig', $link['url']);
+        $this->assertContainsPolyfill('Direct link', $link['description']);
+        $this->assertContainsPolyfill('http://host.tld/shaare/WDWyig', $link['description']);
         // Second link is a direct link
-        $link = $data['links'][array_keys($data['links'])[3]];
+        $link = $data['links'][array_keys($data['links'])[1]];
         $this->assertEquals(8, $link['id']);
-        $this->assertEquals(DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20150310_114633'), $link['created']);
-        $this->assertEquals('http://host.tld/?RttfEw', $link['guid']);
+        $this->assertEquals(DateTime::createFromFormat(Bookmark::LINK_DATE_FORMAT, '20150310_114633'), $link['created']);
+        $this->assertEquals('http://host.tld/shaare/RttfEw', $link['guid']);
         $this->assertEquals('https://static.fsf.org/nosvn/faif-2.0.pdf', $link['url']);
-        $this->assertContains('Direct link', $link['description']);
-        $this->assertContains('https://static.fsf.org/nosvn/faif-2.0.pdf', $link['description']);
+        $this->assertContainsPolyfill('Direct link', $link['description']);
+        $this->assertContainsPolyfill('https://static.fsf.org/nosvn/faif-2.0.pdf', $link['description']);
     }
 
     /**
@@ -196,18 +218,28 @@ class FeedBuilderTest extends \PHPUnit\Framework\TestCase
      */
     public function testBuildDataHideDates()
     {
-        $feedBuilder = new FeedBuilder(self::$linkDB, FeedBuilder::$FEED_ATOM, self::$serverInfo, null, false);
+        $feedBuilder = new FeedBuilder(
+            self::$bookmarkService,
+            self::$formatter,
+            static::$serverInfo,
+            false
+        );
         $feedBuilder->setLocale(self::$LOCALE);
         $feedBuilder->setHideDates(true);
-        $data = $feedBuilder->buildData();
+        $data = $feedBuilder->buildData(FeedBuilder::$FEED_ATOM, null);
         $this->assertEquals(ReferenceLinkDB::$NB_LINKS_TOTAL, count($data['links']));
         $this->assertFalse($data['show_dates']);
 
         // Show dates while logged in
-        $feedBuilder = new FeedBuilder(self::$linkDB, FeedBuilder::$FEED_ATOM, self::$serverInfo, null, true);
+        $feedBuilder = new FeedBuilder(
+            self::$bookmarkService,
+            self::$formatter,
+            static::$serverInfo,
+            true
+        );
         $feedBuilder->setLocale(self::$LOCALE);
         $feedBuilder->setHideDates(true);
-        $data = $feedBuilder->buildData();
+        $data = $feedBuilder->buildData(FeedBuilder::$FEED_ATOM, null);
         $this->assertEquals(ReferenceLinkDB::$NB_LINKS_TOTAL, count($data['links']));
         $this->assertTrue($data['show_dates']);
     }
@@ -222,27 +254,26 @@ class FeedBuilderTest extends \PHPUnit\Framework\TestCase
             'SERVER_NAME' => 'host.tld',
             'SERVER_PORT' => '8080',
             'SCRIPT_NAME' => '/~user/shaarli/index.php',
-            'REQUEST_URI' => '/~user/shaarli/index.php?do=feed',
+            'REQUEST_URI' => '/~user/shaarli/feed/atom',
         );
         $feedBuilder = new FeedBuilder(
-            self::$linkDB,
-            FeedBuilder::$FEED_ATOM,
+            self::$bookmarkService,
+            self::$formatter,
             $serverInfo,
-            null,
             false
         );
         $feedBuilder->setLocale(self::$LOCALE);
-        $data = $feedBuilder->buildData();
+        $data = $feedBuilder->buildData(FeedBuilder::$FEED_ATOM, null);
 
         $this->assertEquals(
-            'http://host.tld:8080/~user/shaarli/index.php?do=feed',
+            'http://host.tld:8080/~user/shaarli/feed/atom',
             $data['self_link']
         );
 
         // Test first link (note link)
-        $link = $data['links'][array_keys($data['links'])[2]];
-        $this->assertEquals('http://host.tld:8080/~user/shaarli/?WDWyig', $link['guid']);
-        $this->assertEquals('http://host.tld:8080/~user/shaarli/?WDWyig', $link['url']);
-        $this->assertContains('http://host.tld:8080/~user/shaarli/?addtag=hashtag', $link['description']);
+        $link = $data['links'][array_keys($data['links'])[0]];
+        $this->assertEquals('http://host.tld:8080/~user/shaarli/shaare/WDWyig', $link['guid']);
+        $this->assertEquals('http://host.tld:8080/~user/shaarli/shaare/WDWyig', $link['url']);
+        $this->assertContainsPolyfill('http://host.tld:8080/~user/shaarli/./add-tag/hashtag', $link['description']);
     }
 }

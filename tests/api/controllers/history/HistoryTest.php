@@ -11,7 +11,7 @@ use Slim\Http\Response;
 
 require_once 'tests/utils/ReferenceHistory.php';
 
-class HistoryTest extends \PHPUnit\Framework\TestCase
+class HistoryTest extends \Shaarli\TestCase
 {
     /**
      * @var string datastore to test write operations
@@ -39,11 +39,11 @@ class HistoryTest extends \PHPUnit\Framework\TestCase
     protected $controller;
 
     /**
-     * Before every test, instantiate a new Api with its config, plugins and links.
+     * Before every test, instantiate a new Api with its config, plugins and bookmarks.
      */
-    public function setUp()
+    protected function setUp(): void
     {
-        $this->conf = new ConfigManager('tests/utils/config/configJson.json.php');
+        $this->conf = new ConfigManager('tests/utils/config/configJson');
         $this->refHistory = new \ReferenceHistory();
         $this->refHistory->write(self::$testHistory);
         $this->container = new Container();
@@ -57,7 +57,7 @@ class HistoryTest extends \PHPUnit\Framework\TestCase
     /**
      * After every test, remove the test datastore.
      */
-    public function tearDown()
+    protected function tearDown(): void
     {
         @unlink(self::$testHistory);
     }

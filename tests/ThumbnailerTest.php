@@ -2,7 +2,6 @@
 
 namespace Shaarli;
 
-use PHPUnit\Framework\TestCase;
 use Shaarli\Config\ConfigManager;
 use WebThumbnailer\Application\ConfigManager as WTConfigManager;
 
@@ -30,7 +29,7 @@ class ThumbnailerTest extends TestCase
      */
     protected $conf;
 
-    public function setUp()
+    protected function setUp(): void
     {
         $this->conf = new ConfigManager('tests/utils/config/configJson');
         $this->conf->set('thumbnails.mode', Thumbnailer::MODE_ALL);
@@ -43,7 +42,7 @@ class ThumbnailerTest extends TestCase
         WTConfigManager::addFile('tests/utils/config/wt.json');
     }
 
-    public function tearDown()
+    protected function tearDown(): void
     {
         $this->rrmdirContent('sandbox/');
     }

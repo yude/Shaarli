@@ -16,7 +16,7 @@ class PluginManager
      *
      * @var array $authorizedPlugins
      */
-    private $authorizedPlugins;
+    private $authorizedPlugins = [];
 
     /**
      * List of loaded plugins.
@@ -100,20 +100,34 @@ class PluginManager
      */
     public function executeHooks($hook, &$data, $params = array())
     {
-        if (!empty($params['target'])) {
-            $data['_PAGE_'] = $params['target'];
-        }
+        $metadataParameters = [
+            'target' => '_PAGE_',
+            'loggedin' => '_LOGGEDIN_',
+            'basePath' => '_BASE_PATH_',
+            'bookmarkService' => '_BOOKMARK_SERVICE_',
+        ];
 
-        if (isset($params['loggedin'])) {
-            $data['_LOGGEDIN_'] = $params['loggedin'];
+        foreach ($metadataParameters as $parameter => $metaKey) {
+            if (array_key_exists($parameter, $params)) {
+                $data[$metaKey] = $params[$parameter];
+            }
         }
 
         foreach ($this->loadedPlugins as $plugin) {
             $hookFunction = $this->buildHookName($hook, $plugin);
 
             if (function_exists($hookFunction)) {
-                $data = call_user_func($hookFunction, $data, $this->conf);
+                try {
+                    $data = call_user_func($hookFunction, $data, $this->conf);
+                } catch (\Throwable $e) {
+                    $error = $plugin . t(' [plugin incompatibility]: ') . $e->getMessage();
+                    $this->errors = array_unique(array_merge($this->errors, [$error]));
+                }
             }
+        }
+
+        foreach ($metadataParameters as $metaKey) {
+            unset($data[$metaKey]);
         }
     }
 

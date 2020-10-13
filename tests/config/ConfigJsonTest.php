@@ -4,14 +4,14 @@ namespace Shaarli\Config;
 /**
  * Class ConfigJsonTest
  */
-class ConfigJsonTest extends \PHPUnit\Framework\TestCase
+class ConfigJsonTest extends \Shaarli\TestCase
 {
     /**
      * @var ConfigJson
      */
     protected $configIO;
 
-    public function setUp()
+    protected function setUp(): void
     {
         $this->configIO = new ConfigJson();
     }
@@ -24,7 +24,7 @@ class ConfigJsonTest extends \PHPUnit\Framework\TestCase
         $conf = $this->configIO->read('tests/utils/config/configJson.json.php');
         $this->assertEquals('root', $conf['credentials']['login']);
         $this->assertEquals('lala', $conf['redirector']['url']);
-        $this->assertEquals('tests/utils/config/datastore.php', $conf['resource']['datastore']);
+        $this->assertEquals('sandbox/datastore.php', $conf['resource']['datastore']);
         $this->assertEquals('1', $conf['plugins']['WALLABAG_VERSION']);
     }
 
@@ -38,12 +38,12 @@ class ConfigJsonTest extends \PHPUnit\Framework\TestCase
 
     /**
      * Read a non existent config file -> empty array.
-     *
-     * @expectedException \Exception
-     * @expectedExceptionMessageRegExp  /An error occurred while parsing JSON configuration file \([\w\/\.]+\): error code #4/
      */
     public function testReadInvalidJson()
     {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageRegExp('/An error occurred while parsing JSON configuration file \\([\\w\\/\\.]+\\): error code #4/');
+
         $this->configIO->read('tests/utils/config/configInvalid.json.php');
     }
 
@@ -110,22 +110,11 @@ class ConfigJsonTest extends \PHPUnit\Framework\TestCase
 
     /**
      * Write to invalid path.
-     *
-     * @expectedException \Shaarli\Exceptions\IOException
-     */
-    public function testWriteInvalidArray()
-    {
-        $conf = array('conf' => 'value');
-        @$this->configIO->write(array(), $conf);
-    }
-
-    /**
-     * Write to invalid path.
-     *
-     * @expectedException \Shaarli\Exceptions\IOException
      */
     public function testWriteInvalidBlank()
     {
+        $this->expectException(\Shaarli\Exceptions\IOException::class);
+
         $conf = array('conf' => 'value');
         @$this->configIO->write('', $conf);
     }

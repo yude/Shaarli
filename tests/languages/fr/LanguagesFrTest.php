@@ -12,7 +12,7 @@ use Shaarli\Config\ConfigManager;
  *
  * @package Shaarli
  */
-class LanguagesFrTest extends \PHPUnit\Framework\TestCase
+class LanguagesFrTest extends \Shaarli\TestCase
 {
     /**
      * @var string Config file path (without extension).
@@ -27,7 +27,7 @@ class LanguagesFrTest extends \PHPUnit\Framework\TestCase
     /**
      * Init: force French
      */
-    public function setUp()
+    protected function setUp(): void
     {
         $this->conf = new ConfigManager(self::$configFile);
         $this->conf->set('translation.language', 'fr');
@@ -36,7 +36,7 @@ class LanguagesFrTest extends \PHPUnit\Framework\TestCase
     /**
      * Reset the locale since gettext seems to mess with it, making it too long
      */
-    public static function tearDownAfterClass()
+    public static function tearDownAfterClass(): void
     {
         if (! empty(getenv('UT_LOCALE'))) {
             setlocale(LC_ALL, getenv('UT_LOCALE'));

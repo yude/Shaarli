@@ -8,14 +8,14 @@ require_once 'application/TimeZone.php';
 /**
  * Unitary tests for timezone utilities
  */
-class TimeZoneTest extends PHPUnit\Framework\TestCase
+class TimeZoneTest extends \Shaarli\TestCase
 {
     /**
      * @var array of timezones
      */
     protected $installedTimezones;
 
-    public function setUp()
+    protected function setUp(): void
     {
         $this->installedTimezones = [
             'Antarctica/Syowa',

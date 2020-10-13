@@ -2,8 +2,10 @@
 
 namespace Shaarli\Api\Controllers;
 
+use Shaarli\Bookmark\BookmarkFileService;
 use Shaarli\Bookmark\LinkDB;
 use Shaarli\Config\ConfigManager;
+use Shaarli\History;
 use Slim\Container;
 use Slim\Http\Environment;
 use Slim\Http\Request;
@@ -16,7 +18,7 @@ use Slim\Http\Response;
  *
  * @package Shaarli\Api\Controllers
  */
-class GetTagNameTest extends \PHPUnit\Framework\TestCase
+class GetTagNameTest extends \Shaarli\TestCase
 {
     /**
      * @var string datastore to test write operations
@@ -49,17 +51,19 @@ class GetTagNameTest extends \PHPUnit\Framework\TestCase
     const NB_FIELDS_TAG = 2;
 
     /**
-     * Before each test, instantiate a new Api with its config, plugins and links.
+     * Before each test, instantiate a new Api with its config, plugins and bookmarks.
      */
-    public function setUp()
+    protected function setUp(): void
     {
         $this->conf = new ConfigManager('tests/utils/config/configJson');
+        $this->conf->set('resource.datastore', self::$testDatastore);
         $this->refDB = new \ReferenceLinkDB();
         $this->refDB->write(self::$testDatastore);
+        $history = new History('sandbox/history.php');
 
         $this->container = new Container();
         $this->container['conf'] = $this->conf;
-        $this->container['db'] = new LinkDB(self::$testDatastore, true, false);
+        $this->container['db'] = new BookmarkFileService($this->conf, $history, true);
         $this->container['history'] = null;
 
         $this->controller = new Tags($this->container);
@@ -68,7 +72,7 @@ class GetTagNameTest extends \PHPUnit\Framework\TestCase
     /**
      * After each test, remove the test datastore.
      */
-    public function tearDown()
+    protected function tearDown(): void
     {
         @unlink(self::$testDatastore);
     }
@@ -113,12 +117,12 @@ class GetTagNameTest extends \PHPUnit\Framework\TestCase
 
     /**
      * Test basic getTag service: get non existent tag => ApiTagNotFoundException.
-     *
-     * @expectedException Shaarli\Api\Exceptions\ApiTagNotFoundException
-     * @expectedExceptionMessage Tag not found
      */
     public function testGetTag404()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiTagNotFoundException::class);
+        $this->expectExceptionMessage('Tag not found');
+
         $env = Environment::mock([
             'REQUEST_METHOD' => 'GET',
         ]);

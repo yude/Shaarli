@@ -10,7 +10,7 @@ import Awesomplete from 'awesomplete';
  * @returns Found element or null.
  */
 function findParent(element, tagName, attributes) {
-  const parentMatch = key => attributes[key] !== '' && element.getAttribute(key).indexOf(attributes[key]) !== -1;
+  const parentMatch = (key) => attributes[key] !== '' && element.getAttribute(key).indexOf(attributes[key]) !== -1;
   while (element) {
     if (element.tagName.toLowerCase() === tagName) {
       if (Object.keys(attributes).find(parentMatch)) {
@@ -25,12 +25,18 @@ function findParent(element, tagName, attributes) {
 /**
  * Ajax request to refresh the CSRF token.
  */
-function refreshToken() {
+function refreshToken(basePath, callback) {
   const xhr = new XMLHttpRequest();
-  xhr.open('GET', '?do=token');
+  xhr.open('GET', `${basePath}/admin/token`);
   xhr.onload = () => {
-    const token = document.getElementById('token');
-    token.setAttribute('value', xhr.responseText);
+    const elements = document.querySelectorAll('input[name="token"]');
+    [...elements].forEach((element) => {
+      element.setAttribute('value', xhr.responseText);
+    });
+
+    if (callback) {
+      callback(xhr.response);
+    }
   };
   xhr.send();
 }
@@ -95,7 +101,7 @@ function updateAwesompleteList(selector, tags, instances) {
  * @see http://stackoverflow.com/questions/18749591/encode-html-entities-in-javascript
  */
 function htmlEntities(str) {
-  return str.replace(/[\u00A0-\u9999<>&]/gim, i => `&#${i.charCodeAt(0)};`);
+  return str.replace(/[\u00A0-\u9999<>&]/gim, (i) => `&#${i.charCodeAt(0)};`);
 }
 
 /**
@@ -188,8 +194,8 @@ function removeClass(element, classname) {
 function init(description) {
   function resize() {
     /* Fix jumpy resizing: https://stackoverflow.com/a/18262927/1484919 */
-    const scrollTop = window.pageYOffset ||
-      (document.documentElement || document.body.parentNode || document.body).scrollTop;
+    const scrollTop = window.pageYOffset
+      || (document.documentElement || document.body.parentNode || document.body).scrollTop;
 
     description.style.height = 'auto';
     description.style.height = `${description.scrollHeight + 10}px`;
@@ -215,6 +221,8 @@ function init(description) {
 }
 
 (() => {
+  const basePath = document.querySelector('input[name="js_base_path"]').value;
+
   /**
    * Handle responsive menu.
    * Source: http://purecss.io/layouts/tucked-menu-vertical/
@@ -461,7 +469,7 @@ function init(description) {
       });
 
       if (window.confirm(message)) {
-        window.location = `?delete_link&lf_linkdate=${ids.join('+')}&token=${token.value}`;
+        window.location = `${basePath}/admin/shaare/delete?id=${ids.join('+')}&token=${token.value}`;
       }
     });
   }
@@ -482,8 +490,10 @@ function init(description) {
           });
         });
 
-        const ids = links.map(item => item.id);
-        window.location = `?change_visibility&token=${token.value}&newVisibility=${visibility}&ids=${ids.join('+')}`;
+        const ids = links.map((item) => item.id);
+        window.location = (
+          `${basePath}/admin/shaare/visibility?token=${token.value}&newVisibility=${visibility}&id=${ids.join('+')}`
+        );
       });
     });
   }
@@ -545,8 +555,9 @@ function init(description) {
       }
       const refreshedToken = document.getElementById('token').value;
       const fromtag = block.getAttribute('data-tag');
+      const fromtagUrl = block.getAttribute('data-tag-url');
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', '?do=changetag');
+      xhr.open('POST', `${basePath}/admin/tags`);
       xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
       xhr.onload = () => {
         if (xhr.status !== 200) {
@@ -554,20 +565,28 @@ function init(description) {
           location.reload();
         } else {
           block.setAttribute('data-tag', totag);
+          block.setAttribute('data-tag-url', encodeURIComponent(totag));
           input.setAttribute('name', totag);
           input.setAttribute('value', totag);
           findParent(input, 'div', { class: 'rename-tag-form' }).style.display = 'none';
           block.querySelector('a.tag-link').innerHTML = htmlEntities(totag);
-          block.querySelector('a.tag-link').setAttribute('href', `?searchtags=${encodeURIComponent(totag)}`);
-          block.querySelector('a.rename-tag').setAttribute('href', `?do=changetag&fromtag=${encodeURIComponent(totag)}`);
+          block
+            .querySelector('a.tag-link')
+            .setAttribute('href', `${basePath}/?searchtags=${encodeURIComponent(totag)}`);
+          block
+            .querySelector('a.count')
+            .setAttribute('href', `${basePath}/add-tag/${encodeURIComponent(totag)}`);
+          block
+            .querySelector('a.rename-tag')
+            .setAttribute('href', `${basePath}/admin/tags?fromtag=${encodeURIComponent(totag)}`);
 
           // Refresh awesomplete values
-          existingTags = existingTags.map(tag => (tag === fromtag ? totag : tag));
+          existingTags = existingTags.map((tag) => (tag === fromtag ? totag : tag));
           awesomepletes = updateAwesompleteList('.rename-tag-input', existingTags, awesomepletes);
         }
       };
-      xhr.send(`renametag=1&fromtag=${encodeURIComponent(fromtag)}&totag=${encodeURIComponent(totag)}&token=${refreshedToken}`);
-      refreshToken();
+      xhr.send(`renametag=1&fromtag=${fromtagUrl}&totag=${encodeURIComponent(totag)}&token=${refreshedToken}`);
+      refreshToken(basePath);
     });
   });
 
@@ -589,19 +608,20 @@ function init(description) {
       event.preventDefault();
       const block = findParent(event.target, 'div', { class: 'tag-list-item' });
       const tag = block.getAttribute('data-tag');
+      const tagUrl = block.getAttribute('data-tag-url');
       const refreshedToken = document.getElementById('token').value;
 
       if (confirm(`Are you sure you want to delete the tag "${tag}"?`)) {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', '?do=changetag');
+        xhr.open('POST', `${basePath}/admin/tags`);
         xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         xhr.onload = () => {
           block.remove();
         };
-        xhr.send(encodeURI(`deletetag=1&fromtag=${tag}&token=${refreshedToken}`));
-        refreshToken();
+        xhr.send(`deletetag=1&fromtag=${tagUrl}&token=${refreshedToken}`);
+        refreshToken(basePath);
 
-        existingTags = existingTags.filter(tagItem => tagItem !== tag);
+        existingTags = existingTags.filter((tagItem) => tagItem !== tag);
         awesomepletes = updateAwesompleteList('.rename-tag-input', existingTags, awesomepletes);
       }
     });
@@ -611,4 +631,15 @@ function init(description) {
   [...autocompleteFields].forEach((autocompleteField) => {
     awesomepletes.push(createAwesompleteInstance(autocompleteField));
   });
+
+  const exportForm = document.querySelector('#exportform');
+  if (exportForm != null) {
+    exportForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+
+      refreshToken(basePath, () => {
+        event.target.submit();
+      });
+    });
+  }
 })();

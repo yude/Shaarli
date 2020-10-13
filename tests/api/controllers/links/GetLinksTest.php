@@ -1,8 +1,11 @@
 <?php
 namespace Shaarli\Api\Controllers;
 
+use Shaarli\Bookmark\Bookmark;
+use Shaarli\Bookmark\BookmarkFileService;
 use Shaarli\Bookmark\LinkDB;
 use Shaarli\Config\ConfigManager;
+use Shaarli\History;
 use Slim\Container;
 use Slim\Http\Environment;
 use Slim\Http\Request;
@@ -17,7 +20,7 @@ use Slim\Http\Response;
  *
  * @package Shaarli\Api\Controllers
  */
-class GetLinksTest extends \PHPUnit\Framework\TestCase
+class GetLinksTest extends \Shaarli\TestCase
 {
     /**
      * @var string datastore to test write operations
@@ -50,17 +53,19 @@ class GetLinksTest extends \PHPUnit\Framework\TestCase
     const NB_FIELDS_LINK = 9;
 
     /**
-     * Before every test, instantiate a new Api with its config, plugins and links.
+     * Before every test, instantiate a new Api with its config, plugins and bookmarks.
      */
-    public function setUp()
+    protected function setUp(): void
     {
         $this->conf = new ConfigManager('tests/utils/config/configJson');
+        $this->conf->set('resource.datastore', self::$testDatastore);
         $this->refDB = new \ReferenceLinkDB();
         $this->refDB->write(self::$testDatastore);
+        $history = new History('sandbox/history.php');
 
         $this->container = new Container();
         $this->container['conf'] = $this->conf;
-        $this->container['db'] = new LinkDB(self::$testDatastore, true, false);
+        $this->container['db'] = new BookmarkFileService($this->conf, $history, true);
         $this->container['history'] = null;
 
         $this->controller = new Links($this->container);
@@ -69,13 +74,13 @@ class GetLinksTest extends \PHPUnit\Framework\TestCase
     /**
      * After every test, remove the test datastore.
      */
-    public function tearDown()
+    protected function tearDown(): void
     {
         @unlink(self::$testDatastore);
     }
 
     /**
-     * Test basic getLinks service: returns all links.
+     * Test basic getLinks service: returns all bookmarks.
      */
     public function testGetLinks()
     {
@@ -104,7 +109,7 @@ class GetLinksTest extends \PHPUnit\Framework\TestCase
 
         // Check first element fields
         $first = $data[2];
-        $this->assertEquals('http://domain.tld/?WDWyig', $first['url']);
+        $this->assertEquals('http://domain.tld/shaare/WDWyig', $first['url']);
         $this->assertEquals('WDWyig', $first['shorturl']);
         $this->assertEquals('Link title: @website', $first['title']);
         $this->assertEquals(
@@ -114,7 +119,7 @@ class GetLinksTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals('sTuff', $first['tags'][0]);
         $this->assertEquals(false, $first['private']);
         $this->assertEquals(
-            \DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20150310_114651')->format(\DateTime::ATOM),
+            \DateTime::createFromFormat(Bookmark::LINK_DATE_FORMAT, '20150310_114651')->format(\DateTime::ATOM),
             $first['created']
         );
         $this->assertEmpty($first['updated']);
@@ -125,7 +130,7 @@ class GetLinksTest extends \PHPUnit\Framework\TestCase
 
         // Update date
         $this->assertEquals(
-            \DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, '20160803_093033')->format(\DateTime::ATOM),
+            \DateTime::createFromFormat(Bookmark::LINK_DATE_FORMAT, '20160803_093033')->format(\DateTime::ATOM),
             $link['updated']
         );
     }

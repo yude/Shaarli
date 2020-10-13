@@ -69,20 +69,22 @@ pre {
   font-family: 'Roboto';
   font-weight: 400;
   font-style: normal;
-  src: local('Roboto'),
-  local('Roboto-Regular'),
-  url('../fonts/Roboto-Regular.woff2') format('woff2'),
-  url('../fonts/Roboto-Regular.woff') format('woff');
+  src:
+    local('Roboto'),
+    local('Roboto-Regular'),
+    url('../fonts/Roboto-Regular.woff2') format('woff2'),
+    url('../fonts/Roboto-Regular.woff') format('woff');
 }
 
 @font-face {
   font-family: 'Roboto';
   font-weight: 700;
   font-style: normal;
-  src: local('Roboto'),
-  local('Roboto-Bold'),
-  url('../fonts/Roboto-Bold.woff2') format('woff2'),
-  url('../fonts/Roboto-Bold.woff') format('woff');
+  src:
+    local('Roboto'),
+    local('Roboto-Bold'),
+    url('../fonts/Roboto-Bold.woff2') format('woff2'),
+    url('../fonts/Roboto-Bold.woff') format('woff');
 }
 
 body,
@@ -375,7 +377,7 @@ body,
 }
 
 @media screen and (max-width: 64em) {
-  .header-search ,
+  .header-search,
   .header-search * {
     visibility: hidden;
   }
@@ -490,6 +492,10 @@ body,
   }
 }
 
+.header-alert-message {
+  text-align: center;
+}
+
 // CONTENT - GENERAL
 .container {
   position: relative;
@@ -549,7 +555,6 @@ body,
   margin: 5px 0;
   color: $dark-grey;
   font-size: .9em;
-
 
   a {
     display: inline-block;
@@ -612,6 +617,11 @@ body,
     padding: 5px;
     text-decoration: none;
     color: $dark-grey;
+
+    &.selected {
+      background: var(--main-color);
+      color: $white;
+    }
   }
 
   input {
@@ -1236,8 +1246,19 @@ form {
   color: $dark-grey;
 }
 
-.page404-container {
+.page-error-container {
   color: $dark-grey;
+
+  h2 {
+    margin: 70px 0 25px;
+  }
+
+  pre {
+    margin: 0 20%;
+    padding: 20px 0;
+    text-align: left;
+    line-height: .7em;
+  }
 }
 
 // EDIT LINK
@@ -1436,6 +1457,8 @@ form {
   -webkit-transition: opacity 500ms ease-in-out;
   -moz-transition: opacity 500ms ease-in-out;
   -o-transition: opacity 500ms ease-in-out;
+  min-width: 1px;
+  min-height: 1px;
 
   &.b-loaded {
     opacity: 1;
@@ -1535,11 +1558,11 @@ form {
   text-align: center;
 
   a {
+    background: $almost-white;
     display: inline-block;
-    margin: 0 15px;
+    padding: 5px;
     text-decoration: none;
-    color: $white;
-    font-weight: bold;
+    color: $dark-grey;
   }
 }
 
@@ -1587,13 +1610,14 @@ form {
 
   > div {
     border-radius: 10px;
-    background: repeating-linear-gradient(
-      -45deg,
-      $almost-white,
-      $almost-white 6px,
-      var(--background-color) 6px,
-      var(--background-color) 12px
-    );
+    background:
+      repeating-linear-gradient(
+        -45deg,
+        $almost-white,
+        $almost-white 6px,
+        var(--background-color) 6px,
+        var(--background-color) 12px
+      );
     width: 0%;
     height: 10px;
   }

@@ -1,6 +1,7 @@
 <?php
 namespace Shaarli\Security;
 
+use Exception;
 use Shaarli\Config\ConfigManager;
 
 /**
@@ -8,9 +9,6 @@ use Shaarli\Config\ConfigManager;
  */
 class LoginManager
 {
-    /** @var string Name of the cookie set after logging in **/
-    public static $STAY_SIGNED_IN_COOKIE = 'shaarli_staySignedIn';
-
     /** @var array A reference to the $_GLOBALS array */
     protected $globals = [];
 
@@ -31,17 +29,21 @@ class LoginManager
 
     /** @var string User sign-in token depending on remote IP and credentials */
     protected $staySignedInToken = '';
+    /** @var CookieManager */
+    protected $cookieManager;
 
     /**
      * Constructor
      *
      * @param ConfigManager  $configManager  Configuration Manager instance
      * @param SessionManager $sessionManager SessionManager instance
+     * @param CookieManager  $cookieManager  CookieManager instance
      */
-    public function __construct($configManager, $sessionManager)
+    public function __construct($configManager, $sessionManager, $cookieManager)
     {
         $this->configManager = $configManager;
         $this->sessionManager = $sessionManager;
+        $this->cookieManager = $cookieManager;
         $this->banManager = new BanManager(
             $this->configManager->get('security.trusted_proxies', []),
             $this->configManager->get('security.ban_after'),
@@ -85,10 +87,9 @@ class LoginManager
     /**
      * Check user session state and validity (expiration)
      *
-     * @param array  $cookie     The $_COOKIE array
      * @param string $clientIpId Client IP address identifier
      */
-    public function checkLoginState($cookie, $clientIpId)
+    public function checkLoginState($clientIpId)
     {
         if (! $this->configManager->exists('credentials.login')) {
             // Shaarli is not configured yet
@@ -96,9 +97,7 @@ class LoginManager
             return;
         }
 
-        if (isset($cookie[self::$STAY_SIGNED_IN_COOKIE])
-            && $cookie[self::$STAY_SIGNED_IN_COOKIE] === $this->staySignedInToken
-        ) {
+        if ($this->staySignedInToken === $this->cookieManager->getCookieParameter(CookieManager::STAY_SIGNED_IN)) {
             // The user client has a valid stay-signed-in cookie
             // Session information is updated with the current client information
             $this->sessionManager->storeLoginInfo($clientIpId);
@@ -139,26 +138,86 @@ class LoginManager
      */
     public function checkCredentials($remoteIp, $clientIpId, $login, $password)
     {
-        $hash = sha1($password . $login . $this->configManager->get('credentials.salt'));
-
-        if ($login != $this->configManager->get('credentials.login')
-            || $hash != $this->configManager->get('credentials.hash')
-        ) {
-            logm(
-                $this->configManager->get('resource.log'),
-                $remoteIp,
-                'Login failed for user ' . $login
-            );
+        // Check login matches config
+        if ($login !== $this->configManager->get('credentials.login')) {
             return false;
         }
 
-        $this->sessionManager->storeLoginInfo($clientIpId);
+        // Check credentials
+        try {
+            $useLdapLogin = !empty($this->configManager->get('ldap.host'));
+            if ((false === $useLdapLogin && $this->checkCredentialsFromLocalConfig($login, $password))
+                || (true === $useLdapLogin && $this->checkCredentialsFromLdap($login, $password))
+            ) {
+                    $this->sessionManager->storeLoginInfo($clientIpId);
+                    logm(
+                        $this->configManager->get('resource.log'),
+                        $remoteIp,
+                        'Login successful'
+                    );
+                    return true;
+            }
+        }
+        catch(Exception $exception) {
+            logm(
+                $this->configManager->get('resource.log'),
+                $remoteIp,
+                'Exception while checking credentials: ' . $exception
+            );
+        }
+
         logm(
             $this->configManager->get('resource.log'),
             $remoteIp,
-            'Login successful'
+            'Login failed for user ' . $login
         );
-        return true;
+        return false;
+    }
+
+
+    /**
+     * Check user credentials from local config
+     *
+     * @param string $login      Username
+     * @param string $password   Password
+     *
+     * @return bool true if the provided credentials are valid, false otherwise
+     */
+    public function checkCredentialsFromLocalConfig($login, $password) {
+        $hash = sha1($password . $login . $this->configManager->get('credentials.salt'));
+
+        return $login == $this->configManager->get('credentials.login')
+             && $hash == $this->configManager->get('credentials.hash');
+    }
+
+    /**
+     * Check user credentials are valid through LDAP bind
+     *
+     * @param string $remoteIp   Remote client IP address
+     * @param string $clientIpId Client IP address identifier
+     * @param string $login      Username
+     * @param string $password   Password
+     *
+     * @return bool true if the provided credentials are valid, false otherwise
+     */
+    public function checkCredentialsFromLdap($login, $password, $connect = null, $bind = null)
+    {
+        $connect = $connect ?? function($host) {
+            $resource = ldap_connect($host);
+
+            ldap_set_option($resource, LDAP_OPT_PROTOCOL_VERSION, 3);
+
+            return $resource;
+        };
+        $bind = $bind ?? function($handle, $dn, $password) {
+            return ldap_bind($handle, $dn, $password);
+        };
+
+        return $bind(
+            $connect($this->configManager->get('ldap.host')),
+            sprintf($this->configManager->get('ldap.dn'), $login),
+            $password
+        );
     }
 
     /**

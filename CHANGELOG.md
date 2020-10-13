@@ -4,6 +4,78 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [v0.12.1]() - UNRELEASED
+
+## [v0.12.0](https://github.com/shaarli/Shaarli/releases/tag/v0.12.0) - 2020-10-13
+
+**Save you `data/` folder before updating!**
+
+### Added
+- Thumbnailer: add soundcloud.com to list of common media domains
+- Markdown rendering is now integrated into Shaarli core
+- Add autofocus on tag cloud filter input
+- Japanese translations
+- Japanese translation: add language to admin configuration page
+- Support for PHP 8.0
+- Support for local anchor URL (starting with `#`)
+- LDAP authentication
+- Encapsulated PageCacheManager
+- Docs:
+  - add screenshots of all pages
+  - section about mkdocs
+  - Ulauncher extension
+- CI: run against PHP 7.4
+- Added $links_per_page variable to template and display on default
+- Inject BookmarkServiceInterface in plugins data
+- Add manual configuration for root URL
+- Added PATCH to the allowed Apache request methods.
+- REST API: compatibility with ionos Apache's headers
+
+### Changed
+- Introduce Bookmark object and Service layer
+  - Save bookmark as objects in the datastore
+  - Handle bookmark as objects across the whole codebase (except templates and plugins)
+- Process all Shaarli page through Slim controller, with proper URL rewriting (see #1516)
+- Docs: the entire documentation has been reviewed, updated and improved, thanks to @nodiscc!
+- ATOM feed: use instance name as author name instead of URL
+- Updated French translation
+- Default colors plugin: generate CSS file during initialization
+- Improve default bookmarks after install
+- Upgrade all front end dependencies and webpack build
+- Default theme: Make tag cloud/list views buttons more obvious
+
+### Fixed
+- Undefined index: thumbnail in daily page
+- Undefined index: thumbnail on OpenGraph headers
+- Undefined index: updated on linklist
+- Make sure that bookmark sort is consistent, even with equal timestamps
+- Code PHP version check as requirement bumped to PHP 7.1
+- Thumbnail images lazy loading
+- Markdown plugin: fix RSS feed direct link reverse
+- Fix RSS permalink included in Markdown bloc
+- Demo plugin: multiple typos
+- Makefile target for releases
+- Makefile target for html documentation
+- Session cookie setting being set while session is active
+- Deprecated use of implode
+- Division by zero in tag cloud
+- CI: deprecated linux distribution and sudo directive
+- Docker build: gcc is no longer included in python alpine image
+- Default template: display pin button in mobile view
+- Pinned bookmarks are not longer displayed first in ATOM/RSS feeds
+- Docs:
+  - Outdated Docker documentation for stable branch
+  - Outdated links
+  - Plugin description in meta files
+- docker-compose.yml: pin traefik image to 1.7-alpine
+
+### Removed
+- Markdown plugin
+- Docs:
+  - emojione & twemoji removed
+- Makefile: remove static_analysis_summary from all: target
+- doc/Makefile: remove references to composer update
+
 ## [v0.11.1](https://github.com/shaarli/Shaarli/releases/tag/v0.11.1) - 2019-08-03
 
 Release to fix broken Docker build on the latest version.

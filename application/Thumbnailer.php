@@ -4,7 +4,6 @@ namespace Shaarli;
 
 use Shaarli\Config\ConfigManager;
 use WebThumbnailer\Application\ConfigManager as WTConfigManager;
-use WebThumbnailer\Exception\WebThumbnailerException;
 use WebThumbnailer\WebThumbnailer;
 
 /**
@@ -27,6 +26,7 @@ class Thumbnailer
         'instagram.com',
         'pinterest.com',
         'pinterest.fr',
+        'soundcloud.com',
         'tumblr.com',
         'deviantart.com',
     ];
@@ -89,7 +89,7 @@ class Thumbnailer
 
         try {
             return $this->wt->thumbnail($url);
-        } catch (WebThumbnailerException $e) {
+        } catch (\Throwable $e) {
             // Exceptions are only thrown in debug mode.
             error_log(get_class($e) . ': ' . $e->getMessage());
         }

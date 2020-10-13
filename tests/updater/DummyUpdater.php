@@ -4,6 +4,7 @@ namespace Shaarli\Updater;
 use Exception;
 use ReflectionClass;
 use ReflectionMethod;
+use Shaarli\Bookmark\BookmarkFileService;
 use Shaarli\Bookmark\LinkDB;
 use Shaarli\Config\ConfigManager;
 
@@ -16,14 +17,14 @@ class DummyUpdater extends Updater
     /**
      * Object constructor.
      *
-     * @param array         $doneUpdates Updates which are already done.
-     * @param LinkDB        $linkDB      LinkDB instance.
-     * @param ConfigManager $conf        Configuration Manager instance.
-     * @param boolean       $isLoggedIn  True if the user is logged in.
+     * @param array               $doneUpdates     Updates which are already done.
+     * @param BookmarkFileService $bookmarkService LinkDB instance.
+     * @param ConfigManager       $conf            Configuration Manager instance.
+     * @param boolean             $isLoggedIn      True if the user is logged in.
      */
-    public function __construct($doneUpdates, $linkDB, $conf, $isLoggedIn)
+    public function __construct($doneUpdates, $bookmarkService, $conf, $isLoggedIn)
     {
-        parent::__construct($doneUpdates, $linkDB, $conf, $isLoggedIn);
+        parent::__construct($doneUpdates, $bookmarkService, $conf, $isLoggedIn);
 
         // Retrieve all update methods.
         // For unit test, only retrieve final methods,
@@ -36,7 +37,7 @@ class DummyUpdater extends Updater
      *
      * @return bool true.
      */
-    final private function updateMethodDummy1()
+    final protected function updateMethodDummy1()
     {
         return true;
     }
@@ -46,7 +47,7 @@ class DummyUpdater extends Updater
      *
      * @return bool true.
      */
-    final private function updateMethodDummy2()
+    final protected function updateMethodDummy2()
     {
         return true;
     }
@@ -56,7 +57,7 @@ class DummyUpdater extends Updater
      *
      * @return bool true.
      */
-    final private function updateMethodDummy3()
+    final protected function updateMethodDummy3()
     {
         return true;
     }
@@ -66,7 +67,7 @@ class DummyUpdater extends Updater
      *
      * @throws Exception error.
      */
-    final private function updateMethodException()
+    final protected function updateMethodException()
     {
         throw new Exception('whatever');
     }

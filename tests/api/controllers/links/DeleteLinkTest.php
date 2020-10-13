@@ -3,7 +3,7 @@
 
 namespace Shaarli\Api\Controllers;
 
-use Shaarli\Bookmark\LinkDB;
+use Shaarli\Bookmark\BookmarkFileService;
 use Shaarli\Config\ConfigManager;
 use Shaarli\History;
 use Slim\Container;
@@ -11,7 +11,7 @@ use Slim\Http\Environment;
 use Slim\Http\Request;
 use Slim\Http\Response;
 
-class DeleteLinkTest extends \PHPUnit\Framework\TestCase
+class DeleteLinkTest extends \Shaarli\TestCase
 {
     /**
      * @var string datastore to test write operations
@@ -34,9 +34,9 @@ class DeleteLinkTest extends \PHPUnit\Framework\TestCase
     protected $refDB = null;
 
     /**
-     * @var LinkDB instance.
+     * @var BookmarkFileService instance.
      */
-    protected $linkDB;
+    protected $bookmarkService;
 
     /**
      * @var HistoryController instance.
@@ -54,20 +54,22 @@ class DeleteLinkTest extends \PHPUnit\Framework\TestCase
     protected $controller;
 
     /**
-     * Before each test, instantiate a new Api with its config, plugins and links.
+     * Before each test, instantiate a new Api with its config, plugins and bookmarks.
      */
-    public function setUp()
+    protected function setUp(): void
     {
         $this->conf = new ConfigManager('tests/utils/config/configJson');
+        $this->conf->set('resource.datastore', self::$testDatastore);
         $this->refDB = new \ReferenceLinkDB();
         $this->refDB->write(self::$testDatastore);
-        $this->linkDB = new LinkDB(self::$testDatastore, true, false);
         $refHistory = new \ReferenceHistory();
         $refHistory->write(self::$testHistory);
         $this->history = new History(self::$testHistory);
+        $this->bookmarkService = new BookmarkFileService($this->conf, $this->history, true);
+
         $this->container = new Container();
         $this->container['conf'] = $this->conf;
-        $this->container['db'] = $this->linkDB;
+        $this->container['db'] = $this->bookmarkService;
         $this->container['history'] = $this->history;
 
         $this->controller = new Links($this->container);
@@ -76,7 +78,7 @@ class DeleteLinkTest extends \PHPUnit\Framework\TestCase
     /**
      * After each test, remove the test datastore.
      */
-    public function tearDown()
+    protected function tearDown(): void
     {
         @unlink(self::$testDatastore);
         @unlink(self::$testHistory);
@@ -88,7 +90,7 @@ class DeleteLinkTest extends \PHPUnit\Framework\TestCase
     public function testDeleteLinkValid()
     {
         $id = '41';
-        $this->assertTrue(isset($this->linkDB[$id]));
+        $this->assertTrue($this->bookmarkService->exists($id));
         $env = Environment::mock([
             'REQUEST_METHOD' => 'DELETE',
         ]);
@@ -98,8 +100,8 @@ class DeleteLinkTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals(204, $response->getStatusCode());
         $this->assertEmpty((string) $response->getBody());
 
-        $this->linkDB = new LinkDB(self::$testDatastore, true, false);
-        $this->assertFalse(isset($this->linkDB[$id]));
+        $this->bookmarkService = new BookmarkFileService($this->conf, $this->history, true);
+        $this->assertFalse($this->bookmarkService->exists($id));
 
         $historyEntry = $this->history->getHistory()[0];
         $this->assertEquals(History::DELETED, $historyEntry['event']);
@@ -111,13 +113,13 @@ class DeleteLinkTest extends \PHPUnit\Framework\TestCase
 
     /**
      * Test DELETE link endpoint: reach not existing ID.
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiLinkNotFoundException
      */
     public function testDeleteLink404()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiLinkNotFoundException::class);
+
         $id = -1;
-        $this->assertFalse(isset($this->linkDB[$id]));
+        $this->assertFalse($this->bookmarkService->exists($id));
         $env = Environment::mock([
             'REQUEST_METHOD' => 'DELETE',
         ]);

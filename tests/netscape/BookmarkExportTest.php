@@ -1,14 +1,20 @@
 <?php
+
 namespace Shaarli\Netscape;
 
-use Shaarli\Bookmark\LinkDB;
+use Shaarli\Bookmark\BookmarkFileService;
+use Shaarli\Config\ConfigManager;
+use Shaarli\Formatter\BookmarkFormatter;
+use Shaarli\Formatter\FormatterFactory;
+use Shaarli\History;
+use Shaarli\TestCase;
 
 require_once 'tests/utils/ReferenceLinkDB.php';
 
 /**
  * Netscape bookmark export
  */
-class BookmarkExportTest extends \PHPUnit\Framework\TestCase
+class BookmarkExportTest extends TestCase
 {
     /**
      * @var string datastore to test write operations
@@ -16,41 +22,86 @@ class BookmarkExportTest extends \PHPUnit\Framework\TestCase
     protected static $testDatastore = 'sandbox/datastore.php';
 
     /**
+     * @var ConfigManager instance.
+     */
+    protected static $conf;
+
+    /**
      * @var \ReferenceLinkDB instance.
      */
     protected static $refDb = null;
 
     /**
-     * @var LinkDB private LinkDB instance.
+     * @var BookmarkFileService private instance.
      */
-    protected static $linkDb = null;
+    protected static $bookmarkService = null;
+
+    /**
+     * @var BookmarkFormatter instance
+     */
+    protected static $formatter;
+
+    /**
+     * @var History instance
+     */
+    protected static $history;
+
+    /**
+     * @var NetscapeBookmarkUtils
+     */
+    protected $netscapeBookmarkUtils;
 
     /**
      * Instantiate reference data
      */
-    public static function setUpBeforeClass()
+    public static function setUpBeforeClass(): void
     {
-        self::$refDb = new \ReferenceLinkDB();
-        self::$refDb->write(self::$testDatastore);
-        self::$linkDb = new LinkDB(self::$testDatastore, true, false);
+        static::$conf = new ConfigManager('tests/utils/config/configJson');
+        static::$conf->set('resource.datastore', static::$testDatastore);
+        static::$refDb = new \ReferenceLinkDB();
+        static::$refDb->write(static::$testDatastore);
+        static::$history = new History('sandbox/history.php');
+        static::$bookmarkService = new BookmarkFileService(static::$conf, static::$history, true);
+        $factory = new FormatterFactory(static::$conf, true);
+        static::$formatter = $factory->getFormatter('raw');
+    }
+
+    public function setUp(): void
+    {
+        $this->netscapeBookmarkUtils = new NetscapeBookmarkUtils(
+            static::$bookmarkService,
+            static::$conf,
+            static::$history
+        );
     }
 
     /**
      * Attempt to export an invalid link selection
-     * @expectedException              Exception
-     * @expectedExceptionMessageRegExp /Invalid export selection/
      */
     public function testFilterAndFormatInvalid()
     {
-        NetscapeBookmarkUtils::filterAndFormat(self::$linkDb, 'derp', false, '');
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageRegExp('/Invalid export selection/');
+
+        $this->netscapeBookmarkUtils->filterAndFormat(
+            self::$formatter,
+            'derp',
+            false,
+            ''
+        );
     }
 
     /**
-     * Prepare all links for export
+     * Prepare all bookmarks for export
      */
     public function testFilterAndFormatAll()
     {
-        $links = NetscapeBookmarkUtils::filterAndFormat(self::$linkDb, 'all', false, '');
+        $links = $this->netscapeBookmarkUtils->filterAndFormat(
+            self::$formatter,
+            'all',
+            false,
+            ''
+        );
         $this->assertEquals(self::$refDb->countLinks(), sizeof($links));
         foreach ($links as $link) {
             $date = $link['created'];
@@ -66,11 +117,16 @@ class BookmarkExportTest extends \PHPUnit\Framework\TestCase
     }
 
     /**
-     * Prepare private links for export
+     * Prepare private bookmarks for export
      */
     public function testFilterAndFormatPrivate()
     {
-        $links = NetscapeBookmarkUtils::filterAndFormat(self::$linkDb, 'private', false, '');
+        $links = $this->netscapeBookmarkUtils->filterAndFormat(
+            self::$formatter,
+            'private',
+            false,
+            ''
+        );
         $this->assertEquals(self::$refDb->countPrivateLinks(), sizeof($links));
         foreach ($links as $link) {
             $date = $link['created'];
@@ -86,11 +142,16 @@ class BookmarkExportTest extends \PHPUnit\Framework\TestCase
     }
 
     /**
-     * Prepare public links for export
+     * Prepare public bookmarks for export
      */
     public function testFilterAndFormatPublic()
     {
-        $links = NetscapeBookmarkUtils::filterAndFormat(self::$linkDb, 'public', false, '');
+        $links = $this->netscapeBookmarkUtils->filterAndFormat(
+            self::$formatter,
+            'public',
+            false,
+            ''
+        );
         $this->assertEquals(self::$refDb->countPublicLinks(), sizeof($links));
         foreach ($links as $link) {
             $date = $link['created'];
@@ -110,9 +171,14 @@ class BookmarkExportTest extends \PHPUnit\Framework\TestCase
      */
     public function testFilterAndFormatDoNotPrependNoteUrl()
     {
-        $links = NetscapeBookmarkUtils::filterAndFormat(self::$linkDb, 'public', false, '');
+        $links = $this->netscapeBookmarkUtils->filterAndFormat(
+            self::$formatter,
+            'public',
+            false,
+            ''
+        );
         $this->assertEquals(
-            '?WDWyig',
+            '/shaare/WDWyig',
             $links[2]['url']
         );
     }
@@ -123,14 +189,14 @@ class BookmarkExportTest extends \PHPUnit\Framework\TestCase
     public function testFilterAndFormatPrependNoteUrl()
     {
         $indexUrl = 'http://localhost:7469/shaarli/';
-        $links = NetscapeBookmarkUtils::filterAndFormat(
-            self::$linkDb,
+        $links = $this->netscapeBookmarkUtils->filterAndFormat(
+            self::$formatter,
             'public',
             true,
             $indexUrl
         );
         $this->assertEquals(
-            $indexUrl . '?WDWyig',
+            $indexUrl . 'shaare/WDWyig',
             $links[2]['url']
         );
     }

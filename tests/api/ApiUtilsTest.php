@@ -2,17 +2,18 @@
 
 namespace Shaarli\Api;
 
+use Shaarli\Bookmark\Bookmark;
 use Shaarli\Http\Base64Url;
 
 /**
  * Class ApiUtilsTest
  */
-class ApiUtilsTest extends \PHPUnit\Framework\TestCase
+class ApiUtilsTest extends \Shaarli\TestCase
 {
     /**
      * Force the timezone for ISO datetimes.
      */
-    public static function setUpBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         date_default_timezone_set('UTC');
     }
@@ -60,148 +61,148 @@ class ApiUtilsTest extends \PHPUnit\Framework\TestCase
     public function testValidateJwtTokenValid()
     {
         $secret = 'WarIsPeace';
-        ApiUtils::validateJwtToken(self::generateValidJwtToken($secret), $secret);
+        $this->assertTrue(ApiUtils::validateJwtToken(self::generateValidJwtToken($secret), $secret));
     }
 
     /**
      * Test validateJwtToken() with a malformed JWT token.
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiAuthorizationException
-     * @expectedExceptionMessage Malformed JWT token
      */
     public function testValidateJwtTokenMalformed()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiAuthorizationException::class);
+        $this->expectExceptionMessage('Malformed JWT token');
+
         $token = 'ABC.DEF';
         ApiUtils::validateJwtToken($token, 'foo');
     }
 
     /**
      * Test validateJwtToken() with an empty JWT token.
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiAuthorizationException
-     * @expectedExceptionMessage Malformed JWT token
      */
     public function testValidateJwtTokenMalformedEmpty()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiAuthorizationException::class);
+        $this->expectExceptionMessage('Malformed JWT token');
+
         $token = false;
         ApiUtils::validateJwtToken($token, 'foo');
     }
 
     /**
      * Test validateJwtToken() with a JWT token without header.
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiAuthorizationException
-     * @expectedExceptionMessage Malformed JWT token
      */
     public function testValidateJwtTokenMalformedEmptyHeader()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiAuthorizationException::class);
+        $this->expectExceptionMessage('Malformed JWT token');
+
         $token = '.payload.signature';
         ApiUtils::validateJwtToken($token, 'foo');
     }
 
     /**
      * Test validateJwtToken() with a JWT token without payload
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiAuthorizationException
-     * @expectedExceptionMessage Malformed JWT token
      */
     public function testValidateJwtTokenMalformedEmptyPayload()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiAuthorizationException::class);
+        $this->expectExceptionMessage('Malformed JWT token');
+
         $token = 'header..signature';
         ApiUtils::validateJwtToken($token, 'foo');
     }
 
     /**
      * Test validateJwtToken() with a JWT token with an empty signature.
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiAuthorizationException
-     * @expectedExceptionMessage Invalid JWT signature
      */
     public function testValidateJwtTokenInvalidSignatureEmpty()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiAuthorizationException::class);
+        $this->expectExceptionMessage('Invalid JWT signature');
+
         $token = 'header.payload.';
         ApiUtils::validateJwtToken($token, 'foo');
     }
 
     /**
      * Test validateJwtToken() with a JWT token with an invalid signature.
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiAuthorizationException
-     * @expectedExceptionMessage Invalid JWT signature
      */
     public function testValidateJwtTokenInvalidSignature()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiAuthorizationException::class);
+        $this->expectExceptionMessage('Invalid JWT signature');
+
         $token = 'header.payload.nope';
         ApiUtils::validateJwtToken($token, 'foo');
     }
 
     /**
      * Test validateJwtToken() with a JWT token with a signature generated with the wrong API secret.
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiAuthorizationException
-     * @expectedExceptionMessage Invalid JWT signature
      */
     public function testValidateJwtTokenInvalidSignatureSecret()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiAuthorizationException::class);
+        $this->expectExceptionMessage('Invalid JWT signature');
+
         ApiUtils::validateJwtToken(self::generateValidJwtToken('foo'), 'bar');
     }
 
     /**
      * Test validateJwtToken() with a JWT token with a an invalid header (not JSON).
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiAuthorizationException
-     * @expectedExceptionMessage Invalid JWT header
      */
     public function testValidateJwtTokenInvalidHeader()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiAuthorizationException::class);
+        $this->expectExceptionMessage('Invalid JWT header');
+
         $token = $this->generateCustomJwtToken('notJSON', '{"JSON":1}', 'secret');
         ApiUtils::validateJwtToken($token, 'secret');
     }
 
     /**
      * Test validateJwtToken() with a JWT token with a an invalid payload (not JSON).
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiAuthorizationException
-     * @expectedExceptionMessage Invalid JWT payload
      */
     public function testValidateJwtTokenInvalidPayload()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiAuthorizationException::class);
+        $this->expectExceptionMessage('Invalid JWT payload');
+
         $token = $this->generateCustomJwtToken('{"JSON":1}', 'notJSON', 'secret');
         ApiUtils::validateJwtToken($token, 'secret');
     }
 
     /**
      * Test validateJwtToken() with a JWT token without issued time.
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiAuthorizationException
-     * @expectedExceptionMessage Invalid JWT issued time
      */
     public function testValidateJwtTokenInvalidTimeEmpty()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiAuthorizationException::class);
+        $this->expectExceptionMessage('Invalid JWT issued time');
+
         $token = $this->generateCustomJwtToken('{"JSON":1}', '{"JSON":1}', 'secret');
         ApiUtils::validateJwtToken($token, 'secret');
     }
 
     /**
      * Test validateJwtToken() with an expired JWT token.
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiAuthorizationException
-     * @expectedExceptionMessage Invalid JWT issued time
      */
     public function testValidateJwtTokenInvalidTimeExpired()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiAuthorizationException::class);
+        $this->expectExceptionMessage('Invalid JWT issued time');
+
         $token = $this->generateCustomJwtToken('{"JSON":1}', '{"iat":' . (time() - 600) . '}', 'secret');
         ApiUtils::validateJwtToken($token, 'secret');
     }
 
     /**
      * Test validateJwtToken() with a JWT token issued in the future.
-     *
-     * @expectedException \Shaarli\Api\Exceptions\ApiAuthorizationException
-     * @expectedExceptionMessage Invalid JWT issued time
      */
     public function testValidateJwtTokenInvalidTimeFuture()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiAuthorizationException::class);
+        $this->expectExceptionMessage('Invalid JWT issued time');
+
         $token = $this->generateCustomJwtToken('{"JSON":1}', '{"iat":' . (time() + 60) . '}', 'secret');
         ApiUtils::validateJwtToken($token, 'secret');
     }
@@ -212,7 +213,7 @@ class ApiUtilsTest extends \PHPUnit\Framework\TestCase
     public function testFormatLinkComplete()
     {
         $indexUrl = 'https://domain.tld/sub/';
-        $link = [
+        $data = [
             'id' => 12,
             'url' => 'http://lol.lol',
             'shorturl' => 'abc',
@@ -223,6 +224,8 @@ class ApiUtilsTest extends \PHPUnit\Framework\TestCase
             'created' => \DateTime::createFromFormat('Ymd_His', '20170107_160102'),
             'updated' => \DateTime::createFromFormat('Ymd_His', '20170107_160612'),
         ];
+        $bookmark = new Bookmark();
+        $bookmark->fromArray($data);
 
         $expected = [
             'id' => 12,
@@ -236,7 +239,7 @@ class ApiUtilsTest extends \PHPUnit\Framework\TestCase
             'updated' => '2017-01-07T16:06:12+00:00',
         ];
 
-        $this->assertEquals($expected, ApiUtils::formatLink($link, $indexUrl));
+        $this->assertEquals($expected, ApiUtils::formatLink($bookmark, $indexUrl));
     }
 
     /**
@@ -245,7 +248,7 @@ class ApiUtilsTest extends \PHPUnit\Framework\TestCase
     public function testFormatLinkMinimalNote()
     {
         $indexUrl = 'https://domain.tld/sub/';
-        $link = [
+        $data = [
             'id' => 12,
             'url' => '?abc',
             'shorturl' => 'abc',
@@ -255,6 +258,8 @@ class ApiUtilsTest extends \PHPUnit\Framework\TestCase
             'private' => '',
             'created' => \DateTime::createFromFormat('Ymd_His', '20170107_160102'),
         ];
+        $bookmark = new Bookmark();
+        $bookmark->fromArray($data);
 
         $expected = [
             'id' => 12,
@@ -268,7 +273,7 @@ class ApiUtilsTest extends \PHPUnit\Framework\TestCase
             'updated' => '',
         ];
 
-        $this->assertEquals($expected, ApiUtils::formatLink($link, $indexUrl));
+        $this->assertEquals($expected, ApiUtils::formatLink($bookmark, $indexUrl));
     }
 
     /**
@@ -277,7 +282,7 @@ class ApiUtilsTest extends \PHPUnit\Framework\TestCase
     public function testUpdateLink()
     {
         $created = \DateTime::createFromFormat('Ymd_His', '20170107_160102');
-        $old = [
+        $data = [
             'id' => 12,
             'url' => '?abc',
             'shorturl' => 'abc',
@@ -287,8 +292,10 @@ class ApiUtilsTest extends \PHPUnit\Framework\TestCase
             'private' => '',
             'created' => $created,
         ];
+        $old = new Bookmark();
+        $old->fromArray($data);
 
-        $new = [
+        $data = [
             'id' => 13,
             'shorturl' => 'nope',
             'url' => 'http://somewhere.else',
@@ -299,17 +306,18 @@ class ApiUtilsTest extends \PHPUnit\Framework\TestCase
             'created' => 'creation',
             'updated' => 'updation',
         ];
+        $new = new Bookmark();
+        $new->fromArray($data);
 
         $result = ApiUtils::updateLink($old, $new);
-        $this->assertEquals(12, $result['id']);
-        $this->assertEquals('http://somewhere.else', $result['url']);
-        $this->assertEquals('abc', $result['shorturl']);
-        $this->assertEquals('Le Cid', $result['title']);
-        $this->assertEquals('Percé jusques au fond du cœur [...]', $result['description']);
-        $this->assertEquals('corneille rodrigue', $result['tags']);
-        $this->assertEquals(true, $result['private']);
-        $this->assertEquals($created, $result['created']);
-        $this->assertTrue(new \DateTime('5 seconds ago') < $result['updated']);
+        $this->assertEquals(12, $result->getId());
+        $this->assertEquals('http://somewhere.else', $result->getUrl());
+        $this->assertEquals('abc', $result->getShortUrl());
+        $this->assertEquals('Le Cid', $result->getTitle());
+        $this->assertEquals('Percé jusques au fond du cœur [...]', $result->getDescription());
+        $this->assertEquals('corneille rodrigue', $result->getTagsString());
+        $this->assertEquals(true, $result->isPrivate());
+        $this->assertEquals($created, $result->getCreated());
     }
 
     /**
@@ -318,7 +326,7 @@ class ApiUtilsTest extends \PHPUnit\Framework\TestCase
     public function testUpdateLinkMinimal()
     {
         $created = \DateTime::createFromFormat('Ymd_His', '20170107_160102');
-        $old = [
+        $data = [
             'id' => 12,
             'url' => '?abc',
             'shorturl' => 'abc',
@@ -328,24 +336,19 @@ class ApiUtilsTest extends \PHPUnit\Framework\TestCase
             'private' => true,
             'created' => $created,
         ];
+        $old = new Bookmark();
+        $old->fromArray($data);
 
-        $new = [
-            'url' => '',
-            'title' => '',
-            'description' => '',
-            'tags' => '',
-            'private' => false,
-        ];
+        $new = new Bookmark();
 
         $result = ApiUtils::updateLink($old, $new);
-        $this->assertEquals(12, $result['id']);
-        $this->assertEquals('?abc', $result['url']);
-        $this->assertEquals('abc', $result['shorturl']);
-        $this->assertEquals('?abc', $result['title']);
-        $this->assertEquals('', $result['description']);
-        $this->assertEquals('', $result['tags']);
-        $this->assertEquals(false, $result['private']);
-        $this->assertEquals($created, $result['created']);
-        $this->assertTrue(new \DateTime('5 seconds ago') < $result['updated']);
+        $this->assertEquals(12, $result->getId());
+        $this->assertEquals('', $result->getUrl());
+        $this->assertEquals('abc', $result->getShortUrl());
+        $this->assertEquals('', $result->getTitle());
+        $this->assertEquals('', $result->getDescription());
+        $this->assertEquals('', $result->getTagsString());
+        $this->assertEquals(false, $result->isPrivate());
+        $this->assertEquals($created, $result->getCreated());
     }
 }

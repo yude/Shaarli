@@ -1,9 +1,8 @@
 <?php
+
 namespace Shaarli\Security;
 
-require_once 'tests/utils/FakeConfigManager.php';
-
-use PHPUnit\Framework\TestCase;
+use Shaarli\TestCase;
 
 /**
  * Test coverage for LoginManager
@@ -58,10 +57,13 @@ class LoginManagerTest extends TestCase
     /** @var string Salt used by hash functions */
     protected $salt = '669e24fa9c5a59a613f98e8e38327384504a4af2';
 
+    /** @var CookieManager */
+    protected $cookieManager;
+
     /**
      * Prepare or reset test resources
      */
-    public function setUp()
+    protected function setUp(): void
     {
         if (file_exists($this->banFile)) {
             unlink($this->banFile);
@@ -78,13 +80,18 @@ class LoginManagerTest extends TestCase
             'security.ban_after' => 2,
             'security.ban_duration' => 3600,
             'security.trusted_proxies' => [$this->trustedProxy],
+            'ldap.host' => '',
         ]);
 
         $this->cookie = [];
         $this->session = [];
 
-        $this->sessionManager = new SessionManager($this->session, $this->configManager);
-        $this->loginManager = new LoginManager($this->configManager, $this->sessionManager);
+        $this->cookieManager = $this->createMock(CookieManager::class);
+        $this->cookieManager->method('getCookieParameter')->willReturnCallback(function (string $key) {
+            return $this->cookie[$key] ?? null;
+        });
+        $this->sessionManager = new SessionManager($this->session, $this->configManager, 'session_path');
+        $this->loginManager = new LoginManager($this->configManager, $this->sessionManager, $this->cookieManager);
         $this->server['REMOTE_ADDR'] = $this->ipAddr;
     }
 
@@ -192,8 +199,8 @@ class LoginManagerTest extends TestCase
         $configManager = new \FakeConfigManager([
             'resource.ban_file' => $this->banFile,
         ]);
-        $loginManager = new LoginManager($configManager, null);
-        $loginManager->checkLoginState([], '');
+        $loginManager = new LoginManager($configManager, null, $this->cookieManager);
+        $loginManager->checkLoginState('');
 
         $this->assertFalse($loginManager->isLoggedIn());
     }
@@ -209,9 +216,9 @@ class LoginManagerTest extends TestCase
             'expires_on' => time() + 100,
         ];
         $this->loginManager->generateStaySignedInToken($this->clientIpAddress);
-        $this->cookie[LoginManager::$STAY_SIGNED_IN_COOKIE] = 'nope';
+        $this->cookie[CookieManager::STAY_SIGNED_IN] = 'nope';
 
-        $this->loginManager->checkLoginState($this->cookie, $this->clientIpAddress);
+        $this->loginManager->checkLoginState($this->clientIpAddress);
 
         $this->assertTrue($this->loginManager->isLoggedIn());
         $this->assertTrue(empty($this->session['username']));
@@ -223,9 +230,9 @@ class LoginManagerTest extends TestCase
     public function testCheckLoginStateStaySignedInWithValidToken()
     {
         $this->loginManager->generateStaySignedInToken($this->clientIpAddress);
-        $this->cookie[LoginManager::$STAY_SIGNED_IN_COOKIE] = $this->loginManager->getStaySignedInToken();
+        $this->cookie[CookieManager::STAY_SIGNED_IN] = $this->loginManager->getStaySignedInToken();
 
-        $this->loginManager->checkLoginState($this->cookie, $this->clientIpAddress);
+        $this->loginManager->checkLoginState($this->clientIpAddress);
 
         $this->assertTrue($this->loginManager->isLoggedIn());
         $this->assertEquals($this->login, $this->session['username']);
@@ -240,7 +247,7 @@ class LoginManagerTest extends TestCase
         $this->loginManager->generateStaySignedInToken($this->clientIpAddress);
         $this->session['expires_on'] = time() - 100;
 
-        $this->loginManager->checkLoginState($this->cookie, $this->clientIpAddress);
+        $this->loginManager->checkLoginState($this->clientIpAddress);
 
         $this->assertFalse($this->loginManager->isLoggedIn());
     }
@@ -252,7 +259,7 @@ class LoginManagerTest extends TestCase
     {
         $this->loginManager->generateStaySignedInToken($this->clientIpAddress);
 
-        $this->loginManager->checkLoginState($this->cookie, '10.7.157.98');
+        $this->loginManager->checkLoginState('10.7.157.98');
 
         $this->assertFalse($this->loginManager->isLoggedIn());
     }
@@ -294,6 +301,39 @@ class LoginManagerTest extends TestCase
     {
         $this->assertTrue(
             $this->loginManager->checkCredentials('', '', $this->login, $this->password)
+        );
+    }
+
+    /**
+     * Check user credentials through LDAP - server unreachable
+     */
+    public function testCheckCredentialsFromUnreachableLdap()
+    {
+        $this->configManager->set('ldap.host', 'dummy');
+        $this->assertFalse(
+            $this->loginManager->checkCredentials('', '', $this->login, $this->password)
+        );
+    }
+
+    /**
+     * Check user credentials through LDAP - wrong login and password supplied
+     */
+    public function testCheckCredentialsFromLdapWrongLoginAndPassword()
+    {
+        $this->configManager->set('ldap.host', 'dummy');
+        $this->assertFalse(
+            $this->loginManager->checkCredentialsFromLdap($this->login, $this->password, function() { return null; }, function() { return false; })
+        );
+    }
+
+    /**
+     * Check user credentials through LDAP - correct login and password supplied
+     */
+    public function testCheckCredentialsFromLdapGoodLoginAndPassword()
+    {
+        $this->configManager->set('ldap.host', 'dummy');
+        $this->assertTrue(
+            $this->loginManager->checkCredentialsFromLdap($this->login, $this->password, function() { return null; }, function() { return true; })
         );
     }
 }

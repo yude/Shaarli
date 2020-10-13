@@ -3,7 +3,7 @@ namespace Shaarli\Plugin\Pubsubhubbub;
 
 use Shaarli\Config\ConfigManager;
 use Shaarli\Plugin\PluginManager;
-use Shaarli\Router;
+use Shaarli\Render\TemplatePage;
 
 require_once 'plugins/pubsubhubbub/pubsubhubbub.php';
 
@@ -11,7 +11,7 @@ require_once 'plugins/pubsubhubbub/pubsubhubbub.php';
  * Class PluginPubsubhubbubTest
  * Unit test for the pubsubhubbub plugin
  */
-class PluginPubsubhubbubTest extends \PHPUnit\Framework\TestCase
+class PluginPubsubhubbubTest extends \Shaarli\TestCase
 {
     /**
      * @var string Config file path (without extension).
@@ -21,7 +21,7 @@ class PluginPubsubhubbubTest extends \PHPUnit\Framework\TestCase
     /**
      * Reset plugin path
      */
-    public function setUp()
+    protected function setUp(): void
     {
         PluginManager::$PLUGINS_PATH = 'plugins';
     }
@@ -34,7 +34,7 @@ class PluginPubsubhubbubTest extends \PHPUnit\Framework\TestCase
         $hub = 'http://domain.hub';
         $conf = new ConfigManager(self::$configFile);
         $conf->set('plugins.PUBSUBHUB_URL', $hub);
-        $data['_PAGE_'] = Router::$PAGE_FEED_RSS;
+        $data['_PAGE_'] = TemplatePage::FEED_RSS;
 
         $data = hook_pubsubhubbub_render_feed($data, $conf);
         $expected = '<atom:link rel="hub" href="'. $hub .'" />';
@@ -49,7 +49,7 @@ class PluginPubsubhubbubTest extends \PHPUnit\Framework\TestCase
         $hub = 'http://domain.hub';
         $conf = new ConfigManager(self::$configFile);
         $conf->set('plugins.PUBSUBHUB_URL', $hub);
-        $data['_PAGE_'] = Router::$PAGE_FEED_ATOM;
+        $data['_PAGE_'] = TemplatePage::FEED_ATOM;
 
         $data = hook_pubsubhubbub_render_feed($data, $conf);
         $expected = '<link rel="hub" href="'. $hub .'" />';

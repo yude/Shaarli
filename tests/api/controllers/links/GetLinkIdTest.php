@@ -2,7 +2,10 @@
 
 namespace Shaarli\Api\Controllers;
 
+use Shaarli\Bookmark\Bookmark;
+use Shaarli\Bookmark\BookmarkFileService;
 use Shaarli\Config\ConfigManager;
+use Shaarli\History;
 use Slim\Container;
 use Slim\Http\Environment;
 use Slim\Http\Request;
@@ -17,7 +20,7 @@ use Slim\Http\Response;
  *
  * @package Shaarli\Api\Controllers
  */
-class GetLinkIdTest extends \PHPUnit\Framework\TestCase
+class GetLinkIdTest extends \Shaarli\TestCase
 {
     /**
      * @var string datastore to test write operations
@@ -50,17 +53,19 @@ class GetLinkIdTest extends \PHPUnit\Framework\TestCase
     const NB_FIELDS_LINK = 9;
 
     /**
-     * Before each test, instantiate a new Api with its config, plugins and links.
+     * Before each test, instantiate a new Api with its config, plugins and bookmarks.
      */
-    public function setUp()
+    protected function setUp(): void
     {
         $this->conf = new ConfigManager('tests/utils/config/configJson');
+        $this->conf->set('resource.datastore', self::$testDatastore);
         $this->refDB = new \ReferenceLinkDB();
         $this->refDB->write(self::$testDatastore);
+        $history = new History('sandbox/history.php');
 
         $this->container = new Container();
         $this->container['conf'] = $this->conf;
-        $this->container['db'] = new \Shaarli\Bookmark\LinkDB(self::$testDatastore, true, false);
+        $this->container['db'] = new BookmarkFileService($this->conf, $history, true);
         $this->container['history'] = null;
 
         $this->controller = new Links($this->container);
@@ -69,7 +74,7 @@ class GetLinkIdTest extends \PHPUnit\Framework\TestCase
     /**
      * After each test, remove the test datastore.
      */
-    public function tearDown()
+    protected function tearDown(): void
     {
         @unlink(self::$testDatastore);
     }
@@ -97,7 +102,7 @@ class GetLinkIdTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals($id, $data['id']);
 
         // Check link elements
-        $this->assertEquals('http://domain.tld/?WDWyig', $data['url']);
+        $this->assertEquals('http://domain.tld/shaare/WDWyig', $data['url']);
         $this->assertEquals('WDWyig', $data['shorturl']);
         $this->assertEquals('Link title: @website', $data['title']);
         $this->assertEquals(
@@ -107,7 +112,7 @@ class GetLinkIdTest extends \PHPUnit\Framework\TestCase
         $this->assertEquals('sTuff', $data['tags'][0]);
         $this->assertEquals(false, $data['private']);
         $this->assertEquals(
-            \DateTime::createFromFormat(\Shaarli\Bookmark\LinkDB::LINK_DATE_FORMAT, '20150310_114651')->format(\DateTime::ATOM),
+            \DateTime::createFromFormat(Bookmark::LINK_DATE_FORMAT, '20150310_114651')->format(\DateTime::ATOM),
             $data['created']
         );
         $this->assertEmpty($data['updated']);
@@ -115,12 +120,12 @@ class GetLinkIdTest extends \PHPUnit\Framework\TestCase
 
     /**
      * Test basic getLink service: get non existent link => ApiLinkNotFoundException.
-     *
-     * @expectedException Shaarli\Api\Exceptions\ApiLinkNotFoundException
-     * @expectedExceptionMessage Link not found
      */
     public function testGetLink404()
     {
+        $this->expectException(\Shaarli\Api\Exceptions\ApiLinkNotFoundException::class);
+        $this->expectExceptionMessage('Link not found');
+
         $env = Environment::mock([
             'REQUEST_METHOD' => 'GET',
         ]);

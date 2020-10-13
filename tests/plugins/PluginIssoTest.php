@@ -2,9 +2,10 @@
 namespace Shaarli\Plugin\Isso;
 
 use DateTime;
-use Shaarli\Bookmark\LinkDB;
+use Shaarli\Bookmark\Bookmark;
 use Shaarli\Config\ConfigManager;
 use Shaarli\Plugin\PluginManager;
+use Shaarli\TestCase;
 
 require_once 'plugins/isso/isso.php';
 
@@ -13,12 +14,12 @@ require_once 'plugins/isso/isso.php';
  *
  * Test the Isso plugin (comment system).
  */
-class PluginIssoTest extends \PHPUnit\Framework\TestCase
+class PluginIssoTest extends TestCase
 {
     /**
      * Reset plugin path
      */
-    public function setUp()
+    public function setUp(): void
     {
         PluginManager::$PLUGINS_PATH = 'plugins';
     }
@@ -26,7 +27,7 @@ class PluginIssoTest extends \PHPUnit\Framework\TestCase
     /**
      * Test Isso init without errors.
      */
-    public function testIssoInitNoError()
+    public function testIssoInitNoError(): void
     {
         $conf = new ConfigManager('');
         $conf->set('plugins.ISSO_SERVER', 'value');
@@ -37,7 +38,7 @@ class PluginIssoTest extends \PHPUnit\Framework\TestCase
     /**
      * Test Isso init with errors.
      */
-    public function testIssoInitError()
+    public function testIssoInitError(): void
     {
         $conf = new ConfigManager('');
         $errors = isso_init($conf);
@@ -47,7 +48,7 @@ class PluginIssoTest extends \PHPUnit\Framework\TestCase
     /**
      * Test render_linklist hook with valid settings to display the comment form.
      */
-    public function testIssoDisplayed()
+    public function testIssoDisplayed(): void
     {
         $conf = new ConfigManager('');
         $conf->set('plugins.ISSO_SERVER', 'value');
@@ -60,7 +61,7 @@ class PluginIssoTest extends \PHPUnit\Framework\TestCase
                 array(
                     'id' => 12,
                     'url' => $str,
-                    'created' => DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, $date),
+                    'created' => DateTime::createFromFormat(Bookmark::LINK_DATE_FORMAT, $date),
                 )
             )
         );
@@ -85,9 +86,9 @@ class PluginIssoTest extends \PHPUnit\Framework\TestCase
     }
 
     /**
-     * Test isso plugin when multiple links are displayed (shouldn't be displayed).
+     * Test isso plugin when multiple bookmarks are displayed (shouldn't be displayed).
      */
-    public function testIssoMultipleLinks()
+    public function testIssoMultipleLinks(): void
     {
         $conf = new ConfigManager('');
         $conf->set('plugins.ISSO_SERVER', 'value');
@@ -102,27 +103,27 @@ class PluginIssoTest extends \PHPUnit\Framework\TestCase
                     'id' => 12,
                     'url' => $str,
                     'shorturl' => $short1 = 'abcd',
-                    'created' => DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, $date1),
+                    'created' => DateTime::createFromFormat(Bookmark::LINK_DATE_FORMAT, $date1),
                 ),
                 array(
                     'id' => 13,
                     'url' => $str . '2',
                     'shorturl' => $short2 = 'efgh',
-                    'created' => DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, $date2),
+                    'created' => DateTime::createFromFormat(Bookmark::LINK_DATE_FORMAT, $date2),
                 ),
             )
         );
 
         $processed = hook_isso_render_linklist($data, $conf);
         // link_plugin should be added for the icon
-        $this->assertContains('<a href="?'. $short1 .'#isso-thread">', $processed['links'][0]['link_plugin'][0]);
-        $this->assertContains('<a href="?'. $short2 .'#isso-thread">', $processed['links'][1]['link_plugin'][0]);
+        $this->assertContainsPolyfill('<a href="/shaare/'. $short1 .'#isso-thread">', $processed['links'][0]['link_plugin'][0]);
+        $this->assertContainsPolyfill('<a href="/shaare/'. $short2 .'#isso-thread">', $processed['links'][1]['link_plugin'][0]);
     }
 
     /**
      * Test isso plugin when using search (shouldn't be displayed).
      */
-    public function testIssoNotDisplayedWhenSearch()
+    public function testIssoNotDisplayedWhenSearch(): void
     {
         $conf = new ConfigManager('');
         $conf->set('plugins.ISSO_SERVER', 'value');
@@ -136,7 +137,7 @@ class PluginIssoTest extends \PHPUnit\Framework\TestCase
                     'id' => 12,
                     'url' => $str,
                     'shorturl' => $short1 = 'abcd',
-                    'created' => DateTime::createFromFormat(LinkDB::LINK_DATE_FORMAT, $date),
+                    'created' => DateTime::createFromFormat(Bookmark::LINK_DATE_FORMAT, $date),
                 )
             ),
             'search_term' => $str
@@ -145,13 +146,13 @@ class PluginIssoTest extends \PHPUnit\Framework\TestCase
         $processed = hook_isso_render_linklist($data, $conf);
 
         // link_plugin should be added for the icon
-        $this->assertContains('<a href="?'. $short1 .'#isso-thread">', $processed['links'][0]['link_plugin'][0]);
+        $this->assertContainsPolyfill('<a href="/shaare/'. $short1 .'#isso-thread">', $processed['links'][0]['link_plugin'][0]);
     }
 
     /**
      * Test isso plugin without server configuration (shouldn't be displayed).
      */
-    public function testIssoWithoutConf()
+    public function testIssoWithoutConf(): void
     {
         $data = 'abc';
         $conf = new ConfigManager('');

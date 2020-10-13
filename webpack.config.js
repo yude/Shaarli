@@ -2,26 +2,21 @@ const path = require('path');
 const glob = require('glob');
 
 // Minify JS
-const MinifyPlugin = require('babel-minify-webpack-plugin');
+const TerserPlugin = require('terser-webpack-plugin');
 
 // This plugin extracts the CSS into its own file instead of tying it with the JS.
 // It prevents:
 //   - not having styles due to a JS error
 //   - the flash page without styles during JS loading
-const ExtractTextPlugin = require("extract-text-webpack-plugin");
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
-const extractCssDefault = new ExtractTextPlugin({
+const extractCss = new MiniCssExtractPlugin({
   filename: "../css/[name].min.css",
-  publicPath: 'tpl/default/css/',
-});
-
-const extractCssVintage = new ExtractTextPlugin({
-  filename: "../css/[name].min.css",
-  publicPath: 'tpl/vintage/css/',
 });
 
 module.exports = [
   {
+    mode: 'production',
     entry: {
       thumbnails: './assets/common/js/thumbnails.js',
       thumbnails_update: './assets/common/js/thumbnails-update.js',
@@ -30,6 +25,7 @@ module.exports = [
         './assets/default/js/base.js',
         './assets/default/scss/shaarli.scss',
       ].concat(glob.sync('./assets/default/img/*')),
+      markdown: './assets/common/css/markdown.css',
     },
     output: {
       filename: '[name].min.js',
@@ -44,23 +40,23 @@ module.exports = [
             loader: 'babel-loader',
             options: {
               presets: [
-                'babel-preset-env',
+                '@babel/preset-env',
               ]
             }
           }
         },
         {
-          test: /\.scss/,
-          use: extractCssDefault.extract({
-            use: [{
-              loader: "css-loader",
+          test: /\.s?css/,
+          use: [
+            {
+              loader: MiniCssExtractPlugin.loader,
               options: {
-                minimize: true,
-              }
-            }, {
-              loader: "sass-loader"
-            }],
-          })
+                publicPath: 'tpl/default/css/',
+              },
+            },
+            'css-loader',
+            'sass-loader',
+          ],
         },
         {
           test: /\.(gif|png|jpe?g|svg|ico)$/i,
@@ -80,23 +76,28 @@ module.exports = [
           options: {
             name: '../fonts/[name].[ext]',
             // do not add a publicPath here because it's already handled by CSS's publicPath
-            publicPath: '',
+            publicPath: '../default/',
           }
         },
       ],
     },
+    optimization: {
+      minimize: true,
+      minimizer: [new TerserPlugin()],
+    },
     plugins: [
-      new MinifyPlugin(),
-      extractCssDefault,
+      extractCss,
     ],
   },
   {
+    mode: 'production',
     entry: {
       shaarli: [
         './assets/vintage/js/base.js',
         './assets/vintage/css/reset.css',
         './assets/vintage/css/shaarli.css',
       ].concat(glob.sync('./assets/vintage/img/*')),
+      markdown: './assets/common/css/markdown.css',
       thumbnails: './assets/common/js/thumbnails.js',
       thumbnails_update: './assets/common/js/thumbnails-update.js',
     },
@@ -113,21 +114,23 @@ module.exports = [
             loader: 'babel-loader',
             options: {
               presets: [
-                'babel-preset-env',
+                '@babel/preset-env',
               ]
             }
           }
         },
         {
           test: /\.css$/,
-          use: extractCssVintage.extract({
-            use: [{
-              loader: "css-loader",
+          use: [
+            {
+              loader: MiniCssExtractPlugin.loader,
               options: {
-                minimize: true,
-              }
-            }],
-          })
+                publicPath: 'tpl/vintage/css/',
+              },
+            },
+            'css-loader',
+            'sass-loader',
+          ],
         },
         {
           test: /\.(gif|png|jpe?g|svg|ico)$/i,
@@ -143,9 +146,12 @@ module.exports = [
         },
       ],
     },
+    optimization: {
+      minimize: true,
+      minimizer: [new TerserPlugin()],
+    },
     plugins: [
-      new MinifyPlugin(),
-      extractCssVintage,
+      extractCss,
     ],
   },
 ];

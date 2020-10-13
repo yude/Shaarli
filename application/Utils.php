@@ -87,18 +87,22 @@ function endsWith($haystack, $needle, $case = true)
  *
  * @param mixed $input Data to escape: a single string or an array of strings.
  *
- * @return string escaped.
+ * @return string|array escaped.
  */
 function escape($input)
 {
-    if (is_bool($input)) {
+    if (null === $input) {
+        return null;
+    }
+
+    if (is_bool($input) || is_int($input) || is_float($input) || $input instanceof DateTimeInterface) {
         return $input;
     }
 
     if (is_array($input)) {
         $out = array();
         foreach ($input as $key => $value) {
-            $out[$key] = escape($value);
+            $out[escape($key)] = escape($value);
         }
         return $out;
     }
@@ -159,10 +163,10 @@ function checkDateFormat($format, $string)
  */
 function generateLocation($referer, $host, $loopTerms = array())
 {
-    $finalReferer = '?';
+    $finalReferer = './?';
 
     // No referer if it contains any value in $loopCriteria.
-    foreach ($loopTerms as $value) {
+    foreach (array_filter($loopTerms) as $value) {
         if (strpos($referer, $value) !== false) {
             return $finalReferer;
         }
@@ -294,15 +298,15 @@ function normalize_spaces($string)
  * Requires php-intl to display international datetimes,
  * otherwise default format '%c' will be returned.
  *
- * @param DateTime $date to format.
- * @param bool     $time Displays time if true.
- * @param bool     $intl Use international format if true.
+ * @param DateTimeInterface $date to format.
+ * @param bool              $time Displays time if true.
+ * @param bool              $intl Use international format if true.
  *
  * @return bool|string Formatted date, or false if the input is invalid.
  */
 function format_date($date, $time = true, $intl = true)
 {
-    if (! $date instanceof DateTime) {
+    if (! $date instanceof DateTimeInterface) {
         return false;
     }
 

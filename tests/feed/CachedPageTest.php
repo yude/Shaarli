@@ -7,17 +7,17 @@ namespace Shaarli\Feed;
 /**
  * Unitary tests for cached pages
  */
-class CachedPageTest extends \PHPUnit\Framework\TestCase
+class CachedPageTest extends \Shaarli\TestCase
 {
     // test cache directory
     protected static $testCacheDir = 'sandbox/pagecache';
-    protected static $url = 'http://shaar.li/?do=atom';
+    protected static $url = 'http://shaar.li/feed/atom';
     protected static $filename;
 
     /**
      * Create the cache directory if needed
      */
-    public static function setUpBeforeClass()
+    public static function setUpBeforeClass(): void
     {
         if (!is_dir(self::$testCacheDir)) {
             mkdir(self::$testCacheDir);
@@ -28,7 +28,7 @@ class CachedPageTest extends \PHPUnit\Framework\TestCase
     /**
      * Reset the page cache
      */
-    public function setUp()
+    protected function setUp(): void
     {
         if (file_exists(self::$filename)) {
             unlink(self::$filename);
@@ -42,8 +42,9 @@ class CachedPageTest extends \PHPUnit\Framework\TestCase
     {
         new CachedPage(self::$testCacheDir, '', true);
         new CachedPage(self::$testCacheDir, '', false);
-        new CachedPage(self::$testCacheDir, 'http://shaar.li/?do=rss', true);
-        new CachedPage(self::$testCacheDir, 'http://shaar.li/?do=atom', false);
+        new CachedPage(self::$testCacheDir, 'http://shaar.li/feed/rss', true);
+        new CachedPage(self::$testCacheDir, 'http://shaar.li/feed/atom', false);
+        $this->addToAssertionCount(1);
     }
 
     /**

@@ -3,7 +3,7 @@
 
 BIN = vendor/bin
 
-all: static_analysis_summary check_permissions test
+all: check_permissions test
 
 ##
 # Docker test adapter
@@ -80,9 +80,14 @@ locale_test_%:
 		--testsuite language-$(firstword $(subst _, ,$*))
 
 all_tests: test locale_test_de_DE locale_test_en_US locale_test_fr_FR
-	@$(BIN)/phpcov merge --html coverage coverage
+	@# --The current version is not compatible with PHP 7.2
+	@#$(BIN)/phpcov merge --html coverage coverage
 	@# --text doesn't work with phpunit 4.* (v5 requires PHP 5.6)
 	@#$(BIN)/phpcov merge --text coverage/txt coverage
+
+### download 3rd-party PHP libraries, including dev dependencies
+composer_dependencies_dev: clean
+	composer install --prefer-dist
 
 ##
 # Custom release archive generation
@@ -122,7 +127,8 @@ release_tar: composer_dependencies htmldoc translate build_frontend
 ### generate a release zip and include 3rd-party dependencies and translations
 release_zip: composer_dependencies htmldoc translate build_frontend
 	git archive --prefix=$(ARCHIVE_PREFIX) -o $(ARCHIVE_VERSION).zip -9 HEAD
-	mkdir -p $(ARCHIVE_PREFIX)/{doc,vendor}
+	mkdir -p $(ARCHIVE_PREFIX)/doc
+	mkdir -p $(ARCHIVE_PREFIX)/vendor
 	rsync -a doc/html/ $(ARCHIVE_PREFIX)doc/html/
 	zip -r $(ARCHIVE_VERSION).zip $(ARCHIVE_PREFIX)doc/
 	rsync -a vendor/ $(ARCHIVE_PREFIX)vendor/
@@ -154,6 +160,7 @@ phpdoc: clean
 htmldoc:
 	python3 -m venv venv/
 	bash -c 'source venv/bin/activate; \
+	pip install wheel; \
 	pip install mkdocs; \
 	mkdocs build --clean'
 	find doc/html/ -type f -exec chmod a-x '{}' \;
@@ -171,4 +178,4 @@ eslint:
 
 ### Run CSSLint check against Shaarli's SCSS files
 sasslint:
-	@yarn run sass-lint -c .dev/.sasslintrc 'assets/default/scss/*.scss' -v -q
+	@yarn run stylelint --config .dev/.stylelintrc.js 'assets/default/scss/*.scss'
